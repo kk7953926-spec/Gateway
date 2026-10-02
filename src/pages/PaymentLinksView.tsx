@@ -15,6 +15,7 @@ import {
   AlertCircle,
   ShieldCheck,
   Download,
+  Trash2,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { PaymentLinkRecord } from '../types';
@@ -95,6 +96,22 @@ export const PaymentLinksView: React.FC<PaymentLinksViewProps> = ({ onNavigate }
       // Ignore
     } finally {
       setCreating(false);
+    }
+  };
+
+  const handleDeleteLink = async (id: string) => {
+    if (!token || !window.confirm('Are you sure you want to delete this payment link?')) return;
+    
+    try {
+      const res = await fetch(`/api/payment-links/${id}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        fetchLinks();
+      }
+    } catch {
+      // Ignore
     }
   };
 
@@ -318,6 +335,15 @@ export const PaymentLinksView: React.FC<PaymentLinksViewProps> = ({ onNavigate }
                       <Copy className="w-3.5 h-3.5 text-slate-500" />
                     )}
                     <span>{copiedId === link.id ? 'Copied' : 'Copy'}</span>
+                  </button>
+
+                  {/* Delete Link Button */}
+                  <button
+                    onClick={() => handleDeleteLink(link.id)}
+                    className="p-2 rounded-xl bg-rose-50 border border-rose-100 hover:bg-rose-100 text-rose-600 transition-colors cursor-pointer"
+                    title="Delete Link"
+                  >
+                    <Trash2 className="w-4 h-4" />
                   </button>
                 </div>
               </div>

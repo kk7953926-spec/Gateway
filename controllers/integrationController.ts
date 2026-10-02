@@ -168,6 +168,22 @@ export class IntegrationController {
   }
 
   /**
+   * DELETE /api/payment-links/:id
+   */
+  public static async deletePaymentLink(req: AuthenticatedRequest, res: Response) {
+    if (!req.user) return res.status(401).json({ success: false, error: 'Unauthorized' });
+    const { id } = req.params;
+    
+    const link = await dbService.getPaymentLinkById(id);
+    if (!link || link.user_id !== req.user.id) {
+      return res.status(404).json({ success: false, error: 'Link not found.' });
+    }
+
+    const deleted = await dbService.deletePaymentLink(id);
+    return res.status(200).json({ success: true, deleted });
+  }
+
+  /**
    * GET /api/transactions
    */
   public static async getTransactions(req: AuthenticatedRequest, res: Response) {

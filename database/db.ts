@@ -9,6 +9,7 @@ import {
   getDocs, 
   setDoc, 
   updateDoc, 
+  deleteDoc,
   query, 
   where
 } from 'firebase/firestore';
@@ -191,8 +192,33 @@ class DatabaseService {
 
   constructor() {
     this.loadFromDisk();
-    this.seedDefaultUser();
-    this.seedDefaultAdmin();
+    this.loadFromFirebase().then(() => {
+      this.seedDefaultUser();
+      this.seedDefaultAdmin();
+    });
+  }
+
+  private async loadFromFirebase() {
+    try {
+      const usersSnap = await getDocs(collection(db, 'users'));
+      usersSnap.forEach(doc => {
+        this.usersMap.set(doc.id, doc.data() as UserRecord);
+      });
+
+      const linksSnap = await getDocs(collection(db, 'payment_links'));
+      linksSnap.forEach(doc => {
+        this.paymentLinksMap.set(doc.id, doc.data() as PaymentLinkRecord);
+      });
+
+      const paymentsSnap = await getDocs(collection(db, 'upi_payments'));
+      paymentsSnap.forEach(doc => {
+        this.upiPaymentsMap.set(doc.id, doc.data() as UpiPaymentRecord);
+      });
+
+      this.updateStats();
+    } catch (e) {
+      console.error('Error loading from Firebase:', e);
+    }
   }
 
   private loadFromDisk() {
@@ -707,7 +733,30 @@ class DatabaseService {
     };
     this.paymentLinksMap.set(id, newLink);
     this.persist();
+
+    // Sync to Firestore
+    try {
+      await setDoc(doc(db, 'payment_links', id), newLink);
+    } catch {
+      // Fallback
+    }
+
     return newLink;
+  }
+
+  public async deletePaymentLink(id: string): Promise<boolean> {
+    if (this.paymentLinksMap.has(id)) {
+      this.paymentLinksMap.delete(id);
+      this.persist();
+
+      try {
+        await deleteDoc(doc(db, 'payment_links', id));
+      } catch {
+        // Fallback
+      }
+      return true;
+    }
+    return false;
   }
 
   public async getPaymentLinkById(id: string): Promise<PaymentLinkRecord | null> {
@@ -864,6 +913,16 @@ class DatabaseService {
 
       this.updateStats();
       this.persist();
+
+      try {
+        await setDoc(doc(db, 'upi_payments', id), {
+          status: payment.status,
+          confirmed_at: payment.confirmed_at,
+          transaction_ref: payment.transaction_ref,
+        }, { merge: true });
+      } catch {
+        // Fallback
+      }
 
       return payment;
     }
