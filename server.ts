@@ -86,6 +86,13 @@ app.get('/api/health', (req, res) => {
   });
 });
 
+app.get('/api/public/site-settings', (req, res) => {
+  return res.json({
+    success: true,
+    settings: dbService.getSiteSettings(),
+  });
+});
+
 async function startServer() {
   if (process.env.NODE_ENV !== 'production') {
     try {

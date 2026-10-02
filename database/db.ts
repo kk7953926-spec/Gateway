@@ -127,6 +127,25 @@ export interface OrderTransactionRecord {
   created_at: string;
 }
 
+export interface SiteSettingsRecord {
+  id: string;
+  site_name: string;
+  site_logo_url: string;
+  primary_color: string;
+  announcement?: string;
+  maintenance_mode: boolean;
+  updated_at: string;
+}
+
+export interface SubscriptionPlanRecord {
+  id: string;
+  name: string;
+  duration_days: number;
+  price: number;
+  status: 'ACTIVE' | 'INACTIVE';
+  created_at: string;
+}
+
 export interface SystemLogRecord {
   id: string;
   user_id?: string;
@@ -157,13 +176,15 @@ class DatabaseService {
   private paymentLinksMap = new Map<string, PaymentLinkRecord>();
   private transactionsMap = new Map<string, OrderTransactionRecord>();
   private logs: SystemLogRecord[] = [];
-  private subscriptionPlansMap = new Map<string, {
-    id: string;
-    name: string;
-    duration_days: number;
-    price: number;
-    created_at: string;
-  }>();
+  private subscriptionPlansMap = new Map<string, SubscriptionPlanRecord>();
+  private siteSettings: SiteSettingsRecord = {
+    id: 'global',
+    site_name: 'FAMGATEWAY',
+    site_logo_url: '',
+    primary_color: 'indigo',
+    maintenance_mode: false,
+    updated_at: new Date().toISOString(),
+  };
 
   private stats = {
     totalUsers: 0,
@@ -200,6 +221,11 @@ class DatabaseService {
 
   private async loadFromFirebase() {
     try {
+      const siteSnap = await getDoc(doc(db, 'site_settings', 'global'));
+      if (siteSnap.exists()) {
+        this.siteSettings = siteSnap.data() as SiteSettingsRecord;
+      }
+
       const usersSnap = await getDocs(collection(db, 'users'));
       usersSnap.forEach(doc => {
         this.usersMap.set(doc.id, doc.data() as UserRecord);
@@ -215,6 +241,11 @@ class DatabaseService {
         this.upiPaymentsMap.set(doc.id, doc.data() as UpiPaymentRecord);
       });
 
+      const plansSnap = await getDocs(collection(db, 'subscription_plans'));
+      plansSnap.forEach(doc => {
+        this.subscriptionPlansMap.set(doc.id, doc.data() as SubscriptionPlanRecord);
+      });
+
       this.updateStats();
     } catch (e) {
       console.error('Error loading from Firebase:', e);
@@ -226,6 +257,9 @@ class DatabaseService {
       if (fs.existsSync(DATA_FILE)) {
         const raw = fs.readFileSync(DATA_FILE, 'utf-8');
         const data = JSON.parse(raw);
+        if (data.siteSettings) {
+          this.siteSettings = data.siteSettings;
+        }
         if (Array.isArray(data.users)) {
           for (const u of data.users) {
             this.usersMap.set(u.id, u);
@@ -263,6 +297,7 @@ class DatabaseService {
         fs.mkdirSync(dir, { recursive: true });
       }
       const data = {
+        siteSettings: this.siteSettings,
         users: Array.from(this.usersMap.values()),
         paymentLinks: Array.from(this.paymentLinksMap.values()),
         upiPayments: Array.from(this.upiPaymentsMap.values()),
@@ -975,30 +1010,69 @@ class DatabaseService {
 
   // --- Subscriptions & Plans ---
   public getSubscriptionPlans() {
-    return Array.from(this.subscriptionPlansMap.values());
+    return Array.from(this.subscriptionPlansMap.values()).sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
   }
 
-  public createSubscriptionPlan(name: string, duration_days: number, price: number) {
+  public async createSubscriptionPlan(name: string, duration_days: number, price: number) {
     const id = 'plan_' + Math.random().toString(36).substring(2, 11);
-    const plan = {
+    const plan: SubscriptionPlanRecord = {
       id,
       name,
       duration_days,
       price,
+      status: 'ACTIVE',
       created_at: new Date().toISOString()
     };
     this.subscriptionPlansMap.set(id, plan);
     this.persist();
+    try {
+      await setDoc(doc(db, 'subscription_plans', id), plan);
+    } catch { /* Ignore */ }
     return plan;
   }
 
-  public deleteSubscriptionPlan(id: string) {
+  public async toggleSubscriptionPlan(id: string) {
+    const plan = this.subscriptionPlansMap.get(id);
+    if (plan) {
+      plan.status = plan.status === 'ACTIVE' ? 'INACTIVE' : 'ACTIVE';
+      this.subscriptionPlansMap.set(id, plan);
+      this.persist();
+      try {
+        await setDoc(doc(db, 'subscription_plans', id), { status: plan.status }, { merge: true });
+      } catch { /* Ignore */ }
+      return plan;
+    }
+    return null;
+  }
+
+  public async deleteSubscriptionPlan(id: string) {
     const deleted = this.subscriptionPlansMap.delete(id);
     this.persist();
+    try {
+      await deleteDoc(doc(db, 'subscription_plans', id));
+    } catch { /* Ignore */ }
     return deleted;
   }
 
-  public updateUserSubscription(userId: string, planId: string, durationDays: number) {
+  // --- Site Settings ---
+  public getSiteSettings(): SiteSettingsRecord {
+    return { ...this.siteSettings };
+  }
+
+  public async updateSiteSettings(settings: Partial<SiteSettingsRecord>) {
+    this.siteSettings = {
+      ...this.siteSettings,
+      ...settings,
+      updated_at: new Date().toISOString()
+    };
+    this.persist();
+    try {
+      await setDoc(doc(db, 'site_settings', 'global'), this.siteSettings, { merge: true });
+    } catch { /* Ignore */ }
+    return this.siteSettings;
+  }
+
+  public async updateUserSubscription(userId: string, planId: string, durationDays: number) {
     const u = this.usersMap.get(userId);
     if (!u) return null;
 

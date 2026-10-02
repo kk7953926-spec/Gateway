@@ -4,6 +4,12 @@ import { User } from '../types';
 interface AuthContextType {
   user: User | null;
   token: string | null;
+  siteSettings: {
+    site_name: string;
+    site_logo_url: string;
+    primary_color: string;
+    maintenance_mode: boolean;
+  };
   pendingVerificationEmail: string | null;
   pendingUserId: string | null;
   pendingExpiresAt: number | null;
@@ -27,6 +33,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const [token, setToken] = useState<string | null>(() => {
     return localStorage.getItem('fampay_token') || null;
+  });
+
+  const [siteSettings, setSiteSettings] = useState({
+    site_name: 'FAMGATEWAY',
+    site_logo_url: '',
+    primary_color: 'indigo',
+    maintenance_mode: false,
   });
 
   const [pendingVerificationEmail, setPendingVerificationEmail] = useState<string | null>(null);
@@ -75,6 +88,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     });
   };
 
+  const refreshSiteSettings = async () => {
+    try {
+      const res = await fetch('/api/public/site-settings');
+      if (res.ok) {
+        const data = await res.json();
+        if (data.settings) setSiteSettings(data.settings);
+      }
+    } catch { /* Ignore */ }
+  };
+
   const refreshProfile = async () => {
     if (!token) return;
     try {
@@ -94,6 +117,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   useEffect(() => {
+    refreshSiteSettings();
     if (token) {
       refreshProfile();
     }
@@ -104,6 +128,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       value={{
         user,
         token,
+        siteSettings,
         pendingVerificationEmail,
         pendingUserId,
         pendingExpiresAt,

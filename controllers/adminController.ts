@@ -210,4 +210,34 @@ export class AdminController {
       }
     });
   }
+
+  /**
+   * GET /api/admin/site-settings
+   */
+  public static async getSiteSettings(req: AuthenticatedRequest, res: Response) {
+    dbService.incrementApiRequests();
+    const settings = dbService.getSiteSettings();
+    return res.status(200).json({ success: true, settings });
+  }
+
+  /**
+   * POST /api/admin/site-settings
+   */
+  public static async updateSiteSettings(req: AuthenticatedRequest, res: Response) {
+    dbService.incrementApiRequests();
+    const updated = await dbService.updateSiteSettings(req.body);
+    return res.status(200).json({ success: true, settings: updated });
+  }
+
+  /**
+   * POST /api/admin/subscription-plans/toggle
+   */
+  public static async toggleSubscriptionPlan(req: AuthenticatedRequest, res: Response) {
+    dbService.incrementApiRequests();
+    const { planId } = req.body || {};
+    if (!planId) return res.status(400).json({ success: false, error: 'planId is required.' });
+
+    const plan = await dbService.toggleSubscriptionPlan(planId);
+    return res.status(200).json({ success: true, plan });
+  }
 }

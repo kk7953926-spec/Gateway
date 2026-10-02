@@ -12,10 +12,15 @@ router.get('/settings', requireAdmin, AdminController.getSettings);
 router.post('/settings', requireAdmin, AdminController.updateSettings);
 router.post('/test-email', requireAdmin, AdminController.sendTestEmail);
 
+// Site Settings
+router.get('/site-settings', requireAdmin, AdminController.getSiteSettings);
+router.post('/site-settings', requireAdmin, AdminController.updateSiteSettings);
+
 // Subscription routes
 router.get('/subscription-plans', requireAdmin, AdminController.getSubscriptionPlans);
 router.post('/subscription-plans/create', requireAdmin, AdminController.createSubscriptionPlan);
 router.post('/subscription-plans/delete', requireAdmin, AdminController.deleteSubscriptionPlan);
+router.post('/subscription-plans/toggle', requireAdmin, AdminController.toggleSubscriptionPlan);
 router.post('/users/assign-subscription', requireAdmin, AdminController.assignSubscription);
 
 export default router;

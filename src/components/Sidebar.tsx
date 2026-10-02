@@ -30,7 +30,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   mobileOpen,
   onCloseMobile,
 }) => {
-  const { user, logout } = useAuth();
+  const { user, logout, siteSettings } = useAuth();
 
   const mainNav = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
@@ -74,12 +74,16 @@ export const Sidebar: React.FC<SidebarProps> = ({
         <div>
           <div className="h-16 px-6 flex items-center justify-between border-b border-slate-800/80">
             <div className="flex items-center gap-2.5 cursor-pointer" onClick={() => handleNavClick('dashboard')}>
-              <div className="w-8 h-8 rounded-lg bg-gradient-to-tr from-purple-600 to-indigo-600 flex items-center justify-center text-white font-extrabold text-sm shadow-md shadow-purple-600/30">
-                FG
+              <div className="w-8 h-8 rounded-lg bg-indigo-600 flex items-center justify-center text-white font-extrabold text-sm shadow-md overflow-hidden">
+                {siteSettings.site_logo_url ? (
+                  <img src={siteSettings.site_logo_url} className="w-full h-full object-cover" alt="Logo" />
+                ) : (
+                  <span>{siteSettings.site_name.substring(0, 2).toUpperCase()}</span>
+                )}
               </div>
               <div className="flex flex-col">
-                <span className="font-extrabold text-sm text-white tracking-tight leading-none">FAMGATEWAY</span>
-                <span className="text-[10px] text-purple-400 font-bold mt-0.5">FamPay Engine</span>
+                <span className="font-extrabold text-sm text-white tracking-tight leading-none uppercase">{siteSettings.site_name}</span>
+                <span className="text-[10px] text-purple-400 font-bold mt-0.5">Enterprise Gateway</span>
               </div>
             </div>
 

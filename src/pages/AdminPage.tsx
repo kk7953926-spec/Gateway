@@ -15,19 +15,37 @@ import {
   Check,
   QrCode,
   Globe,
+  Activity,
+  Layout,
+  Palette,
+  Eye,
+  Trash2,
+  ToggleLeft,
+  ToggleRight,
+  Image as ImageIcon,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
-import { User, VerificationLog, SmtpConfig, SystemLog, UpiPaymentRecord } from '../types';
+import { User, VerificationLog, SmtpConfig, SystemLog, UpiPaymentRecord, LiveVisitor } from '../types';
 
 export const AdminPage: React.FC = () => {
   const { user, token } = useAuth();
-  const [activeTab, setActiveTab] = useState<'users' | 'verifications' | 'payments' | 'smtp' | 'logs' | 'subscriptions'>('users');
+  const [activeTab, setActiveTab] = useState<'users' | 'verifications' | 'payments' | 'smtp' | 'logs' | 'subscriptions' | 'customization' | 'activity'>('users');
 
   const [users, setUsers] = useState<User[]>([]);
   const [verifications, setVerifications] = useState<VerificationLog[]>([]);
   const [payments, setPayments] = useState<UpiPaymentRecord[]>([]);
   const [logs, setLogs] = useState<SystemLog[]>([]);
   const [plans, setPlans] = useState<any[]>([]);
+  const [visitors, setVisitors] = useState<LiveVisitor[]>([]);
+  
+  const [siteSettings, setSiteSettings] = useState({
+    site_name: 'FAMGATEWAY',
+    site_logo_url: '',
+    primary_color: 'indigo',
+    announcement: '',
+    maintenance_mode: false,
+  });
+
   const [settings, setSettings] = useState<SmtpConfig>({
     host: 'smtp.gmail.com',
     port: 587,
@@ -111,11 +129,68 @@ export const AdminPage: React.FC = () => {
         const lData = await logRes.json();
         if (lData.logs) setLogs(lData.logs);
       }
+
+      const visitorsRes = await fetch('/api/public/live-visitors');
+      if (visitorsRes.ok) {
+        const vData = await visitorsRes.json();
+        if (vData.visitors) setVisitors(vData.visitors);
+      }
+
+      const siteRes = await fetch('/api/admin/site-settings', {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (siteRes.ok) {
+        const sData = await siteRes.json();
+        if (sData.settings) setSiteSettings(sData.settings);
+      }
     } catch {
       // Ignore
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleSaveSiteSettings = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!token) return;
+    setSavingSettings(true);
+    setFeedback(null);
+    try {
+      const res = await fetch('/api/admin/site-settings', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(siteSettings),
+      });
+      if (res.ok) {
+        setFeedback({ type: 'success', msg: 'Site customization saved successfully!' });
+        fetchAdminData();
+      }
+    } catch {
+      setFeedback({ type: 'error', msg: 'Failed to save site settings.' });
+    } finally {
+      setSavingSettings(false);
+    }
+  };
+
+  const handleTogglePlan = async (planId: string) => {
+    if (!token) return;
+    try {
+      const res = await fetch('/api/admin/subscription-plans/toggle', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ planId }),
+      });
+      if (res.ok) {
+        setFeedback({ type: 'success', msg: 'Plan status toggled.' });
+        fetchAdminData();
+      }
+    } catch { /* Ignore */ }
   };
 
   useEffect(() => {
@@ -383,6 +458,30 @@ export const AdminPage: React.FC = () => {
         </button>
 
         <button
+          onClick={() => setActiveTab('customization')}
+          className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 shrink-0 ${
+            activeTab === 'customization'
+              ? 'bg-indigo-600 text-white shadow-md'
+              : 'text-slate-600 hover:text-slate-900 bg-slate-100'
+          }`}
+        >
+          <Palette className="w-4 h-4" />
+          <span>Site Customization</span>
+        </button>
+
+        <button
+          onClick={() => setActiveTab('activity')}
+          className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 shrink-0 ${
+            activeTab === 'activity'
+              ? 'bg-indigo-600 text-white shadow-md'
+              : 'text-slate-600 hover:text-slate-900 bg-slate-100'
+          }`}
+        >
+          <Activity className="w-4 h-4" />
+          <span>Live Activity ({visitors.length})</span>
+        </button>
+
+        <button
           onClick={() => setActiveTab('logs')}
           className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 shrink-0 ${
             activeTab === 'logs'
@@ -403,7 +502,7 @@ export const AdminPage: React.FC = () => {
           }`}
         >
           <Sliders className="w-4 h-4" />
-          <span>Subscription Panels ({plans.length})</span>
+          <span>Subscription Plans ({plans.length})</span>
         </button>
       </div>
 
@@ -916,12 +1015,26 @@ export const AdminPage: React.FC = () => {
                         <td className="py-3 text-slate-700">{p.duration_days} Days</td>
                         <td className="py-3 font-extrabold text-indigo-700">₹{p.price.toFixed(2)}</td>
                         <td className="py-3">
-                          <button
-                            onClick={() => handleDeletePlan(p.id)}
-                            className="px-2 py-1 rounded bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold text-[10px] transition-colors"
-                          >
-                            Delete Plan
-                          </button>
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={() => handleTogglePlan(p.id)}
+                              className={`p-1.5 rounded-lg border transition-colors ${
+                                p.status === 'ACTIVE'
+                                  ? 'bg-emerald-50 border-emerald-200 text-emerald-600 hover:bg-emerald-100'
+                                  : 'bg-slate-50 border-slate-200 text-slate-400 hover:bg-slate-100'
+                              }`}
+                              title={p.status === 'ACTIVE' ? 'Deactivate Plan' : 'Activate Plan'}
+                            >
+                              {p.status === 'ACTIVE' ? <ToggleRight className="w-4 h-4" /> : <ToggleLeft className="w-4 h-4" />}
+                            </button>
+                            <button
+                              onClick={() => handleDeletePlan(p.id)}
+                              className="p-1.5 rounded-lg bg-rose-50 border border-rose-100 text-rose-600 hover:bg-rose-100 transition-colors"
+                              title="Delete Plan"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     ))
@@ -934,6 +1047,163 @@ export const AdminPage: React.FC = () => {
                   )}
                 </tbody>
               </table>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Tab 7: Customization */}
+      {activeTab === 'customization' && (
+        <div className="space-y-6">
+          <form onSubmit={handleSaveSiteSettings} className="p-6 rounded-3xl bg-white border border-slate-200 shadow-sm space-y-6">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-4">
+              <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
+                <Palette className="w-5 h-5 text-indigo-600" />
+                <span>Global Site Customization</span>
+              </h3>
+              <button
+                type="submit"
+                disabled={savingSettings}
+                className="px-5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold text-xs flex items-center gap-2 shadow-md disabled:opacity-50"
+              >
+                {savingSettings ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                <span>Save All Changes</span>
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1.5">Platform Name</label>
+                  <input
+                    type="text"
+                    value={siteSettings.site_name}
+                    onChange={(e) => setSiteSettings({ ...siteSettings, site_name: e.target.value })}
+                    className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-slate-900 focus:outline-none focus:border-indigo-600"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1.5">Platform Logo URL</label>
+                  <div className="flex gap-3">
+                    <input
+                      type="url"
+                      value={siteSettings.site_logo_url}
+                      onChange={(e) => setSiteSettings({ ...siteSettings, site_logo_url: e.target.value })}
+                      placeholder="https://example.com/logo.png"
+                      className="flex-1 px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-mono text-slate-600 focus:outline-none"
+                    />
+                    <div className="w-12 h-12 rounded-xl bg-slate-100 border border-slate-200 flex items-center justify-center overflow-hidden">
+                      {siteSettings.site_logo_url ? (
+                        <img src={siteSettings.site_logo_url} className="w-full h-full object-contain" alt="Preview" />
+                      ) : (
+                        <ImageIcon className="w-5 h-5 text-slate-400" />
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="pt-2">
+                  <label className="block text-xs font-bold text-slate-700 mb-3">Logo Gallery (Quick Select)</label>
+                  <div className="grid grid-cols-4 gap-3">
+                    {[
+                      'https://cdn-icons-png.flaticon.com/512/5968/5968260.png',
+                      'https://cdn-icons-png.flaticon.com/512/1150/1150592.png',
+                      'https://cdn-icons-png.flaticon.com/512/2111/2111615.png',
+                      'https://cdn-icons-png.flaticon.com/512/732/732200.png',
+                    ].map((url, i) => (
+                      <button
+                        key={i}
+                        type="button"
+                        onClick={() => setSiteSettings({ ...siteSettings, site_logo_url: url })}
+                        className={`p-2 rounded-xl border-2 transition-all hover:scale-105 ${
+                          siteSettings.site_logo_url === url ? 'border-indigo-600 bg-indigo-50' : 'border-slate-100 bg-slate-50'
+                        }`}
+                      >
+                        <img src={url} className="w-full h-8 object-contain mx-auto" />
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              <div className="space-y-4">
+                <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-3">
+                  <h4 className="text-xs font-black text-slate-900 uppercase">Live Preview</h4>
+                  <div className="p-4 rounded-2xl bg-white border border-slate-200 shadow-sm flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-lg bg-indigo-600 flex items-center justify-center text-white font-black overflow-hidden shadow-indigo-200 shadow-lg">
+                      {siteSettings.site_logo_url ? <img src={siteSettings.site_logo_url} className="w-full h-full object-cover" /> : siteSettings.site_name.charAt(0)}
+                    </div>
+                    <div>
+                      <div className="text-sm font-black text-slate-900">{siteSettings.site_name}</div>
+                      <div className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Enterprise Gateway</div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between p-4 rounded-2xl border border-slate-200">
+                  <div className="space-y-0.5">
+                    <div className="text-xs font-bold text-slate-900">Maintenance Mode</div>
+                    <div className="text-[10px] text-slate-500">Temporarily disable merchant access</div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setSiteSettings({ ...siteSettings, maintenance_mode: !siteSettings.maintenance_mode })}
+                    className={`p-1.5 rounded-full transition-colors ${siteSettings.maintenance_mode ? 'text-rose-600' : 'text-slate-300'}`}
+                  >
+                    {siteSettings.maintenance_mode ? <ToggleRight className="w-8 h-8" /> : <ToggleLeft className="w-8 h-8" />}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {/* Tab 8: Live Activity */}
+      {activeTab === 'activity' && (
+        <div className="space-y-6">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="p-5 rounded-[2rem] bg-white border border-slate-200 shadow-sm">
+              <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Active Visitors</div>
+              <div className="text-3xl font-black text-slate-900 mt-1">{visitors.length}</div>
+              <div className="flex items-center gap-1 mt-1 text-[10px] font-bold text-emerald-500">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                <span>Real-time tracking</span>
+              </div>
+            </div>
+            <div className="p-5 rounded-[2rem] bg-white border border-slate-200 shadow-sm">
+              <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Checkouts Active</div>
+              <div className="text-3xl font-black text-indigo-600 mt-1">
+                {visitors.filter(v => v.isCheckout).length}
+              </div>
+              <div className="text-[10px] font-bold text-slate-400 mt-1">Ready for conversion</div>
+            </div>
+          </div>
+
+          <div className="p-6 rounded-3xl bg-white border border-slate-200 shadow-sm space-y-4">
+            <h3 className="text-sm font-bold text-slate-900">Live Visitor Stream</h3>
+            <div className="space-y-2">
+              {visitors.length > 0 ? visitors.map((v) => (
+                <div key={v.id} className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200 flex items-center justify-between group">
+                  <div className="flex items-center gap-3">
+                    <div className={`w-2.5 h-2.5 rounded-full ${Date.now() - v.lastPing < 10000 ? 'bg-emerald-500 animate-pulse' : 'bg-slate-300'}`} />
+                    <div>
+                      <div className="text-xs font-bold text-slate-900 flex items-center gap-2">
+                        {v.ip}
+                        {v.isCheckout && <span className="px-1.5 py-0.5 rounded bg-indigo-100 text-indigo-700 text-[9px] font-black">CHECKOUT</span>}
+                      </div>
+                      <div className="text-[10px] text-slate-500 font-mono mt-0.5">{v.page}</div>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <div className="text-[10px] font-bold text-slate-700">{v.browser} on {v.device}</div>
+                    <div className="text-[9px] text-slate-400">Joined {new Date(v.joinedAt).toLocaleTimeString()}</div>
+                  </div>
+                </div>
+              )) : (
+                <div className="py-12 text-center text-slate-400 text-xs font-bold">No active users currently browsing.</div>
+              )}
             </div>
           </div>
         </div>
