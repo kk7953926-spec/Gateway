@@ -20,6 +20,7 @@ import {
   ArrowLeft,
 } from 'lucide-react';
 import QRCode from 'qrcode';
+import { listenToPaymentStatus } from '../hooks/usePaymentListener';
 
 interface PublicCheckoutViewProps {
   linkId: string;
@@ -29,7 +30,7 @@ export const PublicCheckoutView: React.FC<PublicCheckoutViewProps> = ({ linkId }
   const [loading, setLoading] = useState(true);
   const [details, setDetails] = useState<any>(null);
   const [qrDataUrl, setQrDataUrl] = useState<string | null>(null);
-  const [status, setStatus] = useState<'PENDING' | 'CONFIRMED' | 'FAILED' | 'CANCELLED'>('PENDING');
+  const [status, setStatus] = useState<'PENDING' | 'VERIFYING' | 'CONFIRMED' | 'FAILED' | 'CANCELLED'>('PENDING');
   const [verifying, setVerifying] = useState(false);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -217,11 +218,24 @@ export const PublicCheckoutView: React.FC<PublicCheckoutViewProps> = ({ linkId }
     }).catch(() => {});
   }, [linkId, details?.amount]);
 
-  // Periodic polling for status (REMOVED: Now only relies on manual user verification to prevent false confirmations)
   useEffect(() => {
-    // Polling removed to prevent false positives before payment
-    return () => {};
-  }, [linkId, status]);
+    let unsubscribe: () => void;
+    if (linkId) {
+      unsubscribe = listenToPaymentStatus(linkId, (newStatus) => {
+        // Only allow status to move to CONFIRMED via server callback
+        if (newStatus === 'CONFIRMED' || newStatus === 'CAPTURED') {
+          setStatus('CONFIRMED');
+          setStatusMessage('Payment Successfully Received & Confirmed! 🎉');
+        } else if (newStatus === 'VERIFYING') {
+          setStatus('VERIFYING');
+          setStatusMessage('Payment detected, verifying funds...');
+        }
+      });
+    }
+    return () => {
+      if (unsubscribe) unsubscribe();
+    };
+  }, [linkId]);
 
   // Countdown timer interval
   useEffect(() => {

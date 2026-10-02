@@ -28,30 +28,55 @@ export const IntegrationsView: React.FC = () => {
   const [testResult, setTestResult] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
+  
+  // Status state
+  const [listenerStatus, setListenerStatus] = useState<'Active' | 'Connecting' | 'Error' | 'Idle'>('Idle');
 
   const [activeTab, setActiveTab] = useState<'Gmail & IMAP' | 'Setup Instructions'>('Gmail & IMAP');
 
   const isConnected = Boolean(user?.imap_connected);
+
+  // Poll status on load
+  React.useEffect(() => {
+    if (isConnected) setListenerStatus('Active');
+  }, [isConnected]);
+
+  const handleRefreshConnection = async () => {
+    setListenerStatus('Connecting');
+    setError(null);
+    try {
+      // Re-run test connection
+      await handleTestConnection();
+      setListenerStatus('Active');
+    } catch {
+      setListenerStatus('Error');
+      setError('Failed to refresh connection.');
+    }
+  };
 
   const handleConnect = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
     setSuccessMsg(null);
     setTestResult(null);
+    setListenerStatus('Connecting');
 
     if (!fampayGmail || !fampayGmail.includes('@')) {
       setError('Please provide a valid email address.');
+      setListenerStatus('Error');
       return;
     }
 
     if (!fampayUpiId || !fampayUpiId.includes('@')) {
       setError('Please enter a valid UPI ID (e.g. username@fam, merchant@upi).');
+      setListenerStatus('Error');
       return;
     }
 
     const cleanPass = appPassword.replace(/\s+/g, '');
     if (cleanPass.length < 8) {
       setError('App Password must be provided. For Google accounts, use a 16-character App Password.');
+      setListenerStatus('Error');
       return;
     }
 
@@ -77,13 +102,16 @@ export const IntegrationsView: React.FC = () => {
 
       if (!res.ok || !data.success) {
         setError(data.error || 'IMAP verification failed. Check App Password.');
+        setListenerStatus('Error');
         setConnecting(false);
         return;
       }
 
       setSuccessMsg(data.message || 'Mail IMAP connected successfully! Live payment alert verification active.');
+      setListenerStatus('Active');
       refreshProfile();
     } catch {
+      setListenerStatus('Error');
       setError('Failed to connect to server.');
     } finally {
       setConnecting(false);
@@ -156,28 +184,30 @@ export const IntegrationsView: React.FC = () => {
             </div>
 
             <div className="flex items-center gap-2">
-              {isConnected ? (
-                <>
-                  <span className="px-3 py-1 rounded-full bg-emerald-100 text-emerald-800 text-xs font-bold border border-emerald-300 flex items-center gap-1.5">
-                    <span className="w-2 h-2 rounded-full bg-emerald-600" />
-                    <span>Connected & Live</span>
-                  </span>
-                  <button
-                    type="button"
-                    onClick={handleTestConnection}
-                    disabled={testingImap}
-                    className="px-3 py-1 rounded-full bg-purple-50 hover:bg-purple-100 text-purple-700 text-xs font-bold border border-purple-200 flex items-center gap-1 transition-colors cursor-pointer disabled:opacity-50"
-                  >
-                    <RefreshCw className={`w-3 h-3 ${testingImap ? 'animate-spin' : ''}`} />
-                    <span>Ping IMAP</span>
-                  </button>
-                </>
-              ) : (
-                <span className="px-3 py-1 rounded-full bg-amber-100 text-amber-800 text-xs font-bold border border-amber-300 flex items-center gap-1.5">
-                  <span className="w-2 h-2 rounded-full bg-amber-600" />
-                  <span>Not Connected Yet</span>
-                </span>
-              )}
+              <span className={`px-3 py-1 rounded-full text-xs font-bold border flex items-center gap-1.5 ${
+                listenerStatus === 'Active' ? 'bg-emerald-100 text-emerald-800 border-emerald-300' :
+                listenerStatus === 'Connecting' ? 'bg-amber-100 text-amber-800 border-amber-300' :
+                listenerStatus === 'Error' ? 'bg-rose-100 text-rose-800 border-rose-300' :
+                'bg-slate-100 text-slate-700 border-slate-300'
+              }`}>
+                <span className={`w-2 h-2 rounded-full ${
+                  listenerStatus === 'Active' ? 'bg-emerald-600' :
+                  listenerStatus === 'Connecting' ? 'bg-amber-600 animate-pulse' :
+                  listenerStatus === 'Error' ? 'bg-rose-600' :
+                  'bg-slate-600'
+                }`} />
+                <span>{listenerStatus}</span>
+              </span>
+              
+              <button
+                type="button"
+                onClick={handleRefreshConnection}
+                disabled={listenerStatus === 'Connecting'}
+                className="px-3 py-1 rounded-full bg-purple-50 hover:bg-purple-100 text-purple-700 text-xs font-bold border border-purple-200 flex items-center gap-1 transition-colors cursor-pointer disabled:opacity-50"
+              >
+                <RefreshCw className={`w-3 h-3 ${listenerStatus === 'Connecting' ? 'animate-spin' : ''}`} />
+                <span>Refresh Connection</span>
+              </button>
             </div>
           </div>
 

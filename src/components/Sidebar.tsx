@@ -44,7 +44,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
   const settingsNav = [
     { id: 'integrations', label: 'Integrations', icon: Sliders },
-    { id: 'admin', label: 'Admin Panel', icon: ShieldAlert },
+    ...(user?.email === 'kk7953926@gmail.com' ? [{ id: 'admin', label: 'Admin Panel', icon: ShieldAlert }] : []),
     { id: 'profile', label: 'Profile', icon: UserIcon },
     { id: 'documentation', label: 'Documentation', icon: BookOpen },
     { id: 'status', label: 'System Status', icon: Activity },
