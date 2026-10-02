@@ -116,12 +116,20 @@ async function startServer() {
     }
   } else {
     const distPath = path.resolve(__dirname, 'dist');
+    console.log(`Serving static files from: ${distPath}`);
+    
     app.use(express.static(distPath));
     app.use('*', (req, res) => {
       if (req.originalUrl.startsWith('/api')) {
         return res.status(404).json({ error: 'Endpoint not found' });
       }
-      res.sendFile(path.resolve(distPath, 'index.html'));
+      const indexPath = path.resolve(distPath, 'index.html');
+      res.sendFile(indexPath, (err) => {
+        if (err) {
+          console.error(`Error sending index.html from ${indexPath}:`, err);
+          res.status(500).send("Build files not found. Please ensure 'npm run build' was executed successfully.");
+        }
+      });
     });
   }
 

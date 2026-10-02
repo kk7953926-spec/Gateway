@@ -1,0 +1,18 @@
+services:
+  - type: web
+    name: fampay-x-gateway
+    env: node
+    plan: free
+    buildCommand: npm install && npm run build
+    startCommand: npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 10000
+      - key: APP_URL
+        fromContext: instance_url
+      - key: JWT_SECRET
+        generateValue: true
+      - key: DISABLE_HMR
+        value: "true"
