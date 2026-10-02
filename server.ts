@@ -42,6 +42,10 @@ app.use('/api/user', userRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/payment', paymentRoutes);
 app.use('/api', integrationRoutes);
+app.use('/api/webhook', (req, res, next) => {
+  req.url = '/webhook' + (req.url === '/' ? '' : req.url);
+  paymentRoutes(req, res, next);
+});
 
 app.get('/api/public/stats', (req, res) => {
   dbService.incrementApiRequests();

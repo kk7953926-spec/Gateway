@@ -1,4 +1,5 @@
 import Imap from 'imap';
+import { simpleParser } from 'mailparser';
 
 export interface ImapVerificationResult {
   success: boolean;
@@ -130,8 +131,10 @@ export class ImapService {
   }
 
   /**
-   * Connects to IMAP server, searches recent INBOX emails for an ACTUAL genuine payment alert matching the amount or UTR.
-   * Accurately supports FamPay, FamApp, IDFC FIRST Bank, UPI VPAs, PhonePe, Paytm, and GPay.
+   * Connects to IMAP server, searches recent INBOX emails using mailparser.
+   * Accurately verifies genuine FamPay, FamApp, IDFC FIRST Bank, and UPI alerts.
+   * Extracts REAL Bank UTR (10-14 digits) and Transaction ID.
+   * NEVER marks payment as confirmed without a genuine incoming payment email!
    */
   public static async verifyLiveEmailAlert(
     email: string,
@@ -157,7 +160,7 @@ export class ImapService {
     if (cleanAppPass.length < 8) {
       return {
         success: false,
-        message: 'Please provide a valid App Password.',
+        message: 'Please provide a valid 16-digit Google App Password in Integrations.',
       };
     }
 
@@ -172,8 +175,8 @@ export class ImapService {
         port: customPort || 993,
         tls: true,
         tlsOptions: { rejectUnauthorized: false },
-        connTimeout: 25000,
-        authTimeout: 25000,
+        connTimeout: 20000,
+        authTimeout: 20000,
       };
 
       const imap = new Imap(imapConfig);
@@ -196,7 +199,7 @@ export class ImapService {
           success: false,
           message: `IMAP connection to ${host} timed out. Could not verify payment in your email inbox.`,
         });
-      }, 25000);
+      }, 20000);
 
       imap.once('ready', () => {
         imap.openBox('INBOX', true, (err, box) => {
@@ -217,271 +220,163 @@ export class ImapService {
             });
           }
 
-          // Fetch the latest 20 emails from INBOX for near-instant scanning
-          const fetchCount = Math.min(20, totalMessages);
+          // Fetch the latest 25 emails from INBOX
+          const fetchCount = Math.min(25, totalMessages);
           const startSeq = Math.max(1, totalMessages - fetchCount + 1);
           const fetchStream = imap.seq.fetch(`${startSeq}:${totalMessages}`, {
-            bodies: ['HEADER.FIELDS (FROM SUBJECT DATE)', 'TEXT'],
+            bodies: '',
             struct: true,
           });
 
+          const parsePromises: Promise<any>[] = [];
           let matchFound = false;
-          let emailsProcessed = 0;
-          const totalToProcess = totalMessages - startSeq + 1;
-          const recentEmailSummaries: string[] = [];
 
           fetchStream.on('message', (msg) => {
-            let headerText = '';
-            let bodyText = '';
+            msg.on('body', (stream) => {
+              const p = simpleParser(stream as any)
+                .then((parsed) => {
+                  if (matchFound) return;
 
-            msg.on('body', (stream, info) => {
-              let chunk = '';
-              stream.on('data', (d) => {
-                chunk += d.toString();
-              });
-              stream.on('end', () => {
-                if (info.which && info.which.includes('HEADER')) {
-                  headerText = chunk;
-                } else {
-                  bodyText = chunk;
-                }
-              });
-            });
+                  const subject = (parsed.subject || '').trim();
+                  const fromAddress = (parsed.from?.text || '').toLowerCase();
+                  const date = parsed.date ? parsed.date.getTime() : 0;
+                  const bodyText = (parsed.text || '') + ' ' + (parsed.html ? parsed.html.replace(/<[^>]+>/g, ' ') : '');
+                  const cleanText = bodyText.replace(/\s+/g, ' ');
 
-            msg.once('end', () => {
-              emailsProcessed++;
+                  const fullText = `${subject} ${fromAddress} ${cleanText}`.toLowerCase();
 
-              const subjectMatch = headerText.match(/Subject:\s*([^\r\n]+)/i);
-              const fromMatch = headerText.match(/From:\s*([^\r\n]+)/i);
-              const dateMatch = headerText.match(/Date:\s*([^\r\n]+)/i);
+                  // 1. Filter out non-payment emails and security alerts
+                  const isGoogleSecurityAlert =
+                    (fromAddress.includes('accounts.google.com') ||
+                      fromAddress.includes('google-noreply@google.com') ||
+                      fromAddress.includes('github.com') ||
+                      fromAddress.includes('linkedin.com')) &&
+                    (subject.toLowerCase().includes('security') ||
+                      subject.toLowerCase().includes('sign-in') ||
+                      subject.toLowerCase().includes('invit'));
 
-              const rawSubject = subjectMatch ? subjectMatch[1].trim() : '';
-              const subject = rawSubject.toLowerCase();
-              const fromAddress = (fromMatch ? fromMatch[1].trim() : '').toLowerCase();
-              const rawDate = dateMatch ? dateMatch[1].trim() : '';
-              const emailTime = rawDate ? new Date(rawDate).getTime() : 0;
-              const textContent = ImapService.cleanHtmlContent(bodyText).toLowerCase();
+                  if (isGoogleSecurityAlert) return;
 
-              // Build unified searchable text
-              const fullText = `${subject} ${fromAddress} ${textContent}`;
+                  // 2. Must be within the order session time window (generous buffer of 3 minutes for clock variance)
+                  const sessionCutoff = minTimestamp ? minTimestamp - 180000 : (Date.now() - 15 * 60 * 1000);
+                  if (sessionCutoff > 0 && date > 0 && date < sessionCutoff) {
+                    return; // Email is older than checkout session start, cannot confirm this payment
+                  }
 
-              // Collect recent subjects for diagnostic reporting
-              if (recentEmailSummaries.length < 5 && rawSubject) {
-                recentEmailSummaries.push(`"${rawSubject.slice(0, 45)}"`);
-              }
+                  // 3. Sender / Ecosystem Recognition (FamPay, UPI, Banks)
+                  const isFamPayOrUpi =
+                    fromAddress.includes('famapp') ||
+                    fromAddress.includes('fampay') ||
+                    fromAddress.includes('idfc') ||
+                    fromAddress.includes('triotech') ||
+                    fromAddress.includes('phonepe') ||
+                    fromAddress.includes('paytm') ||
+                    fromAddress.includes('google') ||
+                    fromAddress.includes('gpay') ||
+                    fromAddress.includes('bank') ||
+                    fromAddress.includes('axis') ||
+                    fromAddress.includes('hdfc') ||
+                    fromAddress.includes('icici') ||
+                    fromAddress.includes('sbi') ||
+                    fromAddress.includes('kotak') ||
+                    fromAddress.includes('airtel') ||
+                    fromAddress.includes('razorpay') ||
+                    fromAddress.includes('cashfree') ||
+                    fromAddress.includes('canara') ||
+                    fromAddress.includes('pnb') ||
+                    fromAddress.includes('alert') ||
+                    fromAddress.includes('notify') ||
+                    subject.toLowerCase().includes('fam') ||
+                    subject.toLowerCase().includes('upi') ||
+                    subject.toLowerCase().includes('received') ||
+                    subject.toLowerCase().includes('credited') ||
+                    subject.toLowerCase().includes('sent you') ||
+                    cleanText.toLowerCase().includes('fampay') ||
+                    cleanText.toLowerCase().includes('famapp') ||
+                    cleanText.toLowerCase().includes('upi');
 
-              // Debug Log for troubleshooting email matching
-              console.log('Scanning email:', { subject, from: fromAddress, amount: targetAmount });
+                  if (!isFamPayOrUpi) return;
 
-              // Check email timestamp to reject old emails from prior sessions
-              // Relaxed by 24 hours to prevent clock skews and delayed email arrivals
-              const adjustedMinTimestamp = minTimestamp ? minTimestamp - (24 * 60 * 60 * 1000) : 0;
-              if (adjustedMinTimestamp && emailTime > 0 && emailTime < adjustedMinTimestamp) {
-                if (emailsProcessed >= totalToProcess && !matchFound) {
-                  clearTimeout(timer);
-                  return finish({
-                    success: false,
-                    message: `Payment NOT verified. No NEW FamPay payment alert found in ${cleanEmail} for ₹${targetAmount}. Older emails were received before this checkout session started.`,
-                  });
-                }
-                return;
-              }
+                  // 4. Must be a genuine CREDIT / INWARD transaction (not debit or withdrawal)
+                  const isCredit =
+                    subject.toLowerCase().includes('received') ||
+                    subject.toLowerCase().includes('credited') ||
+                    subject.toLowerCase().includes('successful') ||
+                    subject.toLowerCase().includes('sent you') ||
+                    subject.toLowerCase().includes('paid you') ||
+                    cleanText.toLowerCase().includes('successfully received') ||
+                    cleanText.toLowerCase().includes('received') ||
+                    cleanText.toLowerCase().includes('credited') ||
+                    cleanText.toLowerCase().includes('sent you') ||
+                    cleanText.toLowerCase().includes('paid you') ||
+                    cleanText.toLowerCase().includes('added to your wallet');
 
-              // 1. Blacklist ONLY pure Google Account security/sign-in alerts (never payment emails)
-              const isGoogleSecurityAlert =
-                (fromAddress.includes('accounts.google.com') ||
-                  fromAddress.includes('no-reply@accounts.google.com') ||
-                  fromAddress.includes('google-noreply@google.com')) &&
-                (subject.includes('security alert') ||
-                  subject.includes('critical security') ||
-                  subject.includes('new sign-in') ||
-                  subject.includes('app password') ||
-                  subject.includes('verification code'));
+                  if (!isCredit) return;
 
-              if (isGoogleSecurityAlert) {
-                if (emailsProcessed >= totalToProcess && !matchFound) {
-                  clearTimeout(timer);
-                  return finish({
-                    success: false,
-                    message: `Payment NOT verified. No payment alert found for ₹${targetAmount} in ${cleanEmail}. Scanned recent emails: [${recentEmailSummaries.join(', ')}].`,
-                  });
-                }
-                return;
-              }
+                  // 5. Strict Amount Matching (Mandatory)
+                  const amt = Number(targetAmount);
+                  const amtStr = amt.toString();
+                  const amtDec1 = amt.toFixed(1); // e.g. "1.0"
+                  const amtDec2 = amt.toFixed(2); // e.g. "1.00"
 
-              // 2. Comprehensive FamPay / UPI / Bank Ecosystem Recognition
-              const isUpiEcosystem =
-                fromAddress.includes('fampay') ||
-                fromAddress.includes('famapp') ||
-                fromAddress.includes('fam.one') ||
-                fromAddress.includes('idfc') ||
-                fromAddress.includes('yesbank') ||
-                fromAddress.includes('triotech') ||
-                fromAddress.includes('phonepe') ||
-                fromAddress.includes('paytm') ||
-                fromAddress.includes('google') ||
-                fromAddress.includes('gpay') ||
-                fromAddress.includes('icici') ||
-                fromAddress.includes('hdfc') ||
-                fromAddress.includes('sbi') ||
-                fromAddress.includes('axis') ||
-                fromAddress.includes('razorpay') ||
-                fromAddress.includes('cashfree') ||
-                fromAddress.includes('bank') ||
-                subject.includes('fam') ||
-                subject.includes('fampay') ||
-                subject.includes('famapp') ||
-                subject.includes('upi') ||
-                subject.includes('credited') ||
-                subject.includes('received') ||
-                subject.includes('payment') ||
-                subject.includes('transfer') ||
-                fullText.includes('@fam') ||
-                fullText.includes('@yesfam') ||
-                fullText.includes('fampay') ||
-                fullText.includes('famapp') ||
-                fullText.includes('upi') ||
-                fullText.includes('credited') ||
-                fullText.includes('received') ||
-                fullText.includes('payment');
+                  const amountPatterns = [
+                    new RegExp(`(?:₹|rs\\.?|inr)\\s*(${amtStr}|${amtDec1}|${amtDec2})(?!\\d)`, 'i'),
+                    new RegExp(`received\\s+(?:₹|rs\\.?|inr)?\\s*(${amtStr}|${amtDec1}|${amtDec2})(?!\\d)`, 'i'),
+                    new RegExp(`credited\\s+(?:with|by)?\\s*(?:₹|rs\\.?|inr)?\\s*(${amtStr}|${amtDec1}|${amtDec2})(?!\\d)`, 'i'),
+                    new RegExp(`(${amtStr}|${amtDec1}|${amtDec2})\\s*(?:inr|rs|₹|in your famx)`, 'i'),
+                  ];
 
-              if (!isUpiEcosystem && !cleanUtr) {
-                if (emailsProcessed >= totalToProcess && !matchFound) {
-                  clearTimeout(timer);
-                  return finish({
-                    success: false,
-                    message: `Payment NOT verified. No UPI/FamPay payment email alert found in ${cleanEmail} for ₹${targetAmount}.`,
-                  });
-                }
-                return;
-              }
+                  const hasAmount = amountPatterns.some((pattern) => pattern.test(fullText));
+                  if (!hasAmount) return;
 
-              // 3. Payment Activity Keywords
-              const hasPaymentKeywords =
-                subject.includes('paid') ||
-                subject.includes('sent') ||
-                subject.includes('received') ||
-                subject.includes('credited') ||
-                subject.includes('debited') ||
-                subject.includes('transfer') ||
-                subject.includes('transferred') ||
-                subject.includes('successful') ||
-                subject.includes('success') ||
-                subject.includes('transaction') ||
-                subject.includes('payment') ||
-                subject.includes('alert') ||
-                subject.includes('added') ||
-                fullText.includes('credited') ||
-                fullText.includes('received') ||
-                fullText.includes('payment successful') ||
-                fullText.includes('transfer successful') ||
-                fullText.includes('paid to') ||
-                fullText.includes('sent to') ||
-                fullText.includes('transaction successful') ||
-                fullText.includes('upi ref') ||
-                fullText.includes('utr') ||
-                cleanUtr.length >= 8;
+                  // 6. Extract REAL Bank UTR / RRN (10-14 digits) directly from the email body
+                  const utrMatch =
+                    cleanText.match(/UTR[:\s#]+([0-9]{10,14})/i) ||
+                    cleanText.match(/UPI Ref(?:erence)?[:\s#]+([0-9]{10,14})/i) ||
+                    cleanText.match(/RRN[:\s#]+([0-9]{10,14})/i) ||
+                    cleanText.match(/Ref\s*(?:no|number)?[:\s#]+([0-9]{10,14})/i) ||
+                    cleanText.match(/\b([0-9]{12})\b/);
 
-              // 4. Robust Amount Matching (Supports ₹1, 1.00, Rs. 1, INR 1, etc.)
-              const amtInt = Math.floor(targetAmount).toString();
-              const amtDec = targetAmount.toFixed(2);
+                  if (!utrMatch) return;
+                  const extractedUtr = utrMatch[1];
 
-              const hasAmountWithCurrency =
-                fullText.includes(`₹${amtInt}`) ||
-                fullText.includes(`₹ ${amtInt}`) ||
-                fullText.includes(`rs.${amtInt}`) ||
-                fullText.includes(`rs. ${amtInt}`) ||
-                fullText.includes(`rs ${amtInt}`) ||
-                fullText.includes(`inr ${amtInt}`) ||
-                fullText.includes(`inr. ${amtInt}`) ||
-                fullText.includes(`₹${amtDec}`) ||
-                fullText.includes(`₹ ${amtDec}`) ||
-                fullText.includes(`rs.${amtDec}`) ||
-                fullText.includes(`rs ${amtDec}`) ||
-                fullText.includes(`inr ${amtDec}`) ||
-                fullText.includes(`${amtInt}/-`) ||
-                fullText.includes(`${amtInt} inr`) ||
-                fullText.includes(`${amtDec} inr`) ||
-                fullText.includes(`${amtInt} rs`) ||
-                fullText.includes(`rs ${amtInt}`) ||
-                fullText.includes(`inr ${amtInt}`) ||
-                fullText.includes(`₹${amtInt}`) ||
-                new RegExp(`\\b${amtInt}\\b`).test(fullText) ||
-                (hasPaymentKeywords && (fullText.includes(` ${amtInt} `) || fullText.includes(amtDec)));
-
-              // 5. UTR matching if customer provided UTR
-              const hasUtrMatch =
-                cleanUtr.length >= 8 &&
-                (fullText.includes(cleanUtr) ||
-                  textContent.includes(cleanUtr));
-
-              // 6. Transaction Reference matching
-              const hasRefMatch =
-                transactionRef && transactionRef.length > 5
-                  ? fullText.includes(transactionRef.toLowerCase())
-                  : false;
-
-              // Match Condition
-              const isMatch =
-                hasUtrMatch ||
-                (hasPaymentKeywords && hasAmountWithCurrency) ||
-                (hasRefMatch && hasPaymentKeywords);
-
-              if (isMatch) {
-                if (!matchFound) {
-                  matchFound = true;
-                  clearTimeout(timer);
-
-                  const utrRegexMatch =
-                    fullText.match(/utr[:\s#]+(\d{10,14})/i) ||
-                    fullText.match(/ref[:\s#]+(\d{10,14})/i) ||
-                    fullText.match(/rrn[:\s#]+(\d{10,14})/i) ||
-                    fullText.match(/\b(4\d{11}|5\d{11}|6\d{11}|3\d{11})\b/);
-
-                  const extractedUtr = cleanUtr || (utrRegexMatch ? utrRegexMatch[1] : `UTR-${Date.now()}`);
-
-                  // Extract FamPay X transaction ID or order reference from email body
-                  const txnMatch =
-                    fullText.match(/(fpx-pay-[a-z0-9]+)/i) ||
-                    fullText.match(/(fpx-link-[a-z0-9]+)/i) ||
-                    fullText.match(/txn[_\s#:]*([a-z0-9_\-]+)/i) ||
-                    fullText.match(/transaction\s*id[_\s#:]*([a-z0-9_\-]+)/i) ||
-                    fullText.match(/ref[_\s#:]*([a-z0-9_\-]+)/i);
-
-                  const extractedTxnId = txnMatch ? txnMatch[1] : (transactionRef || extractedUtr);
-
-                  // Reject if this UTR has already been captured for an earlier transaction!
-                  if (extractedUtr && usedUtrs.includes(extractedUtr)) {
-                    if (emailsProcessed >= totalToProcess && !matchFound) {
-                      clearTimeout(timer);
-                      return finish({
-                        success: false,
-                        message: `Payment NOT verified. Payment alert with UTR ${extractedUtr} was already redeemed for a previous transaction. Please complete a new payment.`,
-                      });
+                  // 7. If customer provided a UTR, it MUST actually exist in this matching email!
+                  if (cleanUtr && cleanUtr.length >= 8) {
+                    if (extractedUtr !== cleanUtr && !cleanText.includes(cleanUtr)) {
+                      return; // Customer typed a UTR that does not match this email!
                     }
+                  }
+
+                  // 8. Anti-Replay: Prevent reusing a UTR that was already redeemed for a previous transaction
+                  if (usedUtrs.includes(extractedUtr)) {
                     return;
                   }
 
+                  // 9. Extract Transaction ID from FamApp body
+                  const txnMatch =
+                    cleanText.match(/transaction\s*(?:id|ref)[:\s#]+([A-Z0-9_-]+)/i) ||
+                    cleanText.match(/(FMPIB[A-Z0-9]+)/i) ||
+                    cleanText.match(/(FPX-[A-Z0-9-]+)/i);
+
+                  const extractedTxnId = txnMatch ? txnMatch[1] : (transactionRef || extractedUtr);
+
+                  // MATCH CONFIRMED WITH REAL PROOF!
+                  matchFound = true;
+                  clearTimeout(timer);
+
                   return finish({
                     success: true,
-                    message: `FamPay X Payment Verified! Matched Alert: "${rawSubject}" from ${fromAddress || 'FamPay Gateway'}`,
-                    emailSubject: rawSubject,
+                    message: `FamPay payment of ₹${amt.toFixed(2)} verified! UTR: ${extractedUtr}`,
+                    emailSubject: subject,
                     sender: fromAddress,
                     utr: extractedUtr,
                     transactionId: extractedTxnId,
-                    matchedAmount: targetAmount,
+                    matchedAmount: amt,
                   });
-                }
-              }
+                })
+                .catch(() => {});
 
-              // If all emails processed and no match
-              if (emailsProcessed >= totalToProcess && !matchFound) {
-                clearTimeout(timer);
-                return finish({
-                  success: false,
-                  message: `Payment NOT verified. No matching FamPay X payment alert found in ${cleanEmail} for ₹${targetAmount}.`,
-                });
-              }
+              parsePromises.push(p);
             });
           });
 
@@ -494,15 +389,15 @@ export class ImapService {
           });
 
           fetchStream.once('end', () => {
-            setTimeout(() => {
+            Promise.all(parsePromises).then(() => {
               if (!matchFound && !resolved) {
                 clearTimeout(timer);
                 finish({
                   success: false,
-                  message: `Payment NOT verified. No matching FamPay X payment alert found in ${cleanEmail} for ₹${targetAmount}.`,
+                  message: `Payment NOT verified. No new FamPay payment alert found in ${cleanEmail} for ₹${targetAmount}.`,
                 });
               }
-            }, 1000);
+            });
           });
         });
       });
@@ -527,7 +422,7 @@ export class ImapService {
   }
 
   /**
-   * Evaluates mock or real email body text and headers for testing/diagnostics.
+   * Evaluates email body text and headers for testing/diagnostics.
    */
   public static parseEmailBodyAndSubject(
     rawSubject: string,
@@ -540,135 +435,71 @@ export class ImapService {
     const subject = (rawSubject || '').toLowerCase();
     const fromAddress = (rawFromAddress || '').toLowerCase();
     const cleanUtr = (providedUtr || '').trim();
-    const textContent = this.cleanHtmlContent(rawBody).toLowerCase();
-    const fullText = `${subject} ${fromAddress} textContent: ${textContent}`;
+    const cleanText = (rawBody || '').replace(/\s+/g, ' ');
+    const fullText = `${subject} ${fromAddress} ${cleanText}`.toLowerCase();
 
-    const isUpiEcosystem =
-      fromAddress.includes('fampay') ||
+    const isFamPayOrUpi =
       fromAddress.includes('famapp') ||
-      fromAddress.includes('fam.one') ||
+      fromAddress.includes('fampay') ||
       fromAddress.includes('idfc') ||
-      fromAddress.includes('yesbank') ||
       fromAddress.includes('triotech') ||
       fromAddress.includes('phonepe') ||
       fromAddress.includes('paytm') ||
       fromAddress.includes('google') ||
       fromAddress.includes('gpay') ||
-      fromAddress.includes('icici') ||
-      fromAddress.includes('hdfc') ||
-      fromAddress.includes('sbi') ||
-      fromAddress.includes('axis') ||
-      fromAddress.includes('razorpay') ||
-      fromAddress.includes('cashfree') ||
       fromAddress.includes('bank') ||
       subject.includes('fam') ||
-      subject.includes('fampay') ||
-      subject.includes('famapp') ||
       subject.includes('upi') ||
-      subject.includes('credited') ||
       subject.includes('received') ||
-      subject.includes('payment') ||
-      subject.includes('transfer') ||
-      fullText.includes('@fam') ||
-      fullText.includes('@yesfam') ||
-      fullText.includes('fampay') ||
-      fullText.includes('famapp') ||
-      fullText.includes('upi') ||
-      fullText.includes('credited') ||
-      fullText.includes('received') ||
-      fullText.includes('payment');
+      subject.includes('credited');
 
-    const hasPaymentKeywords =
-      subject.includes('paid') ||
-      subject.includes('sent') ||
+    const isCredit =
       subject.includes('received') ||
       subject.includes('credited') ||
-      subject.includes('debited') ||
-      subject.includes('transfer') ||
-      subject.includes('transferred') ||
       subject.includes('successful') ||
-      subject.includes('success') ||
-      subject.includes('transaction') ||
-      subject.includes('payment') ||
-      subject.includes('alert') ||
-      subject.includes('added') ||
-      fullText.includes('credited') ||
       fullText.includes('received') ||
-      fullText.includes('payment successful') ||
-      fullText.includes('transfer successful') ||
-      fullText.includes('paid to') ||
-      fullText.includes('sent to') ||
-      fullText.includes('transaction successful') ||
-      fullText.includes('upi ref') ||
-      fullText.includes('utr') ||
-      cleanUtr.length >= 8;
+      fullText.includes('credited');
 
-    const amtInt = Math.floor(targetAmount).toString();
-    const amtDec = targetAmount.toFixed(2);
+    const amt = Number(targetAmount);
+    const amtStr = amt.toString();
+    const amtDec1 = amt.toFixed(1);
+    const amtDec2 = amt.toFixed(2);
 
-    const hasAmountWithCurrency =
-      fullText.includes(`₹${amtInt}`) ||
-      fullText.includes(`₹ ${amtInt}`) ||
-      fullText.includes(`rs.${amtInt}`) ||
-      fullText.includes(`rs. ${amtInt}`) ||
-      fullText.includes(`rs ${amtInt}`) ||
-      fullText.includes(`inr ${amtInt}`) ||
-      fullText.includes(`inr. ${amtInt}`) ||
-      fullText.includes(`₹${amtDec}`) ||
-      fullText.includes(`₹ ${amtDec}`) ||
-      fullText.includes(`rs.${amtDec}`) ||
-      fullText.includes(`rs ${amtDec}`) ||
-      fullText.includes(`inr ${amtDec}`) ||
-      fullText.includes(`${amtInt}/-`) ||
-      fullText.includes(`${amtInt} inr`) ||
-      fullText.includes(`${amtDec} inr`) ||
-      fullText.includes(`${amtInt} rs`) ||
-      fullText.includes(`rs ${amtInt}`) ||
-      fullText.includes(`inr ${amtInt}`) ||
-      fullText.includes(`₹${amtInt}`) ||
-      new RegExp(`\\b${amtInt}\\b`).test(fullText) ||
-      (hasPaymentKeywords && (fullText.includes(` ${amtInt} `) || fullText.includes(amtDec)));
+    const amountPatterns = [
+      new RegExp(`(?:₹|rs\\.?|inr)\\s*(${amtStr}|${amtDec1}|${amtDec2})(?!\\d)`, 'i'),
+      new RegExp(`received\\s+(?:₹|rs\\.?|inr)?\\s*(${amtStr}|${amtDec1}|${amtDec2})(?!\\d)`, 'i'),
+      new RegExp(`credited\\s+(?:with|by)?\\s*(?:₹|rs\\.?|inr)?\\s*(${amtStr}|${amtDec1}|${amtDec2})(?!\\d)`, 'i'),
+      new RegExp(`(${amtStr}|${amtDec1}|${amtDec2})\\s*(?:inr|rs|₹|in your famx)`, 'i'),
+    ];
 
-    const hasUtrMatch =
-      cleanUtr.length >= 8 &&
-      (fullText.includes(cleanUtr) || textContent.includes(cleanUtr));
+    const hasAmountWithCurrency = amountPatterns.some((p) => p.test(fullText));
 
-    const hasRefMatch =
-      transactionRef && transactionRef.length > 5
-        ? fullText.includes(transactionRef.toLowerCase())
-        : false;
+    const utrMatch =
+      cleanText.match(/UTR[:\s#]+([0-9]{10,14})/i) ||
+      cleanText.match(/UPI Ref(?:erence)?[:\s#]+([0-9]{10,14})/i) ||
+      cleanText.match(/RRN[:\s#]+([0-9]{10,14})/i) ||
+      cleanText.match(/\b([0-9]{12})\b/);
 
-    const isMatch =
-      hasUtrMatch ||
-      (hasPaymentKeywords && hasAmountWithCurrency) ||
-      (hasRefMatch && hasPaymentKeywords);
-
-    const utrRegexMatch =
-      fullText.match(/utr[:\s#]+(\d{10,14})/i) ||
-      fullText.match(/ref[:\s#]+(\d{10,14})/i) ||
-      fullText.match(/rrn[:\s#]+(\d{10,14})/i) ||
-      fullText.match(/\b(4\d{11}|5\d{11}|6\d{11}|3\d{11})\b/);
-
-    const extractedUtr = cleanUtr || (utrRegexMatch ? utrRegexMatch[1] : `UTR-${Date.now()}`);
+    const extractedUtr = utrMatch ? utrMatch[1] : (cleanUtr || null);
 
     const txnMatch =
-      fullText.match(/(fpx-pay-[a-z0-9]+)/i) ||
-      fullText.match(/(fpx-link-[a-z0-9]+)/i) ||
-      fullText.match(/txn[_\s#:]*([a-z0-9_\-]+)/i) ||
-      fullText.match(/transaction\s*id[_\s#:]*([a-z0-9_\-]+)/i) ||
-      fullText.match(/ref[_\s#:]*([a-z0-9_\-]+)/i);
+      cleanText.match(/transaction\s*(?:id|ref)[:\s#]+([A-Z0-9_-]+)/i) ||
+      cleanText.match(/(FMPIB[A-Z0-9]+)/i);
 
-    const extractedTxnId = txnMatch ? txnMatch[1] : (transactionRef || extractedUtr);
+    const extractedTxnId = txnMatch ? txnMatch[1] : (transactionRef || extractedUtr || '');
+
+    const isMatch = isFamPayOrUpi && isCredit && hasAmountWithCurrency && !!extractedUtr;
 
     return {
       isMatch,
-      isUpiEcosystem,
-      hasPaymentKeywords,
+      isUpiEcosystem: isFamPayOrUpi,
+      hasPaymentKeywords: isCredit,
       hasAmountWithCurrency,
-      hasUtrMatch,
-      hasRefMatch,
-      extractedUtr,
-      extractedTxnId
+      hasUtrMatch: !!utrMatch,
+      hasRefMatch: Boolean(transactionRef && fullText.includes(transactionRef.toLowerCase())),
+      extractedUtr: extractedUtr || 'N/A',
+      extractedTxnId: extractedTxnId || 'N/A',
     };
   }
 }
+

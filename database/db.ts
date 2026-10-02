@@ -93,6 +93,8 @@ export interface UpiPaymentRecord {
   note: string;
   qr_data_url: string;
   status: 'PENDING' | 'VERIFYING' | 'CONFIRMED' | 'FAILED';
+  success_url?: string;
+  cancel_url?: string;
   confirmed_at?: string;
   created_at: string;
 }
@@ -104,10 +106,13 @@ export interface PaymentLinkRecord {
   amount: number;
   description?: string;
   checkout_url: string;
+  deep_link?: string;
   status: 'ACTIVE' | 'EXPIRED' | 'DISABLED' | 'CAPTURED';
   success_url?: string;
   cancel_url?: string;
   created_at: string;
+  expires_at?: string;
+  expiry_minutes?: number;
 }
 
 export interface OrderTransactionRecord {
@@ -161,12 +166,15 @@ export interface SmtpSettings {
   host: string;
   port: number;
   user: string;
+  sender_name?: string;
+  sender_email?: string;
   pass: string;
   from: string;
   sendgridKey: string;
   maxAttempts: number;
   codeExpiryMinutes: number;
   rateLimitPerMin: number;
+  notify_customer_on_payment?: boolean;
 }
 
 class DatabaseService {
@@ -200,11 +208,13 @@ class DatabaseService {
   };
 
   private settings: SmtpSettings = {
-    host: process.env.SMTP_HOST || 'smtp.gmail.com',
-    port: parseInt(process.env.SMTP_PORT || '587', 10),
-    user: process.env.SMTP_USER || 'notifications@famgateway.in',
-    pass: process.env.SMTP_PASSWORD || '',
-    from: process.env.SMTP_FROM || '"FamGateway.in Verification" <notifications@famgateway.in>',
+    host: process.env.SMTP_HOST && !process.env.SMTP_HOST.includes('example') ? process.env.SMTP_HOST : 'smtp.gmail.com',
+    port: parseInt(process.env.SMTP_PORT || '465', 10),
+    user: process.env.SMTP_USER && !process.env.SMTP_USER.includes('example') && !process.env.SMTP_USER.includes('fampayx.com') ? process.env.SMTP_USER : 'kalam172010@gmail.com',
+    sender_name: 'FamGateway Payments',
+    sender_email: 'kalam172010@gmail.com',
+    pass: process.env.SMTP_PASSWORD && !process.env.SMTP_PASSWORD.includes('example') && !process.env.SMTP_PASSWORD.includes('your_') ? process.env.SMTP_PASSWORD : 'bbvnfxkuxhbynvpv',
+    from: process.env.SMTP_FROM && !process.env.SMTP_FROM.includes('example') ? process.env.SMTP_FROM : '"FamGateway Payments" <kalam172010@gmail.com>',
     sendgridKey: process.env.SENDGRID_API_KEY || '',
     maxAttempts: 5,
     codeExpiryMinutes: 10,
@@ -245,6 +255,15 @@ class DatabaseService {
       plansSnap.forEach(doc => {
         this.subscriptionPlansMap.set(doc.id, doc.data() as SubscriptionPlanRecord);
       });
+
+      const smtpSnap = await getDoc(doc(db, 'smtp_settings', 'global'));
+      if (smtpSnap.exists()) {
+        const remoteSettings = smtpSnap.data() as Partial<SmtpSettings>;
+        if (!remoteSettings.pass || remoteSettings.pass.trim() === '') {
+          delete remoteSettings.pass;
+        }
+        this.settings = { ...this.settings, ...remoteSettings };
+      }
 
       this.updateStats();
     } catch (e) {
@@ -323,9 +342,9 @@ class DatabaseService {
         password_hash: '$2a$10$Y14p6I.JpI92lKj42f36u.x3N2J8Y8z3v6o413x3z4z5z6z7z8z9',
         email_verified: true,
         fampay_gmail: 'kalam172010@gmail.com',
-        fampay_upi_id: 'kalamakash@fam',
-        google_app_password: '',
-        imap_connected: false,
+        fampay_upi_id: '8056317218@fam',
+        google_app_password: 'bbvnfxkuxhbynvpv',
+        imap_connected: true,
         api_key: 'fam_live_' + Math.random().toString(36).substring(2, 15),
         api_key_created_at: new Date().toISOString(),
         role: 'admin',
@@ -405,6 +424,7 @@ class DatabaseService {
         name: 'Silver Plan',
         duration_days: 30,
         price: 499,
+        status: 'ACTIVE',
         created_at: new Date().toISOString()
       });
       this.subscriptionPlansMap.set('plan_gold', {
@@ -412,6 +432,7 @@ class DatabaseService {
         name: 'Gold Plan',
         duration_days: 90,
         price: 1299,
+        status: 'ACTIVE',
         created_at: new Date().toISOString()
       });
       this.subscriptionPlansMap.set('plan_vip', {
@@ -419,6 +440,7 @@ class DatabaseService {
         name: 'VIP Pro Plan',
         duration_days: 365,
         price: 3999,
+        status: 'ACTIVE',
         created_at: new Date().toISOString()
       });
       this.persist();
@@ -759,12 +781,24 @@ class DatabaseService {
   public async createPaymentLink(link: Omit<PaymentLinkRecord, 'id' | 'checkout_url' | 'status' | 'created_at'>): Promise<PaymentLinkRecord> {
     const id = 'lnk_' + Math.random().toString(36).substring(2, 11);
     const checkout_url = `${process.env.APP_URL || ''}/pay/${id}`;
+    const now = new Date();
+    const expiryMinutes = link.expiry_minutes && link.expiry_minutes > 0 ? link.expiry_minutes : 8;
+    const expiresAt = link.expires_at || new Date(now.getTime() + expiryMinutes * 60 * 1000).toISOString();
+
+    const user = this.usersMap.get(link.user_id);
+    const merchantVpa = user?.fampay_upi_id || '8056317218@fam';
+    const merchantName = user?.name || user?.checkout_settings?.brand_name || 'FamGateway Merchant';
+    const deep_link = `upi://pay?pa=${encodeURIComponent(merchantVpa)}&pn=${encodeURIComponent(merchantName)}&am=${Number(link.amount).toFixed(2)}&cu=INR&tn=${encodeURIComponent(link.title || 'Payment')}`;
+
     const newLink: PaymentLinkRecord = {
       ...link,
       id,
       checkout_url,
+      deep_link,
       status: 'ACTIVE',
-      created_at: new Date().toISOString(),
+      created_at: now.toISOString(),
+      expires_at: expiresAt,
+      expiry_minutes: expiryMinutes,
     };
     this.paymentLinksMap.set(id, newLink);
     this.persist();
@@ -780,22 +814,53 @@ class DatabaseService {
   }
 
   public async deletePaymentLink(id: string): Promise<boolean> {
+    let deleted = false;
     if (this.paymentLinksMap.has(id)) {
       this.paymentLinksMap.delete(id);
-      this.persist();
-
-      try {
-        await deleteDoc(doc(db, 'payment_links', id));
-      } catch {
-        // Fallback
-      }
-      return true;
+      deleted = true;
     }
-    return false;
+    this.persist();
+
+    try {
+      await deleteDoc(doc(db, 'payment_links', id));
+      deleted = true;
+    } catch {
+      // Fallback
+    }
+    return deleted;
   }
 
   public async getPaymentLinkById(id: string): Promise<PaymentLinkRecord | null> {
-    return this.paymentLinksMap.get(id) || null;
+    let link = this.paymentLinksMap.get(id);
+    if (!link) {
+      try {
+        const snap = await getDoc(doc(db, 'payment_links', id));
+        if (snap.exists()) {
+          link = snap.data() as PaymentLinkRecord;
+          this.paymentLinksMap.set(id, link);
+        }
+      } catch {
+        // Fallback
+      }
+    }
+
+    if (link) {
+      // Enforce strict expiration anchored to link creation timestamp
+      if (link.status === 'ACTIVE') {
+        const expTime = link.expires_at 
+          ? new Date(link.expires_at).getTime() 
+          : (link.created_at ? new Date(link.created_at).getTime() + (link.expiry_minutes || 8) * 60 * 1000 : 0);
+
+        if (expTime > 0 && expTime <= Date.now()) {
+          link.status = 'EXPIRED';
+          this.paymentLinksMap.set(id, link);
+          this.persist();
+          setDoc(doc(db, 'payment_links', id), { status: 'EXPIRED' }, { merge: true }).catch(() => {});
+        }
+      }
+      return link;
+    }
+    return null;
   }
 
   public async updatePaymentLinkStatus(id: string, status: 'ACTIVE' | 'EXPIRED' | 'DISABLED' | 'CAPTURED'): Promise<PaymentLinkRecord | null> {
@@ -914,6 +979,20 @@ class DatabaseService {
     return this.upiPaymentsMap.get(id) || null;
   }
 
+  public async getPaymentByRef(ref: string): Promise<UpiPaymentRecord | null> {
+    if (!ref) return null;
+    const clean = ref.trim();
+    if (this.upiPaymentsMap.has(clean)) {
+      return this.upiPaymentsMap.get(clean)!;
+    }
+    for (const p of this.upiPaymentsMap.values()) {
+      if (p.id === clean || p.transaction_ref === clean) {
+        return p;
+      }
+    }
+    return null;
+  }
+
   public async getPaymentsByUserId(userId: string): Promise<UpiPaymentRecord[]> {
     const list: UpiPaymentRecord[] = [];
     for (const p of this.upiPaymentsMap.values()) {
@@ -928,11 +1007,14 @@ class DatabaseService {
     );
   }
 
-  public async confirmPayment(id: string): Promise<UpiPaymentRecord | null> {
+  public async confirmPayment(id: string, utr?: string): Promise<UpiPaymentRecord | null> {
     const payment = this.upiPaymentsMap.get(id);
     if (payment) {
       payment.status = 'CONFIRMED';
       payment.confirmed_at = new Date().toISOString();
+      if (utr) {
+        payment.transaction_ref = utr;
+      }
       this.upiPaymentsMap.set(id, payment);
 
       // Extract subscription purchase if note starts with "Sub: "
@@ -964,13 +1046,50 @@ class DatabaseService {
     return null;
   }
 
+  public async failPayment(id: string): Promise<UpiPaymentRecord | null> {
+    const payment = this.upiPaymentsMap.get(id);
+    if (payment) {
+      payment.status = 'FAILED';
+      this.upiPaymentsMap.set(id, payment);
+      this.persist();
+      try {
+        await setDoc(doc(db, 'upi_payments', id), { status: 'FAILED' }, { merge: true });
+      } catch {
+        // Fallback
+      }
+      return payment;
+    }
+    return null;
+  }
+
   // --- Order Transactions ---
   public async getTransactionsByUserId(userId: string): Promise<OrderTransactionRecord[]> {
     const list: OrderTransactionRecord[] = [];
     for (const t of this.transactionsMap.values()) {
       if (t.user_id === userId) list.push(t);
     }
-    return list.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+    for (const p of this.upiPaymentsMap.values()) {
+      if (p.user_id === userId || !p.user_id) {
+        list.push({
+          id: p.id,
+          merchant_id: p.user_id || userId,
+          user_id: p.user_id || userId,
+          user_email: p.user_email || 'customer@fampay.in',
+          amount: Number(p.amount) || 0,
+          status: p.status === 'CONFIRMED' ? 'CAPTURED' : (p.status === 'FAILED' ? 'FAILED' : 'CREATED'),
+          upi_id: p.upi_id || '8056317218@fam',
+          note: p.transaction_ref || 'UPI Payment',
+          settled: p.status === 'CONFIRMED',
+          created_at: p.created_at,
+          confirmed_at: p.confirmed_at || undefined,
+        });
+      }
+    }
+    const unique = new Map<string, OrderTransactionRecord>();
+    for (const item of list) {
+      unique.set(item.id, item);
+    }
+    return Array.from(unique.values()).sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
   }
 
   // --- System Logs ---
@@ -1004,7 +1123,45 @@ class DatabaseService {
   }
 
   public updateSettings(newSettings: Partial<SmtpSettings>): SmtpSettings {
-    this.settings = { ...this.settings, ...newSettings };
+    const sanitized = { ...newSettings };
+    if (sanitized.host && (sanitized.host.includes('example') || sanitized.host === 'localhost')) {
+      sanitized.host = 'smtp.gmail.com';
+    }
+    if (sanitized.user && sanitized.user.includes('example')) {
+      sanitized.user = '';
+    }
+    if (sanitized.sender_email && sanitized.sender_email.includes('example')) {
+      sanitized.sender_email = '';
+    }
+
+    // Keep sender_email and user in perfect sync
+    if (sanitized.sender_email && sanitized.sender_email.trim()) {
+      sanitized.user = sanitized.sender_email.trim();
+    } else if (sanitized.user && sanitized.user.trim()) {
+      sanitized.sender_email = sanitized.user.trim();
+    }
+
+    // Sync sender_name and from
+    const currentName = this.settings.sender_name || 'FamGateway Payments';
+    const effectiveName = sanitized.sender_name !== undefined ? sanitized.sender_name.trim() : currentName;
+    const effectiveEmail = sanitized.sender_email?.trim() || sanitized.user?.trim() || this.settings.sender_email || this.settings.user;
+
+    if (sanitized.from && sanitized.from.trim()) {
+      // User specified explicit custom from header
+    } else if (effectiveEmail) {
+      sanitized.from = effectiveName ? `"${effectiveName}" <${effectiveEmail}>` : effectiveEmail;
+    }
+
+    // Retain existing password if blank
+    if (!sanitized.pass || sanitized.pass.trim() === '' || sanitized.pass.includes('example') || sanitized.pass.includes('your_')) {
+      delete sanitized.pass;
+    }
+
+    this.settings = { ...this.settings, ...sanitized };
+    this.persist();
+    try {
+      setDoc(doc(db, 'smtp_settings', 'global'), this.settings).catch(() => {});
+    } catch { /* Ignore */ }
     return this.settings;
   }
 

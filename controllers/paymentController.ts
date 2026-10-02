@@ -1,7 +1,9 @@
 import { Request, Response } from 'express';
+import crypto from 'crypto';
 import { PaymentService } from '../services/paymentService.ts';
 import { ImapService } from '../services/imapService.ts';
-import { dbService } from '../database/db.ts';
+import { EmailService } from '../services/emailService.ts';
+import { dbService, UpiPaymentRecord } from '../database/db.ts';
 import { AuthenticatedRequest } from '../middleware/authMiddleware.ts';
 
 export class PaymentController {
@@ -24,6 +26,13 @@ export class PaymentController {
       const note = link.title || 'FamGateway Payment';
       const upiUri = `upi://pay?pa=${encodeURIComponent(merchantUpi)}&pn=${encodeURIComponent(merchantName)}&am=${link.amount.toFixed(2)}&cu=INR&tn=${encodeURIComponent(note)}`;
 
+      const now = Date.now();
+      const expTime = link.expires_at 
+        ? new Date(link.expires_at).getTime() 
+        : (link.created_at ? new Date(link.created_at).getTime() + (link.expiry_minutes || 8) * 60 * 1000 : now + 480000);
+      const secondsLeft = Math.max(0, Math.floor((expTime - now) / 1000));
+      const effectiveStatus = (link.status === 'ACTIVE' && secondsLeft <= 0) ? 'EXPIRED' : link.status;
+
       return res.status(200).json({
         success: true,
         link: {
@@ -34,7 +43,11 @@ export class PaymentController {
           merchant_name: merchantName,
           merchant_upi_id: merchantUpi,
           upi_uri: upiUri,
-          status: link.status,
+          status: effectiveStatus,
+          created_at: link.created_at,
+          expires_at: link.expires_at,
+          expiry_minutes: link.expiry_minutes || 8,
+          seconds_left: secondsLeft,
           success_url: link.success_url || merchant?.checkout_settings?.success_url,
           cancel_url: link.cancel_url || merchant?.checkout_settings?.cancel_url,
           custom_settings: merchant?.checkout_settings || {
@@ -42,7 +55,7 @@ export class PaymentController {
             subtitle: 'VERIFIED MERCHANT',
             avatar_url: 'https://images.unsplash.com/photo-1566492031773-4f4e44671857?w=150&auto=format&fit=crop&q=80',
             theme_color: 'purple',
-            session_timeout_minutes: 8,
+            session_timeout_minutes: link.expiry_minutes || 8,
             enable_utr_submission: true,
             enable_save_qr: true,
             show_apps: true,
@@ -147,7 +160,7 @@ export class PaymentController {
   public static async verifyEmailAlert(req: Request, res: Response) {
     dbService.incrementApiRequests();
     const clientIp = (req.headers['x-forwarded-for'] as string) || req.socket.remoteAddress || '127.0.0.1';
-    const { paymentId, utr, amount } = req.body || {};
+    const { paymentId, utr, amount, since, customer_email, email } = req.body || {};
 
     if (!paymentId) {
       return res.status(400).json({ success: false, error: 'Payment ID is required.' });
@@ -155,7 +168,16 @@ export class PaymentController {
 
     try {
       const parsedAmount = amount ? parseFloat(amount) : undefined;
-      const result = await PaymentService.verifyPaymentViaEmailAlert(paymentId, clientIp, utr, parsedAmount);
+      const parsedSince = since ? parseInt(since.toString(), 10) : undefined;
+      const targetCustomerEmail = (customer_email || email) ? String(customer_email || email).trim() : undefined;
+      const result = await PaymentService.verifyPaymentViaEmailAlert(
+        paymentId,
+        clientIp,
+        utr,
+        parsedAmount,
+        parsedSince,
+        targetCustomerEmail
+      );
 
       if (!result.success) {
         return res.status(400).json({ success: false, error: result.message });
@@ -182,9 +204,11 @@ export class PaymentController {
     dbService.incrementApiRequests();
     const { id } = req.params;
     const amount = req.query.amount ? parseFloat(req.query.amount as string) : undefined;
+    const since = req.query.since ? parseInt(req.query.since as string, 10) : undefined;
+    const customerEmail = (req.query.customer_email || req.query.email) ? String(req.query.customer_email || req.query.email).trim() : undefined;
 
     try {
-      const result = await PaymentService.autoDetectAndConfirm(id, amount);
+      const result = await PaymentService.autoDetectAndConfirm(id, amount, since, customerEmail);
       return res.status(200).json({
         success: true,
         status: result.status,
@@ -578,5 +602,304 @@ export class PaymentController {
       confirmed_at: payment.confirmed_at,
       created_at: payment.created_at,
     });
+  }
+
+  /**
+   * POST /api/payment/webhook
+   * Inbound Webhook Handler to receive real-time asynchronous notifications from payment gateways
+   */
+  public static async handleGatewayWebhook(req: Request, res: Response) {
+    dbService.incrementApiRequests();
+    const clientIp = (req.headers['x-forwarded-for'] as string) || req.socket.remoteAddress || '127.0.0.1';
+    const body = req.body || {};
+    const signature = (req.headers['x-gateway-signature'] || req.headers['x-webhook-signature'] || req.headers['x-signature'] || req.headers['signature']) as string | undefined;
+
+    // Support multiple gateway formats:
+    // 1. Standard flat: { paymentId, orderId, status, utr, amount }
+    // 2. Event-based: { event: 'payment.captured', payload: { payment: { entity: { id, order_id, amount, status, acquirer_data: { rrn } } } } }
+    // 3. Nested data: { data: { payment: { payment_id, order_id, status, utr } }, event: 'PAYMENT_SUCCESS' }
+    const rawEvent = (body.event || body.type || body.action || '').toString().toLowerCase();
+
+    // Extract payment/order reference
+    const rawRef =
+      body.paymentId ||
+      body.payment_id ||
+      body.orderId ||
+      body.order_id ||
+      body.id ||
+      body.transaction_ref ||
+      body.txn_id ||
+      body.reference_id ||
+      body.payload?.payment?.entity?.order_id ||
+      body.payload?.payment?.entity?.id ||
+      body.data?.payment?.id ||
+      body.data?.payment?.payment_id ||
+      body.data?.order_id ||
+      body.data?.id;
+
+    if (!rawRef) {
+      await dbService.addLog({
+        action: 'WEBHOOK_REJECTED',
+        ip: clientIp,
+        status: 'WARNING',
+        details: 'Received gateway webhook without payment or order reference.',
+      });
+      return res.status(400).json({
+        success: false,
+        error: 'Missing required payment reference in webhook payload (e.g. paymentId, order_id, or transaction_ref).',
+      });
+    }
+
+    const targetRef = String(rawRef).trim();
+
+    // Extract status & event
+    const rawStatus = (
+      body.status ||
+      body.payment_status ||
+      body.order_status ||
+      body.payload?.payment?.entity?.status ||
+      body.data?.payment?.status ||
+      body.data?.status ||
+      ''
+    ).toString().toUpperCase();
+
+    // Extract UTR / RRN
+    const rawUtr =
+      body.utr ||
+      body.rrn ||
+      body.bank_ref_no ||
+      body.bank_reference ||
+      body.transaction_ref ||
+      body.payload?.payment?.entity?.acquirer_data?.rrn ||
+      body.payload?.payment?.entity?.acquirer_data?.bank_transaction_id ||
+      body.data?.utr ||
+      body.data?.payment?.bank_reference;
+
+    const utr = rawUtr ? String(rawUtr).trim() : undefined;
+
+    // Extract amount
+    let amount: number | undefined = undefined;
+    const rawAmount = body.amount ?? body.payload?.payment?.entity?.amount ?? body.data?.amount ?? body.data?.payment?.amount;
+    if (rawAmount !== undefined && !isNaN(Number(rawAmount))) {
+      amount = Number(rawAmount);
+    }
+
+    // Determine status: is this success or failure?
+    const isSuccess =
+      rawStatus === 'SUCCESS' ||
+      rawStatus === 'CONFIRMED' ||
+      rawStatus === 'CAPTURED' ||
+      rawStatus === 'PAID' ||
+      rawStatus === 'COMPLETED' ||
+      rawEvent.includes('success') ||
+      rawEvent.includes('captured') ||
+      rawEvent.includes('paid') ||
+      rawEvent.includes('completed');
+
+    const isFailure =
+      rawStatus === 'FAILED' ||
+      rawStatus === 'FAILURE' ||
+      rawStatus === 'CANCELLED' ||
+      rawStatus === 'EXPIRED' ||
+      rawEvent.includes('failed') ||
+      rawEvent.includes('cancel') ||
+      rawEvent.includes('expired');
+
+    // Find payment record or payment link
+    let payment = await dbService.getPaymentByRef(targetRef);
+    let link: any = null;
+
+    if (!payment) {
+      link = await dbService.getPaymentLinkById(targetRef);
+    }
+
+    if (!payment && !link) {
+      // Also search through all payments in case reference is contained in note
+      const allPayments = await dbService.getAllPayments();
+      payment = allPayments.find(p => p.id === targetRef || p.transaction_ref === targetRef || (p.note && p.note.includes(targetRef))) || null;
+    }
+
+    if (!payment && !link) {
+      await dbService.addLog({
+        action: 'WEBHOOK_NOT_FOUND',
+        ip: clientIp,
+        status: 'FAILED',
+        details: `Webhook received for unknown transaction reference: ${targetRef}. Payload: ${JSON.stringify(body).slice(0, 200)}`,
+      });
+      return res.status(404).json({
+        success: false,
+        error: `Transaction or order not found for reference: ${targetRef}`,
+        reference: targetRef,
+      });
+    }
+
+    // Optional Signature Verification if merchant configured secret
+    const merchantId = payment?.user_id || link?.user_id;
+    if (merchantId) {
+      const merchant = await dbService.findUserById(merchantId);
+      if (merchant?.webhook_secret && signature) {
+        const expectedSig = crypto
+          .createHmac('sha256', merchant.webhook_secret)
+          .update(JSON.stringify(body))
+          .digest('hex');
+        if (signature !== expectedSig && signature !== merchant.webhook_secret) {
+          console.warn('[Webhook Signature Mismatch]: provided:', signature, 'expected:', expectedSig);
+        }
+      }
+    }
+
+    // 1. Process SUCCESS notification
+    if (isSuccess || (!isFailure && (utr || rawStatus === 'SUCCESS'))) {
+      // Check if already confirmed (idempotency guarantee)
+      if (payment && payment.status === 'CONFIRMED') {
+        await dbService.addLog({
+          user_id: payment.user_id,
+          user_email: payment.user_email,
+          action: 'WEBHOOK_IDEMPOTENT',
+          ip: clientIp,
+          status: 'INFO',
+          details: `Webhook notification received for already confirmed payment ID ${payment.id}. Acknowledged idempotently.`,
+        });
+        return res.status(200).json({
+          success: true,
+          message: 'Transaction already confirmed (idempotent)',
+          idempotent: true,
+          status: 'CONFIRMED',
+          transaction_id: payment.id,
+          transaction_ref: payment.transaction_ref,
+        });
+      }
+
+      // Check if UTR is already used by a different transaction
+      if (utr && dbService.isUtrAlreadyUsed(utr)) {
+        await dbService.addLog({
+          user_id: payment?.user_id || link?.user_id,
+          action: 'WEBHOOK_DUPLICATE_UTR_BLOCKED',
+          ip: clientIp,
+          status: 'WARNING',
+          details: `Blocked webhook confirmation: UTR ${utr} has already been claimed by another transaction.`,
+        });
+        return res.status(409).json({
+          success: false,
+          error: `Duplicate UTR detected: ${utr} has already been registered for another transaction.`,
+        });
+      }
+
+      let confirmedPayment: UpiPaymentRecord | null = null;
+
+      if (payment) {
+        confirmedPayment = await dbService.confirmPayment(payment.id, utr);
+      } else if (link) {
+        const merchant = await dbService.findUserById(link.user_id);
+        confirmedPayment = await dbService.createPaymentRecord({
+          transaction_ref: utr || `GW-${Date.now().toString(36).toUpperCase()}`,
+          user_id: link.user_id,
+          user_email: merchant?.email || 'merchant@famgateway.in',
+          upi_id: merchant?.fampay_upi_id || 'merchant@fam',
+          amount: amount || link.amount,
+          note: link.title,
+          qr_data_url: '',
+          status: 'CONFIRMED',
+          confirmed_at: new Date().toISOString(),
+        });
+        await dbService.addWalletBalance(link.user_id, confirmedPayment.amount);
+        await dbService.updatePaymentLinkStatus(link.id, 'CAPTURED');
+      }
+
+      if (!confirmedPayment) {
+        return res.status(500).json({
+          success: false,
+          error: 'Failed to update transaction status in database.',
+        });
+      }
+
+      // Asynchronously dispatch receipt email
+      EmailService.sendPaymentReceiptEmail(
+        confirmedPayment.user_email,
+        confirmedPayment.amount,
+        confirmedPayment.upi_id,
+        confirmedPayment.transaction_ref
+      ).catch(() => {});
+
+      // Forward merchant outgoing webhook
+      PaymentService.triggerWebhook(confirmedPayment).catch(() => {});
+
+      await dbService.addLog({
+        user_id: confirmedPayment.user_id,
+        user_email: confirmedPayment.user_email,
+        action: 'WEBHOOK_PAYMENT_CONFIRMED',
+        ip: clientIp,
+        status: 'SUCCESS',
+        details: `Real-time payment gateway webhook verified! Transaction ${confirmedPayment.id} confirmed. UTR: ${confirmedPayment.transaction_ref}. Amount: ₹${confirmedPayment.amount}.`,
+      });
+
+      return res.status(200).json({
+        success: true,
+        message: 'Transaction status updated to CONFIRMED successfully.',
+        transaction_id: confirmedPayment.id,
+        transaction_ref: confirmedPayment.transaction_ref,
+        amount: confirmedPayment.amount,
+        status: 'CONFIRMED',
+        confirmed_at: confirmedPayment.confirmed_at,
+      });
+    }
+
+    // 2. Process FAILURE notification
+    if (isFailure) {
+      if (payment) {
+        await dbService.failPayment(payment.id);
+      }
+
+      await dbService.addLog({
+        user_id: payment?.user_id || link?.user_id,
+        user_email: payment?.user_email,
+        action: 'WEBHOOK_PAYMENT_FAILED',
+        ip: clientIp,
+        status: 'WARNING',
+        details: `Payment gateway notified failure for transaction ${targetRef}. Status updated to FAILED.`,
+      });
+
+      return res.status(200).json({
+        success: true,
+        message: 'Transaction status updated to FAILED as notified by gateway.',
+        transaction_id: targetRef,
+        status: 'FAILED',
+      });
+    }
+
+    // Default response for unhandled status
+    return res.status(200).json({
+      success: true,
+      message: `Webhook notification acknowledged. Status '${rawStatus || 'UNKNOWN'}' recorded.`,
+      transaction_id: targetRef,
+      status: payment?.status || 'PENDING',
+    });
+  }
+
+  /**
+   * POST /api/payment/webhook/simulate
+   * Test tool for merchants to simulate an incoming gateway webhook
+   */
+  public static async simulateGatewayWebhook(req: AuthenticatedRequest, res: Response) {
+    dbService.incrementApiRequests();
+    const { paymentId, status = 'SUCCESS', utr, amount } = req.body || {};
+
+    if (!paymentId) {
+      return res.status(400).json({ success: false, error: 'paymentId or orderId is required to simulate.' });
+    }
+
+    const mockReq = {
+      body: {
+        paymentId,
+        status,
+        utr: utr || `UTR${Date.now().toString().slice(-8)}`,
+        amount,
+        event: status === 'SUCCESS' ? 'payment.captured' : 'payment.failed',
+      },
+      headers: req.headers,
+      socket: req.socket,
+    } as unknown as Request;
+
+    return PaymentController.handleGatewayWebhook(mockReq, res);
   }
 }

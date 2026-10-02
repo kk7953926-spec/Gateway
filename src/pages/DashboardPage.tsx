@@ -230,10 +230,10 @@ export const DashboardPage: React.FC = () => {
         <div className="space-y-2">
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-indigo-50 border border-indigo-200 text-indigo-700 text-xs font-mono font-bold">
             <Globe className="w-3.5 h-3.5 text-indigo-600" />
-            <span>https://famgateway.in Developer Portal</span>
+            <span>{typeof window !== 'undefined' ? window.location.origin : 'https://gateway'} Developer Portal</span>
           </div>
           <h1 className="text-3xl font-extrabold text-slate-900 tracking-tight">
-            FamGateway.in Analytics & Console
+            Analytics & Console
           </h1>
           <p className="text-xs text-slate-600">
             Live telemetric reporting for 16-digit verification code requests, FamPay UPI payments, and API rates
@@ -269,7 +269,7 @@ export const DashboardPage: React.FC = () => {
             <Activity className="w-5 h-5 text-indigo-600 animate-pulse" />
           </div>
           <div className="text-3xl font-black text-indigo-950 font-mono tracking-tight">{stats.apiRequests}</div>
-          <div className="text-[10px] text-indigo-600 font-bold uppercase tracking-wider">டோட்டல் ரெக்வெஸ்ட் (Live)</div>
+          <div className="text-[10px] text-indigo-600 font-bold uppercase tracking-wider">Total Requests (Live)</div>
         </div>
 
         <div className="p-5 rounded-2xl bg-emerald-50/70 border border-emerald-200 shadow-sm space-y-2">
@@ -278,7 +278,7 @@ export const DashboardPage: React.FC = () => {
             <CheckCircle2 className="w-5 h-5 text-emerald-600" />
           </div>
           <div className="text-3xl font-black text-emerald-950 font-mono tracking-tight">{stats.confirmedPayments || 0}</div>
-          <div className="text-[10px] text-emerald-600 font-bold uppercase tracking-wider">கன்ஃபார்ம் பேமெண்ட் (Success)</div>
+          <div className="text-[10px] text-emerald-600 font-bold uppercase tracking-wider">Confirmed Payments (Success)</div>
         </div>
 
         <div className="p-5 rounded-2xl bg-rose-50/70 border border-rose-200 shadow-sm space-y-2">
@@ -287,7 +287,7 @@ export const DashboardPage: React.FC = () => {
             <XCircle className="w-5 h-5 text-rose-600" />
           </div>
           <div className="text-3xl font-black text-rose-950 font-mono tracking-tight">{stats.failedAttempts}</div>
-          <div className="text-[10px] text-rose-600 font-bold uppercase tracking-wider">ஃபெயில்டு அட்டெம்ப்ட்ஸ் (Failed)</div>
+          <div className="text-[10px] text-rose-600 font-bold uppercase tracking-wider">Failed Attempts</div>
         </div>
 
         <div className="p-5 rounded-2xl bg-purple-50/70 border border-purple-200 shadow-sm space-y-2">
@@ -296,7 +296,7 @@ export const DashboardPage: React.FC = () => {
             <QrCode className="w-5 h-5 text-purple-600" />
           </div>
           <div className="text-3xl font-black text-purple-950 font-mono tracking-tight">₹{(stats.totalPaymentAmount || 0).toFixed(2)}</div>
-          <div className="text-[10px] text-purple-600 font-bold uppercase tracking-wider">டோட்டல் ரெனியூவல் (Renewals)</div>
+          <div className="text-[10px] text-purple-600 font-bold uppercase tracking-wider">Total Renewals</div>
         </div>
       </div>
 

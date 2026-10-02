@@ -32,6 +32,9 @@ export interface User {
   api_key?: string;
   api_key_created_at?: string;
 
+  webhook_url?: string;
+  webhook_secret?: string;
+
   checkout_settings?: CheckoutCustomizationSettings;
 
   wallet_balance?: number;
@@ -76,10 +79,13 @@ export interface PaymentLinkRecord {
   amount: number;
   description?: string;
   checkout_url: string;
+  deep_link?: string;
   status: 'ACTIVE' | 'EXPIRED' | 'DISABLED' | 'CAPTURED';
   success_url?: string;
   cancel_url?: string;
   created_at: string;
+  expires_at?: string;
+  expiry_minutes?: number;
 }
 
 export interface OrderTransactionRecord {
@@ -140,10 +146,13 @@ export interface SmtpConfig {
   host: string;
   port: number;
   user: string;
+  sender_name?: string;
+  sender_email?: string;
   from: string;
   maxAttempts: number;
   codeExpiryMinutes: number;
   rateLimitPerMin: number;
   passConfigured: boolean;
   sendgridKeyConfigured: boolean;
+  notify_customer_on_payment?: boolean;
 }

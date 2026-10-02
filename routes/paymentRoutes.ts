@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { PaymentController } from '../controllers/paymentController.ts';
+import { IntegrationController } from '../controllers/integrationController.ts';
 import { requireAuth, requireAdmin, requireApiKey } from '../middleware/authMiddleware.ts';
 
 const router = Router();
@@ -14,7 +15,13 @@ router.post('/public-verify-email', PaymentController.verifyEmailAlert);
 router.post('/v1/order/create', requireApiKey, PaymentController.createApiOrder);
 router.get('/v1/order/status/:id', requireApiKey, PaymentController.getApiOrderStatus);
 
+// Real-time asynchronous payment gateway webhook handlers
+router.post('/webhook', PaymentController.handleGatewayWebhook);
+router.get('/webhook', (req, res) => res.json({ status: 'ACTIVE', endpoint: '/api/payment/webhook', method: 'POST', description: 'Inbound Webhook Handler for Payment Gateway Notifications' }));
+router.post('/webhook/simulate', requireAuth, PaymentController.simulateGatewayWebhook);
+
 // Authenticated merchant routes
+router.delete('/payment-links/:id', requireAuth, IntegrationController.deletePaymentLink);
 router.get('/diagnostic-logs', requireAuth, PaymentController.getDiagnosticLogs);
 router.post('/run-diagnostics', requireAuth, PaymentController.runDiagnostics);
 router.post('/simulate-email', requireAuth, PaymentController.simulateEmailParser);

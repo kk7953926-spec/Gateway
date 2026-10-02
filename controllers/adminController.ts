@@ -71,12 +71,17 @@ export class AdminController {
   public static async getSettings(req: AuthenticatedRequest, res: Response) {
     dbService.incrementApiRequests();
     const settings = dbService.getSettings();
+    const senderName = settings.sender_name || (settings.from && settings.from.includes('"') ? settings.from.split('"')[1] : 'FamGateway Payments');
+    const senderEmail = settings.sender_email || settings.user || '';
+
     return res.status(200).json({
       success: true,
       settings: {
         host: settings.host,
         port: settings.port,
         user: settings.user,
+        sender_name: senderName,
+        sender_email: senderEmail,
         from: settings.from,
         maxAttempts: settings.maxAttempts,
         codeExpiryMinutes: settings.codeExpiryMinutes,
@@ -89,13 +94,15 @@ export class AdminController {
 
   public static async updateSettings(req: AuthenticatedRequest, res: Response) {
     dbService.incrementApiRequests();
-    const { host, port, user, pass, from, sendgridKey, maxAttempts, codeExpiryMinutes, rateLimitPerMin } =
+    const { host, port, user, sender_name, sender_email, pass, from, sendgridKey, maxAttempts, codeExpiryMinutes, rateLimitPerMin } =
       req.body || {};
 
     const updated = dbService.updateSettings({
       ...(host && { host: host.toString() }),
       ...(port && { port: parseInt(port.toString(), 10) }),
       ...(user && { user: user.toString() }),
+      ...(sender_name !== undefined && { sender_name: sender_name.toString() }),
+      ...(sender_email && { sender_email: sender_email.toString() }),
       ...(pass && { pass: pass.toString() }),
       ...(from && { from: from.toString() }),
       ...(sendgridKey && { sendgridKey: sendgridKey.toString() }),
@@ -111,8 +118,11 @@ export class AdminController {
       action: 'UPDATE_SYSTEM_SETTINGS',
       ip: clientIp,
       status: 'SUCCESS',
-      details: 'Admin updated SMTP and gateway configuration.',
+      details: 'Admin updated SMTP and sender configuration.',
     });
+
+    const finalSenderName = updated.sender_name || (updated.from && updated.from.includes('"') ? updated.from.split('"')[1] : 'FamGateway Payments');
+    const finalSenderEmail = updated.sender_email || updated.user || '';
 
     return res.status(200).json({
       success: true,
@@ -121,6 +131,8 @@ export class AdminController {
         host: updated.host,
         port: updated.port,
         user: updated.user,
+        sender_name: finalSenderName,
+        sender_email: finalSenderEmail,
         from: updated.from,
         maxAttempts: updated.maxAttempts,
         codeExpiryMinutes: updated.codeExpiryMinutes,
@@ -133,15 +145,37 @@ export class AdminController {
 
   public static async sendTestEmail(req: AuthenticatedRequest, res: Response) {
     dbService.incrementApiRequests();
-    const { testEmail } = req.body || {};
+    const { testEmail, type } = req.body || {};
     const targetEmail = testEmail || req.user?.email || 'admin@fampayx.com';
 
-    const testCode = '4829173056148273';
-    const emailRes = await EmailService.sendVerificationEmail(targetEmail, testCode, 10);
+    let emailRes;
+    if (type === 'verification') {
+      const testCode = '4829173056148273';
+      emailRes = await EmailService.sendVerificationEmail(targetEmail, testCode, 10);
+    } else {
+      // Default to Payment Confirmation Receipt email with amount, transaction ID, UTR!
+      emailRes = await EmailService.sendPaymentReceiptEmail({
+        toEmail: targetEmail,
+        amount: 250,
+        upiId: 'kalamakash@fam',
+        transactionRef: `TXN-${Math.floor(100000 + Math.random() * 900000)}`,
+        utr: `${Math.floor(100000000000 + Math.random() * 900000000000)}`,
+        note: 'VIP Access (Test Receipt)',
+        merchantName: 'FamGateway Payments',
+      });
+    }
+
+    if (!emailRes.success) {
+      return res.status(400).json({
+        success: false,
+        error: emailRes.error || 'SMTP delivery failed. Please check your App Password and host settings.',
+        simulated: false,
+      });
+    }
 
     return res.status(200).json({
       success: true,
-      message: `Test email dispatched to ${targetEmail}`,
+      message: `Test payment confirmation email dispatched to ${targetEmail}`,
       simulated: emailRes.simulated,
       messageId: emailRes.messageId,
     });
@@ -193,7 +227,7 @@ export class AdminController {
       return res.status(400).json({ success: false, error: 'userId, planId, and durationDays are required.' });
     }
 
-    const updatedUser = dbService.updateUserSubscription(userId, planId, Number(durationDays));
+    const updatedUser = await dbService.updateUserSubscription(userId, planId, Number(durationDays));
     if (!updatedUser) {
       return res.status(404).json({ success: false, error: 'User not found.' });
     }

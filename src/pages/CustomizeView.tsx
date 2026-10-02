@@ -36,6 +36,7 @@ export const CustomizeView: React.FC = () => {
 
   const [saving, setSaving] = useState(false);
   const [savedSuccess, setSavedSuccess] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
 
   // Preset Avatars
   const presetAvatars = [
@@ -203,9 +204,11 @@ export const CustomizeView: React.FC = () => {
                           const file = e.target.files?.[0];
                           if (!file) return;
                           if (file.size > 1.5 * 1024 * 1024) {
-                            alert("Image is too large. Please select an image under 1.5MB.");
+                            setUploadError("Image is too large. Please select an image under 1.5MB.");
+                            setTimeout(() => setUploadError(null), 4000);
                             return;
                           }
+                          setUploadError(null);
                           const reader = new FileReader();
                           reader.onload = (event) => {
                             if (event.target?.result) {

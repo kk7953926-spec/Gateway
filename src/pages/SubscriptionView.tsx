@@ -387,7 +387,7 @@ export const SubscriptionView: React.FC = () => {
                 <div className="space-y-1">
                   <span className="text-[10px] text-slate-400 font-mono tracking-wider uppercase font-bold">Activating Scheme</span>
                   <h4 className="text-lg font-black text-white">{checkoutPlanName}</h4>
-                  <div className="text-2xl font-black text-purple-400 mt-1">₹{checkoutPrice.toFixed(2)}</div>
+                  <div className="text-2xl font-black text-purple-400 mt-1">₹{(Number(checkoutPrice) || 0).toFixed(2)}</div>
                 </div>
 
                 {/* QR Display */}

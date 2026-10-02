@@ -36,11 +36,11 @@ export const TransactionsView: React.FC = () => {
       .map(
         (t) => `
         <tr>
-          <td>${t.id}</td>
-          <td>${t.upi_id}</td>
-          <td>₹${t.amount.toFixed(2)}</td>
-          <td>${t.status}</td>
-          <td>${new Date(t.created_at).toLocaleDateString()}</td>
+          <td>${t.id || ''}</td>
+          <td>${t.upi_id || ''}</td>
+          <td>₹${(Number(t.amount) || 0).toFixed(2)}</td>
+          <td>${t.status || 'PENDING'}</td>
+          <td>${t.created_at ? new Date(t.created_at).toLocaleDateString() : ''}</td>
         </tr>
       `
       )
@@ -78,7 +78,7 @@ export const TransactionsView: React.FC = () => {
               ${rowsHtml}
             </tbody>
           </table>
-          <div class="total">Total Collected: ₹${totalCapturedAmount.toFixed(2)}</div>
+          <div class="total">Total Collected: ₹${(Number(totalCapturedAmount) || 0).toFixed(2)}</div>
           <div class="footer">FamGateway.in - Secure Zero-Fee Instant Payments</div>
         </body>
       </html>
@@ -93,9 +93,11 @@ export const TransactionsView: React.FC = () => {
     if (activeTab === 'Failed' && t.status !== 'FAILED') return false;
 
     if (searchTerm) {
+      const q = searchTerm.toLowerCase();
       return (
-        t.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        t.upi_id.toLowerCase().includes(searchTerm.toLowerCase())
+        (t.id && t.id.toLowerCase().includes(q)) ||
+        (t.upi_id && t.upi_id.toLowerCase().includes(q)) ||
+        (t.user_email && t.user_email.toLowerCase().includes(q))
       );
     }
     return true;
@@ -103,7 +105,7 @@ export const TransactionsView: React.FC = () => {
 
   const totalCapturedAmount = transactions
     .filter((t) => t.status === 'CAPTURED')
-    .reduce((acc, curr) => acc + curr.amount, 0);
+    .reduce((acc, curr) => acc + (Number(curr?.amount) || 0), 0);
 
   return (
     <div className="space-y-6 max-w-5xl mx-auto">
@@ -117,7 +119,7 @@ export const TransactionsView: React.FC = () => {
         <div>
           <div className="text-xs font-semibold text-slate-500">Collected Amount</div>
           <div className="text-3xl font-extrabold text-slate-900 font-mono mt-1">
-            ₹{totalCapturedAmount.toFixed(2)}
+            ₹{(Number(totalCapturedAmount) || 0).toFixed(2)}
           </div>
           <div className="text-xs text-slate-500 mt-0.5">
             from {transactions.filter((t) => t.status === 'CAPTURED').length} captured payments
@@ -208,7 +210,7 @@ export const TransactionsView: React.FC = () => {
                   <tr key={t.id} className="hover:bg-slate-50 transition-colors">
                     <td className="py-3 font-bold text-indigo-700">{t.id}</td>
                     <td className="py-3 text-slate-700">{t.upi_id}</td>
-                    <td className="py-3 font-bold text-slate-900">₹{t.amount.toFixed(2)}</td>
+                    <td className="py-3 font-bold text-slate-900">₹{(Number(t?.amount) || 0).toFixed(2)}</td>
                     <td className="py-3">
                       {t.status === 'CAPTURED' ? (
                         <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300">

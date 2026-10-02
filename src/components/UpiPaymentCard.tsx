@@ -47,6 +47,28 @@ export const UpiPaymentCard: React.FC = () => {
     fetchMyPayments();
   }, [token]);
 
+  // Real-time automatic background IMAP scanner when QR is on screen
+  useEffect(() => {
+    if (!currentPayment || currentPayment.status === 'CONFIRMED') return;
+    const interval = setInterval(async () => {
+      try {
+        const res = await fetch(`/api/payment/auto-detect/${currentPayment.id}?amount=${currentPayment.amount}`);
+        if (res.ok) {
+          const data = await res.json();
+          if (data.status === 'CONFIRMED' && data.payment) {
+            setCurrentPayment(data.payment);
+            setSuccessMsg(`Payment Confirmed in Real-Time! ₹${currentPayment.amount} credited. UTR: ${data.payment.transaction_ref}`);
+            refreshProfile();
+            fetchMyPayments();
+          }
+        }
+      } catch {
+        // Ignore
+      }
+    }, 3000);
+    return () => clearInterval(interval);
+  }, [currentPayment?.id, currentPayment?.status]);
+
   const handleGenerateQr = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!upiId.trim() || !upiId.includes('@')) {
@@ -279,7 +301,7 @@ export const UpiPaymentCard: React.FC = () => {
                 </div>
                 <div className="flex justify-between text-slate-600">
                   <span>Amount Due:</span>
-                  <span className="text-emerald-600 font-extrabold text-sm">₹{currentPayment?.amount.toFixed(2)} INR</span>
+                  <span className="text-emerald-600 font-extrabold text-sm">₹{(Number(currentPayment?.amount) || 0).toFixed(2)} INR</span>
                 </div>
               </div>
 
@@ -293,8 +315,8 @@ export const UpiPaymentCard: React.FC = () => {
                   <Mail className={`w-4 h-4 ${verifyingEmailAlert ? 'animate-spin' : ''}`} />
                   <span>
                     {verifyingEmailAlert
-                      ? 'Checking Payment Email Alert...'
-                      : 'Simulate & Verify FamPay Payment Email Alert'}
+                      ? 'Checking Live IMAP Inbox...'
+                      : 'Check FamPay Email Alert (Live IMAP)'}
                   </span>
                 </button>
               ) : (
@@ -351,7 +373,7 @@ export const UpiPaymentCard: React.FC = () => {
                   <tr key={p.id} className="hover:bg-slate-50 transition-colors">
                     <td className="py-3 font-bold text-indigo-700">{p.transaction_ref}</td>
                     <td className="py-3 text-slate-700">{p.upi_id}</td>
-                    <td className="py-3 font-bold text-emerald-600">₹{p.amount.toFixed(2)}</td>
+                    <td className="py-3 font-bold text-emerald-600">₹{(Number(p?.amount) || 0).toFixed(2)}</td>
                     <td className="py-3">
                       {p.status === 'CONFIRMED' ? (
                         <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300">

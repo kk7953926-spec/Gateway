@@ -138,18 +138,28 @@ export class IntegrationController {
   public static async createPaymentLink(req: AuthenticatedRequest, res: Response) {
     if (!req.user) return res.status(401).json({ success: false, error: 'Unauthorized' });
 
-    const { title, amount, description, success_url, cancel_url } = req.body || {};
-    if (!title || !amount) {
-      return res.status(400).json({ success: false, error: 'Title and amount are required.' });
+    const { title, amount, description, success_url, cancel_url, expiry_minutes } = req.body || {};
+    const parsedAmount = parseFloat(amount);
+    if (!amount || isNaN(parsedAmount) || parsedAmount <= 0) {
+      return res.status(400).json({ success: false, error: 'Valid payment amount is required.' });
     }
+
+    const cleanTitle = (title && title.toString().trim().length > 0)
+      ? title.toString().trim()
+      : `Payment (₹${parsedAmount.toFixed(0)})`;
+
+    const parsedExpiry = expiry_minutes && !isNaN(parseInt(expiry_minutes, 10)) && parseInt(expiry_minutes, 10) > 0
+      ? parseInt(expiry_minutes, 10)
+      : 8;
 
     const link = await dbService.createPaymentLink({
       user_id: req.user.id,
-      title: title.toString().trim(),
-      amount: parseFloat(amount) || 10,
+      title: cleanTitle,
+      amount: parsedAmount,
       description: description ? description.toString().trim() : '',
       success_url: success_url ? success_url.toString().trim() : undefined,
       cancel_url: cancel_url ? cancel_url.toString().trim() : undefined,
+      expiry_minutes: parsedExpiry,
     });
 
     return res.status(201).json({
@@ -175,12 +185,29 @@ export class IntegrationController {
     const { id } = req.params;
     
     const link = await dbService.getPaymentLinkById(id);
-    if (!link || link.user_id !== req.user.id) {
-      return res.status(404).json({ success: false, error: 'Link not found.' });
+    if (!link) {
+      await dbService.deletePaymentLink(id);
+      return res.status(200).json({ success: true, deleted: true, message: 'Link removed.' });
+    }
+
+    // Allow owner or admin
+    if (link.user_id !== req.user.id && req.user.role !== 'admin') {
+      return res.status(403).json({ success: false, error: 'Permission denied: cannot delete payment link belonging to another user.' });
     }
 
     const deleted = await dbService.deletePaymentLink(id);
-    return res.status(200).json({ success: true, deleted });
+
+    const clientIp = (req.headers['x-forwarded-for'] as string) || req.socket.remoteAddress || '127.0.0.1';
+    await dbService.addLog({
+      user_id: req.user.id,
+      user_email: req.user.email,
+      action: 'PAYMENT_LINK_DELETED',
+      ip: clientIp,
+      status: 'SUCCESS',
+      details: `Payment link ${id} (${link.title || ''}) deleted successfully.`,
+    });
+
+    return res.status(200).json({ success: true, deleted, message: 'Payment link deleted successfully.' });
   }
 
   /**

@@ -45,6 +45,16 @@ export const DocumentationView: React.FC = () => {
   const curlCheckStatus = `curl -X GET "${baseUrl}/api/v1/order/status/txn_a1b2c3d4" \\
   -H "x-api-key: ${apiKey}"`;
 
+  const curlWebhookHandler = `curl -X POST "${baseUrl}/api/payment/webhook" \\
+  -H "Content-Type: application/json" \\
+  -d '{
+    "event": "payment.captured",
+    "paymentId": "ORD_1024",
+    "status": "SUCCESS",
+    "utr": "428910284719",
+    "amount": 500.00
+  }'`;
+
   // JavaScript / Node.js
   const jsCode = `// 1. Create Payment Order
 const createOrder = async () => {
@@ -121,6 +131,7 @@ if data.get("success"):
   const endpoints = [
     { method: 'POST', path: '/api/v1/order/create', desc: 'Create a new payment session and get QR/Link' },
     { method: 'GET', path: '/api/v1/order/status/:id', desc: 'Check status of a transaction' },
+    { method: 'POST', path: '/api/payment/webhook', desc: 'Inbound Webhook Handler for external gateway payment notifications' },
     { method: 'POST', path: '/api/integrations/webhook', desc: 'Configure your notification endpoint' },
   ];
 
@@ -186,6 +197,7 @@ if data.get("success"):
               <div className="space-y-6">
                 <CodeBlock title="1. Create Payment Session" code={curlCreateOrder} onCopy={() => handleCopy(curlCreateOrder, 1)} isCopied={copiedIndex === 1} icon={<Terminal className="w-4 h-4" />} />
                 <CodeBlock title="2. Check Transaction Status" code={curlCheckStatus} onCopy={() => handleCopy(curlCheckStatus, 2)} isCopied={copiedIndex === 2} icon={<Activity className="w-4 h-4" />} />
+                <CodeBlock title="3. Gateway Webhook Handler (Inbound Asynchronous Update)" code={curlWebhookHandler} onCopy={() => handleCopy(curlWebhookHandler, 6)} isCopied={copiedIndex === 6} icon={<Webhook className="w-4 h-4 text-indigo-600" />} />
               </div>
             )}
             {activeTab === 'JavaScript' && (

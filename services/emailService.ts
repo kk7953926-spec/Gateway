@@ -157,47 +157,105 @@ export class EmailService {
   }
 
   /**
-   * Generates a professional HTML Payment Receipt email.
+   * Generates a professional HTML Payment Receipt email with Amount, Transaction ID, UTR, and Note.
    */
   private static generatePaymentReceiptHtml(
     amount: number,
     upiId: string,
-    transactionRef: string
+    transactionRef: string,
+    utr?: string,
+    note?: string,
+    merchantName?: string
   ): string {
+    const formattedDate = new Date().toLocaleString('en-IN', {
+      timeZone: 'Asia/Kolkata',
+      dateStyle: 'medium',
+      timeStyle: 'medium',
+    });
+
     return `
 <!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>FamPay X Payment Confirmation</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Payment Confirmed - ₹${amount.toFixed(2)}</title>
   <style>
-    body { margin: 0; padding: 0; font-family: sans-serif; background: #07090e; color: #f8fafc; }
-    .container { max-width: 580px; margin: 30px auto; background: #111827; border-radius: 16px; border: 1px solid rgba(16, 185, 129, 0.3); overflow: hidden; }
-    .header { background: linear-gradient(135deg, #064e3b 0%, #022c22 100%); padding: 32px; text-align: center; }
-    .badge { background: #10b981; color: #000; font-weight: 800; font-size: 12px; padding: 4px 12px; border-radius: 99px; text-transform: uppercase; }
-    .title { font-size: 24px; font-weight: 800; margin-top: 12px; color: #ffffff; }
-    .amount { font-size: 36px; font-weight: 800; color: #34d399; margin: 16px 0; font-family: monospace; }
-    .box { background: #070a12; border-radius: 12px; padding: 20px; margin: 20px 32px; font-family: monospace; font-size: 13px; }
-    .row { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #1e293b; }
+    body { margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #0b0f19; color: #f8fafc; line-height: 1.6; }
+    .container { max-width: 580px; margin: 30px auto; background: #111827; border-radius: 20px; border: 1px solid rgba(16, 185, 129, 0.3); overflow: hidden; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.7); }
+    .header { background: linear-gradient(135deg, #064e3b 0%, #022c22 100%); padding: 36px 24px; text-align: center; border-bottom: 1px solid rgba(16, 185, 129, 0.2); }
+    .badge { display: inline-block; background: #10b981; color: #022c22; font-weight: 800; font-size: 11px; padding: 6px 16px; border-radius: 9999px; text-transform: uppercase; letter-spacing: 1px; }
+    .title { font-size: 22px; font-weight: 800; margin-top: 14px; color: #ffffff; letter-spacing: -0.5px; }
+    .merchant { font-size: 13px; color: #a7f3d0; margin-top: 4px; font-weight: 600; }
+    .amount-box { padding: 24px 32px 10px; text-align: center; }
+    .amount-label { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 1.5px; color: #94a3b8; }
+    .amount { font-size: 42px; font-weight: 900; color: #34d399; margin: 6px 0; font-family: monospace; letter-spacing: -1px; }
+    .content { padding: 10px 32px 32px; }
+    .intro { font-size: 14px; color: #cbd5e1; text-align: center; margin-bottom: 24px; }
+    .card { background: #070a12; border: 1px solid #1f293d; border-radius: 14px; padding: 20px 24px; font-family: monospace; font-size: 13px; }
+    .row { display: flex; justify-content: space-between; align-items: center; padding: 10px 0; border-bottom: 1px solid #172033; }
     .row:last-child { border-bottom: none; }
-    .footer { background: #090d16; padding: 20px; text-align: center; font-size: 12px; color: #64748b; }
+    .label { color: #94a3b8; font-weight: 500; font-size: 12px; }
+    .val { color: #f8fafc; font-weight: 700; font-size: 13px; text-align: right; }
+    .highlight-utr { color: #38bdf8; font-weight: 800; font-size: 14px; background: rgba(56, 189, 248, 0.1); padding: 2px 8px; border-radius: 6px; }
+    .status-ok { color: #34d399; font-weight: 800; }
+    .footer { background: #090d16; padding: 24px; text-align: center; font-size: 12px; color: #64748b; border-top: 1px solid #172033; }
   </style>
 </head>
 <body>
   <div class="container">
     <div class="header">
-      <span class="badge">Payment Confirmed ✓</span>
-      <div class="title">FamPay X UPI Transaction Successful</div>
-      <div class="amount">₹${amount.toFixed(2)} INR</div>
+      <div class="badge">Payment Confirmed ✓</div>
+      <div class="title">Payment Successful</div>
+      <div class="merchant">Merchant: ${merchantName || 'FamGateway Merchant'}</div>
     </div>
-    <div class="box">
-      <div class="row"><span style="color:#94a3b8">Transaction Ref:</span><span style="color:#38bdf8">${transactionRef}</span></div>
-      <div class="row"><span style="color:#94a3b8">FamPay UPI ID:</span><span style="color:#f8fafc">${upiId}</span></div>
-      <div class="row"><span style="color:#94a3b8">Gateway Status:</span><span style="color:#34d399">EMAIL ALERT VERIFIED</span></div>
-      <div class="row"><span style="color:#94a3b8">Confirmed At:</span><span>${new Date().toLocaleString()}</span></div>
+
+    <div class="amount-box">
+      <div class="amount-label">Amount Confirmed</div>
+      <div class="amount">₹${amount.toFixed(2)}</div>
     </div>
-    <div className="footer">
-      <div>&copy; ${new Date().getFullYear()} FamPay X Payment Gateway</div>
+
+    <div class="content">
+      <div class="intro">
+        Your payment has been successfully verified and confirmed. Below are your official transaction and receipt details:
+      </div>
+
+      <div class="card">
+        <div class="row">
+          <span class="label">Amount Paid:</span>
+          <span class="val" style="color: #34d399; font-size: 15px;">₹${amount.toFixed(2)} INR</span>
+        </div>
+        <div class="row">
+          <span class="label">Bank UTR Number:</span>
+          <span class="val highlight-utr">${utr || 'Auto-Captured'}</span>
+        </div>
+        <div class="row">
+          <span class="label">Transaction ID:</span>
+          <span class="val" style="color: #e2e8f0;">${transactionRef}</span>
+        </div>
+        ${note ? `
+        <div class="row">
+          <span class="label">Payment Description:</span>
+          <span class="val">${note}</span>
+        </div>` : ''}
+        <div class="row">
+          <span class="label">Merchant UPI VPA:</span>
+          <span class="val">${upiId}</span>
+        </div>
+        <div class="row">
+          <span class="label">Status:</span>
+          <span class="val status-ok">CONFIRMED (SUCCESS ✓)</span>
+        </div>
+        <div class="row">
+          <span class="label">Date & Time:</span>
+          <span class="val" style="font-size: 11px;">${formattedDate}</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="footer">
+      <div>This is an official automated payment confirmation receipt.</div>
+      <div style="margin-top: 6px;">&copy; ${new Date().getFullYear()} FamGateway. All rights reserved.</div>
     </div>
   </div>
 </body>
@@ -205,27 +263,145 @@ export class EmailService {
     `;
   }
 
+  /**
+   * Checks whether the provided SMTP settings are valid and not a placeholder or local mock.
+   */
+  private static isValidSmtpConfig(settings: { host?: string; user?: string; pass?: string }): boolean {
+    if (!settings.host || !settings.user || !settings.pass) return false;
+    const host = settings.host.toLowerCase().trim();
+    const user = settings.user.toLowerCase().trim();
+    const pass = settings.pass.trim();
+
+    // Check placeholder / dummy domains and local addresses
+    if (
+      host.includes('example.com') ||
+      host.includes('example.org') ||
+      host.includes('yourdomain') ||
+      host.includes('dummy') ||
+      host === 'localhost' ||
+      host === '127.0.0.1' ||
+      host.endsWith('.test') ||
+      host.endsWith('.invalid')
+    ) {
+      return false;
+    }
+
+    // Check placeholder usernames
+    if (
+      user.includes('example.com') ||
+      user.includes('example.org') ||
+      user === 'user' ||
+      user === 'admin'
+    ) {
+      return false;
+    }
+
+    // Check placeholder passwords
+    if (
+      pass.includes('example') ||
+      pass === 'password' ||
+      pass === 'your_password' ||
+      pass === 'your_smtp_app_password' ||
+      pass.length < 6
+    ) {
+      return false;
+    }
+
+    return true;
+  }
+
+  /**
+   * Resolves effective SMTP settings, falling back to merchant credentials if available.
+   */
+  private static async getEffectiveSmtpSettings(): Promise<{
+    host: string;
+    port: number;
+    user: string;
+    pass: string;
+    from: string;
+  } | null> {
+    const settings = dbService.getSettings();
+
+    // Look for real merchant credentials as fallback if password not in settings
+    let fallbackPass = '';
+    let fallbackEmail = '';
+    try {
+      const users = await dbService.getAllUsers();
+      const userWithAppPass = users.find(
+        (u) =>
+          u.google_app_password &&
+          u.google_app_password.trim().length >= 8 &&
+          !u.google_app_password.includes('example')
+      );
+      if (userWithAppPass && userWithAppPass.google_app_password) {
+        fallbackPass = userWithAppPass.google_app_password.trim();
+        fallbackEmail = (userWithAppPass.fampay_gmail || userWithAppPass.email || '').trim();
+      }
+    } catch {
+      // Ignore
+    }
+
+    const effectiveUser =
+      (settings.sender_email && settings.sender_email.trim()) ||
+      (settings.user && settings.user.trim()) ||
+      fallbackEmail;
+
+    const effectivePass =
+      (settings.pass && settings.pass.trim().length >= 6 && !settings.pass.includes('example')
+        ? settings.pass.trim()
+        : null) || fallbackPass;
+
+    const effectiveSenderName =
+      (settings.sender_name && settings.sender_name.trim()) ||
+      (settings.from && settings.from.includes('"')
+        ? settings.from.split('"')[1]
+        : 'FamGateway Payments');
+
+    const effectiveFrom = settings.from && settings.from.trim().length > 3
+      ? settings.from
+      : (effectiveSenderName ? `"${effectiveSenderName}" <${effectiveUser}>` : effectiveUser);
+
+    const effectiveHost = settings.host && !settings.host.includes('example') ? settings.host : 'smtp.gmail.com';
+    const effectivePort = settings.port || 465;
+
+    if (effectiveUser && effectivePass) {
+      return {
+        host: effectiveHost,
+        port: effectivePort,
+        user: effectiveUser,
+        pass: effectivePass,
+        from: effectiveFrom,
+      };
+    }
+
+    return null;
+  }
+
   public static async sendVerificationEmail(
     toEmail: string,
     code: string,
     expiryMinutes: number = 10
   ): Promise<EmailSendResult> {
-    const settings = dbService.getSettings();
     const subject = "Your FamPay X Email Verification Code";
     const htmlContent = this.generateVerificationHtml(code, expiryMinutes);
+    const smtp = await this.getEffectiveSmtpSettings();
 
-    if (settings.host && settings.user && settings.pass) {
+    if (smtp) {
       try {
+        const isPort465 = smtp.port === 465;
         const transporter = nodemailer.createTransport({
-          host: settings.host,
-          port: settings.port,
-          secure: settings.port === 465,
-          auth: { user: settings.user, pass: settings.pass },
+          host: smtp.host,
+          port: smtp.port,
+          secure: isPort465,
+          auth: { user: smtp.user, pass: smtp.pass },
           tls: { rejectUnauthorized: false },
+          connectionTimeout: 6000,
+          greetingTimeout: 6000,
+          socketTimeout: 6000,
         });
 
         const info = await transporter.sendMail({
-          from: settings.from || `"FamPay X Verification" <${settings.user}>`,
+          from: smtp.from,
           to: toEmail,
           subject,
           html: htmlContent,
@@ -234,7 +410,7 @@ export class EmailService {
 
         return { success: true, messageId: info.messageId, simulated: false };
       } catch (err) {
-        console.error('[SMTP Transport Error]:', (err as Error).message);
+        console.warn('[SMTP Verification Dispatch]: Notice: Could not send via SMTP, falling back to simulated dispatch:', (err as Error).message);
       }
     }
 
@@ -247,39 +423,88 @@ export class EmailService {
   }
 
   public static async sendPaymentReceiptEmail(
-    toEmail: string,
-    amount: number,
-    upiId: string,
-    transactionRef: string
+    toEmailOrParams: string | {
+      toEmail: string;
+      amount: number;
+      upiId: string;
+      transactionRef: string;
+      utr?: string;
+      note?: string;
+      merchantName?: string;
+    },
+    amountArg?: number,
+    upiIdArg?: string,
+    transactionRefArg?: string,
+    utrArg?: string,
+    noteArg?: string,
+    merchantNameArg?: string
   ): Promise<EmailSendResult> {
-    const settings = dbService.getSettings();
-    const subject = `Payment Received on FamPay X - Ref ${transactionRef}`;
-    const htmlContent = this.generatePaymentReceiptHtml(amount, upiId, transactionRef);
+    let toEmail: string;
+    let amount: number;
+    let upiId: string;
+    let transactionRef: string;
+    let utr: string | undefined;
+    let note: string | undefined;
+    let merchantName: string | undefined;
 
-    if (settings.host && settings.user && settings.pass) {
+    if (typeof toEmailOrParams === 'object') {
+      toEmail = toEmailOrParams.toEmail;
+      amount = toEmailOrParams.amount;
+      upiId = toEmailOrParams.upiId;
+      transactionRef = toEmailOrParams.transactionRef;
+      utr = toEmailOrParams.utr;
+      note = toEmailOrParams.note;
+      merchantName = toEmailOrParams.merchantName;
+    } else {
+      toEmail = toEmailOrParams;
+      amount = amountArg || 0;
+      upiId = upiIdArg || '';
+      transactionRef = transactionRefArg || '';
+      utr = utrArg;
+      note = noteArg;
+      merchantName = merchantNameArg;
+    }
+
+    const subject = `Payment Confirmed: ₹${amount.toFixed(2)} [Ref: ${utr || transactionRef}]`;
+    const htmlContent = this.generatePaymentReceiptHtml(amount, upiId, transactionRef, utr, note, merchantName);
+    const smtp = await this.getEffectiveSmtpSettings();
+
+    if (smtp) {
       try {
+        const isPort465 = smtp.port === 465;
         const transporter = nodemailer.createTransport({
-          host: settings.host,
-          port: settings.port,
-          secure: settings.port === 465,
-          auth: { user: settings.user, pass: settings.pass },
+          host: smtp.host,
+          port: smtp.port,
+          secure: isPort465,
+          auth: { user: smtp.user, pass: smtp.pass },
           tls: { rejectUnauthorized: false },
+          connectionTimeout: 8000,
+          greetingTimeout: 8000,
+          socketTimeout: 8000,
         });
 
         const info = await transporter.sendMail({
-          from: settings.from || `"FamPay X Payments" <${settings.user}>`,
+          from: smtp.from,
           to: toEmail,
           subject,
           html: htmlContent,
+          text: `Payment Confirmed: ₹${amount.toFixed(2)} has been successfully paid.\nTransaction ID: ${transactionRef}\nBank UTR: ${utr || 'N/A'}\nUPI ID: ${upiId}`,
         });
 
+        console.log(`[SMTP Receipt Delivered] Sent confirmation to ${toEmail}, messageId: ${info.messageId}`);
         return { success: true, messageId: info.messageId, simulated: false };
       } catch (err) {
-        console.error('[SMTP Receipt Error]:', (err as Error).message);
+        const errorMsg = (err as Error).message;
+        console.warn('[SMTP Receipt Dispatch]: SMTP Error:', errorMsg);
+        return {
+          success: false,
+          error: errorMsg,
+          simulated: false,
+        };
       }
     }
 
-    console.log(`[FamPay X Payment Receipt Simulation] ₹${amount} for ${upiId} Ref: ${transactionRef}`);
+    console.log(`[Payment Receipt Simulation] ₹${amount} for ${upiId} Ref: ${transactionRef} to ${toEmail}`);
     return {
       success: true,
       messageId: `receipt_sim_${Date.now()}`,

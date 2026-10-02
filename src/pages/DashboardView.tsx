@@ -149,7 +149,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate }) => {
         />
         <StatCard 
           title="TOTAL REVENUE" 
-          value={`₹${stats.revenue.toFixed(2)}`} 
+          value={`₹${(Number(stats?.revenue) || 0).toFixed(2)}`} 
           icon={<Wallet className="w-5 h-5" />} 
           color="indigo" 
           loading={loadingStats}

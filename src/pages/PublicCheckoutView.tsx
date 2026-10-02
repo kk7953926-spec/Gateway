@@ -18,6 +18,7 @@ import {
   XCircle,
   RotateCcw,
   ArrowLeft,
+  Mail,
 } from 'lucide-react';
 import QRCode from 'qrcode';
 import { listenToPaymentStatus } from '../hooks/usePaymentListener';
@@ -42,10 +43,12 @@ export const PublicCheckoutView: React.FC<PublicCheckoutViewProps> = ({ linkId }
 
   // UTR manual entry
   const [utrInput, setUtrInput] = useState('');
+  const [customerEmail, setCustomerEmail] = useState('');
 
   // Countdown timer in seconds (default 8 minutes = 480 seconds)
   const [timeLeft, setTimeLeft] = useState<number>(480);
   const totalDurationRef = useRef<number>(480);
+  const sessionStartTimeRef = useRef<number>(Date.now());
 
   const fetchLinkDetails = async () => {
     try {
@@ -74,11 +77,26 @@ export const PublicCheckoutView: React.FC<PublicCheckoutViewProps> = ({ linkId }
             // Fallback
           }
 
-          // Set timeout from custom settings if configured
-          if (data.link.custom_settings?.session_timeout_minutes) {
-            const dur = data.link.custom_settings.session_timeout_minutes * 60;
-            setTimeLeft(dur);
-            totalDurationRef.current = dur;
+          // Calculate remaining seconds strictly from link.expires_at or link.created_at
+          const now = Date.now();
+          const expTimestamp = data.link.expires_at
+            ? new Date(data.link.expires_at).getTime()
+            : (data.link.created_at 
+                ? new Date(data.link.created_at).getTime() + (data.link.expiry_minutes || data.link.custom_settings?.session_timeout_minutes || 8) * 60 * 1000
+                : now + 480000);
+
+          const totalDurationSecs = (data.link.expiry_minutes || data.link.custom_settings?.session_timeout_minutes || 8) * 60;
+          totalDurationRef.current = totalDurationSecs;
+
+          const remainingSeconds = Math.max(0, Math.floor((expTimestamp - now) / 1000));
+          setTimeLeft(remainingSeconds);
+
+          if (data.link.status === 'EXPIRED' || remainingSeconds <= 0) {
+            setStatus('FAILED');
+            setStatusMessage('This payment link has expired and is no longer valid. Please request a new payment link.');
+          } else if (data.link.status === 'CAPTURED') {
+            setStatus('CONFIRMED');
+            setStatusMessage('This payment link has already been completed.');
           }
         }
       }
@@ -92,13 +110,19 @@ export const PublicCheckoutView: React.FC<PublicCheckoutViewProps> = ({ linkId }
   const checkStatus = async () => {
     if (status !== 'PENDING') return;
     try {
-      const amtParam = details?.amount ? `?amount=${details.amount}` : '';
-      const res = await fetch(`/api/payment/auto-detect/${linkId}${amtParam}`);
+      const amtParam = details?.amount ? `amount=${details.amount}` : '';
+      const linkCutoff = details?.created_at
+        ? new Date(details.created_at).getTime() - 180000
+        : sessionStartTimeRef.current - 180000;
+      const sinceParam = `since=${linkCutoff}`;
+      const emailParam = customerEmail.trim() ? `customer_email=${encodeURIComponent(customerEmail.trim())}` : '';
+      const queryStr = [amtParam, sinceParam, emailParam].filter(Boolean).join('&');
+      const res = await fetch(`/api/payment/auto-detect/${linkId}?${queryStr}`);
       if (res.ok) {
         const data = await res.json();
         if (data.status === 'CONFIRMED' || data.status === 'CAPTURED') {
           setStatus('CONFIRMED');
-          setStatusMessage(data.message || 'Payment Automatically Detected & Confirmed via FamPay Alert! 🎉');
+          setStatusMessage(data.message || 'Payment Automatically Detected & Confirmed via UPI Alert! 🎉');
           setConfirmedUtr(data.payment?.transaction_ref || 'N/A');
           setConfirmedTxnId(data.payment?.id || 'N/A');
         }
@@ -121,6 +145,8 @@ export const PublicCheckoutView: React.FC<PublicCheckoutViewProps> = ({ linkId }
           paymentId: linkId,
           utr: utrInput.trim() || undefined,
           amount: details?.amount || 100,
+          since: sessionStartTimeRef.current,
+          customer_email: customerEmail.trim() || undefined,
         }),
       });
 
@@ -133,11 +159,11 @@ export const PublicCheckoutView: React.FC<PublicCheckoutViewProps> = ({ linkId }
         setConfirmedTxnId(data.payment?.id || 'N/A');
       } else {
         setErrorMessage(
-          `NOT PAID. ${data.error || data.message || 'No matching FamPay X payment alert found.'}`
+          data.error || data.message || 'No matching FamPay payment alert found for this transaction.'
         );
       }
     } catch {
-      setErrorMessage('NOT PAID. Failed to scan Gmail IMAP inbox.');
+      setErrorMessage('Failed to connect to Gmail IMAP service. Please check network connection.');
     } finally {
       setVerifying(false);
     }
@@ -153,6 +179,7 @@ export const PublicCheckoutView: React.FC<PublicCheckoutViewProps> = ({ linkId }
     setStatus('PENDING');
     setErrorMessage(null);
     setStatusMessage(null);
+    sessionStartTimeRef.current = Date.now();
     setTimeLeft(totalDurationRef.current);
   };
 
@@ -236,6 +263,24 @@ export const PublicCheckoutView: React.FC<PublicCheckoutViewProps> = ({ linkId }
       if (unsubscribe) unsubscribe();
     };
   }, [linkId]);
+
+  // Active Real-Time Background IMAP Scanner: Polls every 2.5 seconds for incoming payment
+  useEffect(() => {
+    if (status !== 'PENDING') return;
+
+    const initialCheck = setTimeout(() => {
+      checkStatus();
+    }, 1000);
+
+    const pollInterval = setInterval(() => {
+      checkStatus();
+    }, 2500);
+
+    return () => {
+      clearTimeout(initialCheck);
+      clearInterval(pollInterval);
+    };
+  }, [status, details?.amount, linkId]);
 
   // Countdown timer interval
   useEffect(() => {
@@ -664,20 +709,57 @@ export const PublicCheckoutView: React.FC<PublicCheckoutViewProps> = ({ linkId }
                 </div>
               </div>
 
-              {/* Card 4: ALREADY PAID? ENTER UTR */}
+              {/* Auto-Confirm Live Indicator */}
+              <div className="flex items-center justify-center gap-2.5 p-3 rounded-2xl bg-purple-950/40 border border-purple-800/50 text-xs text-purple-200 font-bold shadow-inner">
+                <span className="relative flex h-2.5 w-2.5 shrink-0">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
+                </span>
+                <span>Auto-Confirm Active: This page confirms automatically once you pay!</span>
+              </div>
+
+              {/* Card 3.5: Customer Receipt Email */}
+              <div className="rounded-2xl bg-[#0e1320] border border-slate-800/80 p-4 space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-1.5 text-[11px] font-extrabold text-teal-400 uppercase tracking-wider font-mono">
+                    <Mail className="w-3.5 h-3.5 text-teal-400" />
+                    <span>Receipt Email Address (Optional)</span>
+                  </div>
+                  <span className="text-[10px] text-slate-400 font-mono">Instant confirmation</span>
+                </div>
+                <input
+                  type="email"
+                  value={customerEmail}
+                  onChange={(e) => setCustomerEmail(e.target.value)}
+                  placeholder="yourname@gmail.com to receive receipt & UTR"
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-[#070b14] border border-slate-700/80 text-xs font-mono text-white placeholder-slate-500 focus:outline-none focus:border-purple-500 transition-colors"
+                />
+                <div className="text-[10px] text-slate-400">
+                  A confirmation email with your Amount, Transaction ID, and Bank UTR will be sent as soon as you pay.
+                </div>
+              </div>
+
+              {/* Card 4: MANUAL UTR ENTRY (FALLBACK) */}
               {custom.enable_utr_submission !== false && (
                 <div className="rounded-2xl bg-[#0e1320] border border-slate-800/80 p-4 space-y-3">
-                  <div className="flex items-center gap-1.5 text-[11px] font-extrabold text-teal-400 uppercase tracking-wider">
-                    <CreditCard className="w-4 h-4 text-teal-400" />
-                    <span>ALREADY PAID? ENTER UTR</span>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-1.5 text-[11px] font-extrabold text-teal-400 uppercase tracking-wider">
+                      <CreditCard className="w-4 h-4 text-teal-400" />
+                      <span>MANUAL UTR CONFIRMATION (OPTIONAL)</span>
+                    </div>
+                    <span className="text-[9px] text-slate-500 font-mono font-bold px-1.5 py-0.5 rounded bg-slate-900 border border-slate-800">FALLBACK</span>
                   </div>
+
+                  <p className="text-[11px] text-slate-400">
+                    If not automatically confirmed within seconds of paying, enter your 12-digit UTR:
+                  </p>
 
                   <div className="flex gap-2">
                     <input
                       type="text"
                       value={utrInput}
                       onChange={(e) => setUtrInput(e.target.value)}
-                      placeholder="UTR / Reference number"
+                      placeholder="e.g. 427618294012"
                       className="flex-1 px-3.5 py-2.5 rounded-xl bg-[#070b14] border border-slate-700/80 text-xs font-mono text-white placeholder-slate-500 focus:outline-none focus:border-purple-500 transition-colors"
                     />
                     <button
@@ -689,12 +771,12 @@ export const PublicCheckoutView: React.FC<PublicCheckoutViewProps> = ({ linkId }
                       {verifying ? (
                         <>
                           <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                          <span>Checking...</span>
+                          <span>Confirming...</span>
                         </>
                       ) : (
                         <>
                           <Check className="w-3.5 h-3.5" />
-                          <span>Verify</span>
+                          <span>Confirm Payment</span>
                         </>
                       )}
                     </button>

@@ -5,6 +5,8 @@ import { EmailService } from './emailService.ts';
 import { ImapService } from './imapService.ts';
 
 export class PaymentService {
+  private static inFlightScans: Map<string, Promise<{ status: 'PENDING' | 'CONFIRMED'; message?: string; payment?: UpiPaymentRecord | null }>> = new Map();
+
   /**
    * Generates a dynamic UPI payment QR code for a FamPay UPI ID.
    */
@@ -75,10 +77,12 @@ export class PaymentService {
     paymentId: string,
     ip: string = '127.0.0.1',
     utr?: string,
-    providedAmount?: number
+    providedAmount?: number,
+    since?: number,
+    customerEmail?: string
   ): Promise<{ success: boolean; payment: UpiPaymentRecord | null; message: string }> {
     let payment = await dbService.getPaymentById(paymentId);
-    let link = null;
+    let link: any = null;
 
     if (!payment) {
       link = await dbService.getPaymentLinkById(paymentId);
@@ -104,7 +108,7 @@ export class PaymentService {
       user =
         allUsers.find(
           (u) => Boolean(u.google_app_password && u.google_app_password.replace(/\s+/g, '').length >= 8)
-        ) || (await dbService.findUserByEmail('kk7953926@gmail.com')) || (await dbService.findUserById('usr_kalam_akash'));
+        ) || (await dbService.findUserByEmail('kk7953926@gmail.com')) || (await dbService.findUserById('usr_kk'));
     }
 
     const emailToUse = user?.fampay_gmail || user?.email;
@@ -112,71 +116,24 @@ export class PaymentService {
 
     const hasAppPassword = Boolean(user && user.google_app_password && user.google_app_password.trim().length >= 8);
 
-    // Allow test/mock verification using 'mock' UTR
-    if (cleanUtr === 'mock') {
-      const allPayments = await dbService.getAllPayments();
-      const usedUtrs = allPayments.map((p) => p.transaction_ref).filter(Boolean);
-
-      // Confirm payment via UTR instantly
-      let confirmedPayment: UpiPaymentRecord | null = null;
-      if (payment) {
-        payment.transaction_ref = 'MOCK-' + Date.now();
-        confirmedPayment = await dbService.confirmPayment(payment.id);
-      } else if (link) {
-        confirmedPayment = await dbService.createPaymentRecord({
-          transaction_ref: 'MOCK-' + Date.now(),
-          user_id: user?.id || 'usr_kk',
-          user_email: user?.email || 'kk7953926@gmail.com',
-          upi_id: user?.fampay_upi_id || 'kalamakash@fam',
-          amount: link.amount,
-          note: link.title,
-          qr_data_url: '',
-          status: 'CONFIRMED',
-          confirmed_at: new Date().toISOString(),
-        });
-        await dbService.addWalletBalance(user?.id || 'usr_kk', link.amount);
-        await dbService.updatePaymentLinkStatus(link.id, 'CAPTURED');
-      }
-
-      if (confirmedPayment) {
-        // Trigger Webhook async
-        PaymentService.triggerWebhook(confirmedPayment).catch(() => {});
-
-        await dbService.addLog({
-          user_id: confirmedPayment.user_id,
-          user_email: confirmedPayment.user_email,
-          action: 'UPI_PAYMENT_CONFIRMED_VIA_UTR',
-          ip,
-          status: 'SUCCESS',
-          details: `Mock verification 'mock' processed. ₹${confirmedPayment.amount} credited.`,
-        });
-
-        return {
-          success: true,
-          payment: confirmedPayment,
-          message: `Mock Payment Verified! ₹${confirmedPayment.amount} INR credited to merchant wallet.`,
-        };
-      }
-    }
-
     if (!hasAppPassword) {
       return {
         success: false,
         payment,
-        message: `Gmail IMAP is not connected yet for ${emailToUse || 'kalam172010@gmail.com'}. Please enter any UTR (e.g. '12345' or 'mock') for instant testing, OR connect your 16-digit Google App Password under Dashboard -> Integrations.`,
+        message: `Gmail IMAP is not connected yet for ${emailToUse || 'your merchant account'}. Please configure your 16-character Google App Password under Dashboard -> Integrations.`,
       };
     }
 
-    // Determine cutoff timestamp so older emails from previous transactions are never matched!
-    const minTimestamp = link
-      ? new Date(link.created_at).getTime() - 15 * 60 * 1000
-      : (payment ? new Date(payment.created_at).getTime() - 15 * 60 * 1000 : Date.now() - 60 * 60 * 1000);
+    // Calculate strictly scoped session timestamp to reject older emails from prior sessions!
+    const minTimestamp = since
+      ? since
+      : (payment ? new Date(payment.created_at).getTime() : (link ? new Date(link.created_at).getTime() : Date.now() - 5 * 60 * 1000));
 
     const allPayments = await dbService.getAllPayments();
     const usedUtrs = allPayments.map((p) => p.transaction_ref).filter(Boolean);
 
     // If customer provided a UTR, verify that it hasn't already been used in another order!
-    if (cleanUtr && usedUtrs.includes(cleanUtr)) {
+    if (cleanUtr && cleanUtr.length >= 8 && usedUtrs.includes(cleanUtr)) {
       return {
         success: false,
         payment,
@@ -190,7 +147,7 @@ export class PaymentService {
       user.google_app_password,
       amount,
       targetRef,
-      utr,
+      cleanUtr || undefined,
       user.imap_host,
       user.imap_port,
       minTimestamp,
@@ -214,41 +171,16 @@ export class PaymentService {
       };
     }
 
-    // Cross-reference extracted Transaction ID / UTR with merchant database
-    const extractedTxnId = imapResult.transactionId || imapResult.utr || targetRef;
-    const userPayments = await dbService.getPaymentsByUserId(user.id);
-    const userLinks = await dbService.getPaymentLinksByUserId(user.id);
-
-    const isMatchInMerchantDb =
-      paymentId === targetRef ||
-      userPayments.some((p) => p.id === paymentId || p.transaction_ref === extractedTxnId || p.transaction_ref === targetRef) ||
-      userLinks.some((l) => l.id === paymentId) ||
-      (targetRef && extractedTxnId && (extractedTxnId.toLowerCase().includes(targetRef.toLowerCase()) || targetRef.toLowerCase().includes(extractedTxnId.toLowerCase())));
-
-    if (!isMatchInMerchantDb) {
-      await dbService.addLog({
-        user_id: user.id,
-        user_email: user.email,
-        action: 'CROSS_REFERENCE_FAILED',
-        ip,
-        status: 'FAILED',
-        details: `Cross-reference failed: Extracted Txn ID '${extractedTxnId}' not found for merchant ${user.email} (Target: ${targetRef}).`,
-      });
-
-      return {
-        success: false,
-        payment,
-        message: `Payment NOT verified. Extracted Transaction ID '${extractedTxnId}' could not be matched with merchant ${user.email}'s database order records.`,
-      };
-    }
-
     // Confirm payment in database ONLY when REAL IMAP check succeeds!
     let confirmedPayment: UpiPaymentRecord | null = null;
+    const confirmedUtr = imapResult.utr || cleanUtr || `FPX-${Date.now()}`;
+
     if (payment) {
+      payment.transaction_ref = confirmedUtr;
       confirmedPayment = await dbService.confirmPayment(payment.id);
     } else if (link) {
       confirmedPayment = await dbService.createPaymentRecord({
-        transaction_ref: imapResult.utr || `FPX-LINK-${Math.floor(100000 + Math.random() * 900000)}`,
+        transaction_ref: confirmedUtr,
         user_id: user.id,
         user_email: user.email,
         upi_id: user.fampay_upi_id || 'merchant@fam',
@@ -266,13 +198,22 @@ export class PaymentService {
       return { success: false, payment: null, message: 'Failed to update payment status in database.' };
     }
 
+    // Trigger Webhook async
+    PaymentService.triggerWebhook(confirmedPayment).catch(() => {});
+
     // Dispatch automated Payment Confirmation Receipt email to user
-    await EmailService.sendPaymentReceiptEmail(
-      confirmedPayment.user_email,
-      confirmedPayment.amount,
-      confirmedPayment.upi_id,
-      confirmedPayment.transaction_ref
-    );
+    const targetRecipient = customerEmail || confirmedPayment.user_email || user.email;
+    if (targetRecipient) {
+      EmailService.sendPaymentReceiptEmail({
+        toEmail: targetRecipient,
+        amount: confirmedPayment.amount,
+        upiId: confirmedPayment.upi_id || user.fampay_upi_id || 'merchant@fam',
+        transactionRef: confirmedPayment.id,
+        utr: confirmedUtr,
+        note: confirmedPayment.note,
+        merchantName: user.name || 'FamGateway Merchant',
+      }).catch((e) => console.error('[Receipt Email Error]:', e));
+    }
 
     await dbService.addLog({
       user_id: confirmedPayment.user_id,
@@ -280,13 +221,13 @@ export class PaymentService {
       action: 'UPI_PAYMENT_CONFIRMED_VIA_IMAP',
       ip,
       status: 'SUCCESS',
-      details: `REAL Gmail IMAP email alert verified! Ref ${confirmedPayment.transaction_ref}. UTR: ${imapResult.utr || 'N/A'}. ₹${confirmedPayment.amount} credited.`,
+      details: `REAL FamPay Gmail IMAP alert verified! UTR: ${confirmedPayment.transaction_ref}. Txn: ${imapResult.transactionId || 'N/A'}. ₹${confirmedPayment.amount} credited.`,
     });
 
     return {
       success: true,
       payment: confirmedPayment,
-      message: `REAL Gmail IMAP Verified! Payment of ₹${confirmedPayment.amount} INR captured. Subject: "${imapResult.emailSubject || 'Payment Received'}"`,
+      message: `REAL FamPay IMAP Verified! Payment of ₹${confirmedPayment.amount} INR captured. Bank UTR: ${confirmedPayment.transaction_ref}`,
     };
   }
 
@@ -296,10 +237,12 @@ export class PaymentService {
    */
   public static async autoDetectAndConfirm(
     paymentId: string,
-    providedAmount?: number
+    providedAmount?: number,
+    since?: number,
+    customerEmail?: string
   ): Promise<{ status: 'PENDING' | 'CONFIRMED'; message?: string; payment?: UpiPaymentRecord | null }> {
     let payment = await dbService.getPaymentById(paymentId);
-    let link = null;
+    let link: any = null;
 
     if (payment && payment.status === 'CONFIRMED') {
       return { status: 'CONFIRMED', payment };
@@ -308,7 +251,9 @@ export class PaymentService {
     if (!payment) {
       link = await dbService.getPaymentLinkById(paymentId);
       if (link && link.status === 'CAPTURED') {
-        return { status: 'CONFIRMED' };
+        const existingPayments = await dbService.getPaymentsByUserId(link.user_id);
+        const matched = existingPayments.find((p) => p.note === link.title && p.status === 'CONFIRMED');
+        return { status: 'CONFIRMED', payment: matched || null };
       }
     }
 
@@ -326,12 +271,14 @@ export class PaymentService {
       targetRef = link.id;
     }
 
-    if (!user) {
+    if (!user || !user.google_app_password || user.google_app_password.trim().length < 8) {
       const allUsers = await dbService.getAllUsers();
-      user =
-        allUsers.find(
-          (u) => Boolean(u.google_app_password && u.google_app_password.replace(/\s+/g, '').length >= 8)
-        ) || (await dbService.findUserByEmail('kk7953926@gmail.com')) || (await dbService.findUserById('usr_kk'));
+      const activeUser = allUsers.find(
+        (u) => Boolean(u.google_app_password && u.google_app_password.replace(/\s+/g, '').length >= 8)
+      );
+      if (activeUser) {
+        user = activeUser;
+      }
     }
 
     const emailToUse = user?.fampay_gmail || user?.email;
@@ -341,73 +288,115 @@ export class PaymentService {
       return { status: 'PENDING' };
     }
 
-    // Determine cutoff timestamp so older emails from previous transactions are never matched!
-    const minTimestamp = link
-      ? new Date(link.created_at).getTime() - 15 * 60 * 1000
-      : (payment ? new Date(payment.created_at).getTime() - 15 * 60 * 1000 : Date.now() - 60 * 60 * 1000);
+    // Reuse in-flight scan to avoid spamming concurrent IMAP sockets
+    const inFlightKey = `${paymentId}_${amount}`;
+    if (PaymentService.inFlightScans.has(inFlightKey)) {
+      return PaymentService.inFlightScans.get(inFlightKey)!;
+    }
+
+    // Determine strictly scoped session cutoff timestamp so older emails from previous transactions are never matched!
+    let minTimestamp = link
+      ? new Date(link.created_at).getTime() - 180000
+      : (payment ? new Date(payment.created_at).getTime() - 180000 : Date.now() - 15 * 60 * 1000);
+
+    if (since && since < minTimestamp) {
+      minTimestamp = since;
+    }
 
     const allPayments = await dbService.getAllPayments();
     const usedUtrs = allPayments.map((p) => p.transaction_ref).filter(Boolean);
 
-    // Actively scan Gmail INBOX for this payment!
-    try {
-      const imapResult = await ImapService.verifyLiveEmailAlert(
-        emailToUse,
-        user.google_app_password,
-        amount,
-        targetRef,
-        undefined,
-        user.imap_host,
-        user.imap_port,
-        minTimestamp,
-        usedUtrs
-      );
+    const scanPromise = (async () => {
+      try {
+        const imapResult = await ImapService.verifyLiveEmailAlert(
+          emailToUse,
+          user.google_app_password,
+          amount,
+          targetRef,
+          undefined,
+          user.imap_host,
+          user.imap_port,
+          minTimestamp,
+          usedUtrs
+        );
 
-      if (imapResult.success) {
-        let confirmedPayment: UpiPaymentRecord | null = null;
-        if (payment) {
-          confirmedPayment = await dbService.confirmPayment(payment.id);
-        } else if (link) {
-          confirmedPayment = await dbService.createPaymentRecord({
-            transaction_ref: imapResult.utr || `FPX-LINK-${Math.floor(100000 + Math.random() * 900000)}`,
+        if (imapResult.success && imapResult.utr) {
+          let confirmedPayment: UpiPaymentRecord | null = null;
+          if (payment) {
+            payment.transaction_ref = imapResult.utr;
+            confirmedPayment = await dbService.confirmPayment(payment.id);
+          } else if (link) {
+            confirmedPayment = await dbService.createPaymentRecord({
+              transaction_ref: imapResult.utr,
+              user_id: user.id,
+              user_email: user.email,
+              upi_id: user.fampay_upi_id || 'merchant@fam',
+              amount: link.amount,
+              note: link.title,
+              qr_data_url: '',
+              status: 'CONFIRMED',
+              confirmed_at: new Date().toISOString(),
+            });
+            await dbService.addWalletBalance(user.id, link.amount);
+            await dbService.updatePaymentLinkStatus(link.id, 'CAPTURED');
+          }
+
+          if (confirmedPayment) {
+            PaymentService.triggerWebhook(confirmedPayment).catch(() => {});
+
+            // Dispatch automated Payment Confirmation Receipt email to customer and merchant
+            const targetRecipient = customerEmail || (link as any)?.customer_email || confirmedPayment.user_email || user.email;
+            if (targetRecipient) {
+              EmailService.sendPaymentReceiptEmail({
+                toEmail: targetRecipient,
+                amount: confirmedPayment.amount,
+                upiId: confirmedPayment.upi_id || user.fampay_upi_id || 'merchant@fam',
+                transactionRef: confirmedPayment.id,
+                utr: imapResult.utr,
+                note: confirmedPayment.note,
+                merchantName: user.name || 'FamGateway Merchant',
+              }).catch((e) => console.error('[Receipt Email Error]:', e));
+            }
+
+            if (user.email && user.email !== targetRecipient) {
+              EmailService.sendPaymentReceiptEmail({
+                toEmail: user.email,
+                amount: confirmedPayment.amount,
+                upiId: confirmedPayment.upi_id || user.fampay_upi_id || 'merchant@fam',
+                transactionRef: confirmedPayment.id,
+                utr: imapResult.utr,
+                note: `[Merchant Alert] ${confirmedPayment.note || 'Payment Received'}`,
+                merchantName: user.name || 'FamGateway Merchant',
+              }).catch(() => {});
+            }
+          }
+
+          await dbService.addLog({
             user_id: user.id,
             user_email: user.email,
-            upi_id: user.fampay_upi_id || 'merchant@fam',
-            amount: link.amount,
-            note: link.title,
-            qr_data_url: '',
-            status: 'CONFIRMED',
-            confirmed_at: new Date().toISOString(),
+            action: 'AUTO_DETECT_IMAP_SUCCESS',
+            details: `Payment auto-detected & confirmed: ₹${amount} with UTR: ${imapResult.utr}`,
+            status: 'SUCCESS',
+            ip: '127.0.0.1',
           });
-          await dbService.addWalletBalance(user.id, link.amount);
-          await dbService.updatePaymentLinkStatus(link.id, 'CAPTURED');
+
+          return {
+            status: 'CONFIRMED' as const,
+            message: `Payment Automatically Detected & Confirmed! Bank UTR: ${imapResult.utr}`,
+            payment: confirmedPayment,
+          };
         }
 
-        if (confirmedPayment) {
-          // Trigger Webhook async
-          PaymentService.triggerWebhook(confirmedPayment).catch(() => {});
-        }
-
-        await dbService.addLog({
-          user_id: user.id,
-          user_email: user.email,
-          action: 'AUTO_DETECT_IMAP_SUCCESS',
-          ip: '127.0.0.1',
-          status: 'SUCCESS',
-          details: `Auto-detected FamPay email: "${imapResult.emailSubject || ''}" for ₹${amount}. Captured!`,
-        });
-
-        return {
-          status: 'CONFIRMED',
-          message: 'Payment automatically confirmed from FamPay alert in Gmail!',
-          payment: confirmedPayment,
-        };
+        return { status: 'PENDING' as const };
+      } catch {
+        return { status: 'PENDING' as const };
+      } finally {
+        PaymentService.inFlightScans.delete(inFlightKey);
       }
-    } catch {
-      // Ignore background check failure
-    }
+    })();
 
-    return { status: 'PENDING' };
+    PaymentService.inFlightScans.set(inFlightKey, scanPromise);
+    return scanPromise;
   }
 
   /**

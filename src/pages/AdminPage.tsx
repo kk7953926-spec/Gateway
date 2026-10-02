@@ -23,6 +23,7 @@ import {
   ToggleLeft,
   ToggleRight,
   Image as ImageIcon,
+  HelpCircle,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { User, VerificationLog, SmtpConfig, SystemLog, UpiPaymentRecord, LiveVisitor } from '../types';
@@ -66,6 +67,8 @@ export const AdminPage: React.FC = () => {
     sendgridKeyConfigured: false,
   });
 
+  const [senderName, setSenderName] = useState('FamGateway Payments');
+  const [senderEmail, setSenderEmail] = useState('');
   const [smtpPassword, setSmtpPassword] = useState('');
   const [sendgridKey, setSendgridKey] = useState('');
   const [testEmailAddress, setTestEmailAddress] = useState('');
@@ -121,7 +124,19 @@ export const AdminPage: React.FC = () => {
       });
       if (setRes.ok) {
         const sData = await setRes.json();
-        if (sData.settings) setSettings(sData.settings);
+        if (sData.settings) {
+          setSettings(sData.settings);
+          if (sData.settings.sender_name) {
+            setSenderName(sData.settings.sender_name);
+          } else if (sData.settings.from && sData.settings.from.includes('"')) {
+            setSenderName(sData.settings.from.split('"')[1]);
+          }
+          if (sData.settings.sender_email) {
+            setSenderEmail(sData.settings.sender_email);
+          } else if (sData.settings.user) {
+            setSenderEmail(sData.settings.user);
+          }
+        }
       }
 
       const plansRes = await fetch('/api/admin/subscription-plans', {
@@ -233,6 +248,10 @@ export const AdminPage: React.FC = () => {
     setSavingSettings(true);
     setFeedback(null);
 
+    const effectiveName = senderName.trim() || 'FamGateway Payments';
+    const effectiveEmail = senderEmail.trim() || settings.user || '';
+    const calculatedFrom = `"${effectiveName}" <${effectiveEmail}>`;
+
     try {
       const res = await fetch('/api/admin/settings', {
         method: 'POST',
@@ -241,11 +260,13 @@ export const AdminPage: React.FC = () => {
           Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
-          host: settings.host,
-          port: settings.port,
-          user: settings.user,
+          host: settings.host || 'smtp.gmail.com',
+          port: settings.port || 465,
+          user: effectiveEmail,
+          sender_name: effectiveName,
+          sender_email: effectiveEmail,
+          from: calculatedFrom,
           pass: smtpPassword || undefined,
-          from: settings.from,
           sendgridKey: sendgridKey || undefined,
           maxAttempts: settings.maxAttempts,
           codeExpiryMinutes: settings.codeExpiryMinutes,
@@ -257,8 +278,12 @@ export const AdminPage: React.FC = () => {
       if (!res.ok || !data.success) {
         setFeedback({ type: 'error', msg: data.error || 'Failed to update settings.' });
       } else {
-        setFeedback({ type: 'success', msg: 'SMTP and gateway settings updated successfully.' });
-        if (data.settings) setSettings(data.settings);
+        setFeedback({ type: 'success', msg: 'Sender Email & Name saved successfully in real time!' });
+        if (data.settings) {
+          setSettings(data.settings);
+          if (data.settings.sender_name) setSenderName(data.settings.sender_name);
+          if (data.settings.sender_email) setSenderEmail(data.settings.sender_email);
+        }
         setSmtpPassword('');
         setSendgridKey('');
       }
@@ -274,6 +299,8 @@ export const AdminPage: React.FC = () => {
     setTestingEmail(true);
     setFeedback(null);
 
+    const target = testEmailAddress.trim() || senderEmail.trim() || user?.email || 'kalam172010@gmail.com';
+
     try {
       const res = await fetch('/api/admin/test-email', {
         method: 'POST',
@@ -282,17 +309,22 @@ export const AdminPage: React.FC = () => {
           Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
-          testEmail: testEmailAddress || user?.email || 'admin@famgateway.in',
+          testEmail: target,
         }),
       });
 
       const data = await res.json();
       if (!res.ok || !data.success) {
         setFeedback({ type: 'error', msg: data.error || 'Test email dispatch failed.' });
+      } else if (data.simulated) {
+        setFeedback({
+          type: 'error',
+          msg: `SMTP Notice: Email simulated. Please save your 16-character Google App Password in the form on the left.`,
+        });
       } else {
         setFeedback({
           type: 'success',
-          msg: `Test 16-digit verification code email sent! (${data.simulated ? 'Simulated Log Mode' : 'Live SMTP'})`,
+          msg: `Live Payment Receipt Email sent successfully to ${target}! Check your inbox.`,
         });
       }
     } catch {
@@ -400,9 +432,9 @@ export const AdminPage: React.FC = () => {
         <div className="space-y-1">
           <div className="inline-flex items-center gap-2 px-3 py-0.5 rounded-full bg-indigo-50 border border-indigo-200 text-indigo-700 text-xs font-mono font-bold">
             <Globe className="w-3.5 h-3.5 text-indigo-600" />
-            <span>https://famgateway.in Administration</span>
+            <span>{typeof window !== 'undefined' ? window.location.origin : 'https://gateway'} Administration</span>
           </div>
-          <h1 className="text-2xl font-extrabold text-slate-900">FamGateway.in Admin Panel</h1>
+          <h1 className="text-2xl font-extrabold text-slate-900">Admin Control Panel</h1>
           <p className="text-xs text-slate-600">
             Manage users, inspect verifications, confirm FamPay UPI payments, configure SMTP & rate limits
           </p>
@@ -463,8 +495,8 @@ export const AdminPage: React.FC = () => {
               : 'text-slate-600 hover:text-slate-900 bg-slate-100'
           }`}
         >
-          <Sliders className="w-4 h-4" />
-          <span>SMTP & Gateway Rules</span>
+          <Mail className="w-4 h-4" />
+          <span>Sender Email & Notifications</span>
         </button>
 
         <button
@@ -688,7 +720,7 @@ export const AdminPage: React.FC = () => {
                       <td className="py-3 font-bold text-indigo-700">{p.transaction_ref}</td>
                       <td className="py-3 text-slate-700">{p.user_email}</td>
                       <td className="py-3 text-slate-700">{p.upi_id}</td>
-                      <td className="py-3 font-bold text-emerald-600">₹{p.amount.toFixed(2)}</td>
+                      <td className="py-3 font-bold text-emerald-600">₹{(Number(p?.amount) || 0).toFixed(2)}</td>
                       <td className="py-3">
                         {p.status === 'CONFIRMED' ? (
                           <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300">
@@ -725,82 +757,126 @@ export const AdminPage: React.FC = () => {
         </div>
       )}
 
-      {/* Tab 4: SMTP Config */}
+      {/* Tab 4: SMTP / Sender Email Config */}
       {activeTab === 'smtp' && (
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
           <form onSubmit={handleSaveSettings} className="lg:col-span-8 p-6 rounded-3xl bg-white border border-slate-200 shadow-sm space-y-6">
-            <h3 className="text-base font-bold text-slate-900 flex items-center gap-2 border-b border-slate-100 pb-3">
-              <Sliders className="w-5 h-5 text-indigo-600" />
-              <span>Nodemailer SMTP & Email Credentials</span>
-            </h3>
+            <div className="border-b border-slate-100 pb-3">
+              <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
+                <Mail className="w-5 h-5 text-indigo-600" />
+                <span>Sender Email & Payment Confirmation Setup</span>
+              </h3>
+              <p className="text-xs text-slate-500 mt-1">
+                Configure the official email address from which automated payment confirmation receipts (Amount, Transaction ID, Bank UTR) are sent to customers in real time.
+              </p>
+            </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">SMTP Host</label>
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  Sender Display Name (அனுப்புபவர் பெயர்)
+                </label>
                 <input
                   type="text"
-                  value={settings.host}
-                  onChange={(e) => setSettings({ ...settings, host: e.target.value })}
+                  value={senderName}
+                  onChange={(e) => setSenderName(e.target.value)}
+                  placeholder="e.g. FamGateway Payments or Your Brand Name"
                   className="w-full px-3 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs text-slate-900 focus:outline-none focus:border-indigo-600"
                 />
+                <span className="text-[10px] text-slate-400 mt-0.5 block">Recipient sees this branding name in their email inbox.</span>
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">SMTP Port</label>
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  Sender Email Address (அனுப்பும் ஈமெயில் முகவரி) <span className="text-rose-500">*</span>
+                </label>
                 <input
-                  type="number"
-                  value={settings.port}
-                  onChange={(e) => setSettings({ ...settings, port: parseInt(e.target.value, 10) })}
-                  className="w-full px-3 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs text-slate-900 focus:outline-none focus:border-indigo-600"
+                  type="email"
+                  required
+                  value={senderEmail}
+                  onChange={(e) => setSenderEmail(e.target.value)}
+                  placeholder="e.g. kalam172010@gmail.com or notifications@domain.com"
+                  className="w-full px-3 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs text-slate-900 focus:outline-none focus:border-indigo-600 font-mono"
                 />
+                <span className="text-[10px] text-slate-400 mt-0.5 block">Payment confirmation emails will be sent FROM this address.</span>
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">SMTP Username</label>
-                <input
-                  type="text"
-                  value={settings.user}
-                  onChange={(e) => setSettings({ ...settings, user: e.target.value })}
-                  className="w-full px-3 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs text-slate-900 focus:outline-none focus:border-indigo-600"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">SMTP Password</label>
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  16-Digit Google App Password / SMTP Password
+                </label>
                 <input
                   type="password"
                   value={smtpPassword}
                   onChange={(e) => setSmtpPassword(e.target.value)}
-                  placeholder={settings.passConfigured ? '••••••••••••' : 'Enter Password'}
-                  className="w-full px-3 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs text-slate-900 focus:outline-none focus:border-indigo-600"
+                  placeholder={settings.passConfigured ? '•••••••••••• (Configured & Active)' : 'Enter 16-character App Password'}
+                  className="w-full px-3 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs text-slate-900 focus:outline-none focus:border-indigo-600 font-mono"
                 />
+                <span className="text-[10px] text-slate-400 mt-0.5 block">For Gmail, create an App Password under Google Account Security.</span>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">SMTP Host & Port</label>
+                <div className="grid grid-cols-3 gap-2">
+                  <input
+                    type="text"
+                    value={settings.host}
+                    onChange={(e) => setSettings({ ...settings, host: e.target.value })}
+                    placeholder="smtp.gmail.com"
+                    className="col-span-2 px-3 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs text-slate-900 focus:outline-none focus:border-indigo-600 font-mono"
+                  />
+                  <input
+                    type="number"
+                    value={settings.port}
+                    onChange={(e) => setSettings({ ...settings, port: parseInt(e.target.value, 10) })}
+                    placeholder="465"
+                    className="px-3 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs text-slate-900 focus:outline-none focus:border-indigo-600 font-mono"
+                  />
+                </div>
+                <span className="text-[10px] text-slate-400 mt-0.5 block">Default: smtp.gmail.com (Port 465 SSL or 587 TLS)</span>
               </div>
             </div>
 
-            <button
-              type="submit"
-              disabled={savingSettings}
-              className="px-6 py-3 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold text-xs flex items-center gap-2 transition-all shadow-md disabled:opacity-50"
-            >
-              <Save className="w-4 h-4" />
-              <span>{savingSettings ? 'Saving...' : 'Save Configuration'}</span>
-            </button>
+            {/* Live Header Preview */}
+            <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 text-xs">
+              <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">
+                Live Sender Preview:
+              </div>
+              <div className="font-mono text-indigo-900 font-bold text-[11px] break-all">
+                From: "{senderName || 'FamGateway Payments'}" &lt;{senderEmail || settings.user || 'kalam172010@gmail.com'}&gt;
+              </div>
+            </div>
+
+            <div className="pt-2">
+              <button
+                type="submit"
+                disabled={savingSettings}
+                className="px-6 py-3 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold text-xs flex items-center gap-2 transition-all shadow-md disabled:opacity-50 cursor-pointer"
+              >
+                <Save className="w-4 h-4" />
+                <span>{savingSettings ? 'Saving Real-Time...' : 'Save Sender Email in Real-Time'}</span>
+              </button>
+            </div>
           </form>
 
           <div className="lg:col-span-4 p-6 rounded-3xl bg-white border border-slate-200 shadow-sm space-y-4">
             <h3 className="text-base font-bold text-slate-900 flex items-center gap-2 border-b border-slate-100 pb-3">
               <Send className="w-5 h-5 text-indigo-600" />
-              <span>Test Email Dispatch</span>
+              <span>Test Payment Receipt Email</span>
             </h3>
 
+            <p className="text-xs text-slate-500 leading-relaxed">
+              Test sending an actual payment receipt with <strong>Amount (₹250.00)</strong>, <strong>Transaction ID</strong>, and <strong>Bank UTR Number</strong> to verify delivery.
+            </p>
+
             <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">Recipient Email</label>
+              <label className="block text-xs font-bold text-slate-700 mb-1">Send Test Email To</label>
               <input
                 type="email"
                 value={testEmailAddress}
                 onChange={(e) => setTestEmailAddress(e.target.value)}
-                placeholder={user?.email || 'admin@famgateway.in'}
-                className="w-full px-3 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs text-slate-900 focus:outline-none focus:border-indigo-600"
+                placeholder={user?.email || 'yourname@gmail.com'}
+                className="w-full px-3 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs text-slate-900 focus:outline-none focus:border-indigo-600 font-mono"
               />
             </div>
 
@@ -808,11 +884,27 @@ export const AdminPage: React.FC = () => {
               type="button"
               onClick={handleSendTestEmail}
               disabled={testingEmail}
-              className="w-full py-3 rounded-xl bg-slate-100 hover:bg-slate-200 text-indigo-700 font-bold text-xs flex items-center justify-center gap-2 border border-slate-200 transition-all disabled:opacity-50"
+              className="w-full py-3 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold text-xs flex items-center justify-center gap-2 border border-indigo-200 transition-all disabled:opacity-50 cursor-pointer shadow-xs"
             >
               <Send className={`w-4 h-4 ${testingEmail ? 'animate-spin' : ''}`} />
-              <span>Dispatch Test Email</span>
+              <span>{testingEmail ? 'Dispatching Test...' : 'Send Test Payment Receipt'}</span>
             </button>
+
+            {/* Google App Password Guide */}
+            <div className="p-4 rounded-2xl bg-amber-50/70 border border-amber-200 text-amber-900 space-y-2 text-[11px]">
+              <div className="font-bold flex items-center gap-1.5 text-amber-950">
+                <HelpCircle className="w-3.5 h-3.5 text-amber-600" />
+                <span>How to use ANY Gmail as Sender Email:</span>
+              </div>
+              <ol className="list-decimal list-inside space-y-1 text-amber-900 leading-relaxed">
+                <li>Go to your Google Account: <a href="https://myaccount.google.com/security" target="_blank" rel="noreferrer" className="font-bold underline text-indigo-600">Security Settings</a>.</li>
+                <li>Turn <strong>ON</strong> 2-Step Verification.</li>
+                <li>Go to <a href="https://myaccount.google.com/apppasswords" target="_blank" rel="noreferrer" className="font-bold underline text-indigo-600">App Passwords</a>.</li>
+                <li>Enter App Name: <code className="bg-amber-100 px-1 py-0.5 rounded font-mono font-bold">FamGateway</code> and click Create.</li>
+                <li>Copy the <strong>16-letter App Password</strong> and paste it in the form above.</li>
+                <li>Enter your Gmail in <strong>Sender Email Address</strong> and click <strong>Save</strong>.</li>
+              </ol>
+            </div>
           </div>
         </div>
       )}
@@ -1023,7 +1115,7 @@ export const AdminPage: React.FC = () => {
                         <td className="py-3 text-slate-500">{p.id}</td>
                         <td className="py-3 font-semibold text-slate-900">{p.name}</td>
                         <td className="py-3 text-slate-700">{p.duration_days} Days</td>
-                        <td className="py-3 font-extrabold text-indigo-700">₹{p.price.toFixed(2)}</td>
+                        <td className="py-3 font-extrabold text-indigo-700">₹{(Number(p?.price) || 0).toFixed(2)}</td>
                         <td className="py-3">
                           <div className="flex items-center gap-2">
                             <button

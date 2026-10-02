@@ -9,7 +9,7 @@ export const Navbar: React.FC = () => {
     <header className="sticky top-0 z-50 bg-white/90 backdrop-blur-md border-b border-slate-200 shadow-sm">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16">
-          {/* Logo with famgateway.in URL */}
+          {/* Logo with dynamic website URL */}
           <div className="flex items-center gap-3 cursor-pointer" onClick={() => setActiveTab('app')}>
             <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-600 via-blue-600 to-cyan-500 p-[1px] shadow-md">
               <div className="w-full h-full bg-white rounded-[11px] flex items-center justify-center">
@@ -18,14 +18,14 @@ export const Navbar: React.FC = () => {
             </div>
             <div>
               <div className="font-extrabold text-lg tracking-tight text-slate-900 flex items-center gap-1.5">
-                famgateway<span className="text-indigo-600">.in</span>
+                FAMGATEWAY
                 <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700 font-bold border border-indigo-200">
                   v2.0
                 </span>
               </div>
-              <div className="text-[10px] font-mono font-medium text-slate-500 tracking-wider uppercase -mt-1 flex items-center gap-1">
+              <div className="text-[10px] font-mono font-medium text-slate-500 tracking-wider lowercase -mt-1 flex items-center gap-1">
                 <Globe className="w-3 h-3 text-indigo-500" />
-                <span>https://famgateway.in</span>
+                <span>{typeof window !== 'undefined' ? window.location.host : 'gateway'}</span>
               </div>
             </div>
           </div>
