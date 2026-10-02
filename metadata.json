@@ -1,0 +1,6 @@
+{
+  "name": "FamGateway.in - Email Verification & UPI Gateway",
+  "description": "Enterprise Email Verification Gateway and UPI Payment Platform by FamGateway.in with cryptographically secure 16-digit verification codes.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

@@ -1,0 +1,92 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "FamPay X user account",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "email": { "type": "string" },
+        "password_hash": { "type": "string" },
+        "email_verified": { "type": "boolean" },
+        "upi_id": { "type": "string" },
+        "wallet_balance": { "type": "number" },
+        "role": { "type": "string" },
+        "created_at": { "type": "string" },
+        "updated_at": { "type": "string" }
+      },
+      "required": ["id", "name", "email", "email_verified", "role"]
+    },
+    "EmailVerification": {
+      "title": "EmailVerification",
+      "description": "16-digit email verification record",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "user_id": { "type": "string" },
+        "user_email": { "type": "string" },
+        "code_hash": { "type": "string" },
+        "expires_at": { "type": "number" },
+        "attempts": { "type": "number" },
+        "max_attempts": { "type": "number" },
+        "used": { "type": "boolean" },
+        "created_at": { "type": "string" }
+      },
+      "required": ["id", "user_id", "code_hash", "expires_at", "used"]
+    },
+    "UpiPayment": {
+      "title": "UpiPayment",
+      "description": "UPI Payment QR transaction record",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "transaction_ref": { "type": "string" },
+        "user_id": { "type": "string" },
+        "user_email": { "type": "string" },
+        "upi_id": { "type": "string" },
+        "amount": { "type": "number" },
+        "note": { "type": "string" },
+        "qr_data_url": { "type": "string" },
+        "status": { "type": "string" },
+        "confirmed_at": { "type": "string" },
+        "created_at": { "type": "string" }
+      },
+      "required": ["id", "transaction_ref", "user_id", "upi_id", "amount", "status"]
+    },
+    "SystemLog": {
+      "title": "SystemLog",
+      "description": "Security audit event log",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "user_id": { "type": "string" },
+        "user_email": { "type": "string" },
+        "action": { "type": "string" },
+        "ip": { "type": "string" },
+        "status": { "type": "string" },
+        "details": { "type": "string" },
+        "created_at": { "type": "string" }
+      },
+      "required": ["id", "action", "status", "created_at"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/User" },
+      "description": "User accounts collection"
+    },
+    "/email_verifications/{verificationId}": {
+      "schema": { "$ref": "#/entities/EmailVerification" },
+      "description": "Verification codes collection"
+    },
+    "/upi_payments/{paymentId}": {
+      "schema": { "$ref": "#/entities/UpiPayment" },
+      "description": "UPI Payment records collection"
+    },
+    "/system_logs/{logId}": {
+      "schema": { "$ref": "#/entities/SystemLog" },
+      "description": "System audit logs collection"
+    }
+  }
+}
