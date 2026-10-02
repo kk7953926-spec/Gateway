@@ -217,12 +217,10 @@ export const PublicCheckoutView: React.FC<PublicCheckoutViewProps> = ({ linkId }
     }).catch(() => {});
   }, [linkId, details?.amount]);
 
-  // Periodic polling for status
+  // Periodic polling for status (REMOVED: Now only relies on manual user verification to prevent false confirmations)
   useEffect(() => {
-    if (status === 'PENDING') {
-      const interval = setInterval(checkStatus, 3000);
-      return () => clearInterval(interval);
-    }
+    // Polling removed to prevent false positives before payment
+    return () => {};
   }, [linkId, status]);
 
   // Countdown timer interval

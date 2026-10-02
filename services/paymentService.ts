@@ -112,28 +112,19 @@ export class PaymentService {
 
     const hasAppPassword = Boolean(user && user.google_app_password && user.google_app_password.trim().length >= 8);
 
-    // If any UTR is provided (alphanumeric, length >= 3) or if it's a test/mock verification, confirm instantly
-    if (cleanUtr && cleanUtr.length >= 3) {
+    // If it's a test/mock verification in non-production, confirm instantly
+    if (process.env.NODE_ENV !== 'production' && cleanUtr === 'mock') {
       const allPayments = await dbService.getAllPayments();
       const usedUtrs = allPayments.map((p) => p.transaction_ref).filter(Boolean);
-
-      // Only check duplicates for long real bank UTRs (>= 10 digits)
-      if (cleanUtr.length >= 10 && usedUtrs.includes(cleanUtr)) {
-        return {
-          success: false,
-          payment,
-          message: `Payment NOT verified. Bank UTR ${cleanUtr} was already redeemed for a previous transaction.`,
-        };
-      }
 
       // Confirm payment via UTR instantly
       let confirmedPayment: UpiPaymentRecord | null = null;
       if (payment) {
-        payment.transaction_ref = cleanUtr;
+        payment.transaction_ref = 'MOCK-' + Date.now();
         confirmedPayment = await dbService.confirmPayment(payment.id);
       } else if (link) {
         confirmedPayment = await dbService.createPaymentRecord({
-          transaction_ref: cleanUtr,
+          transaction_ref: 'MOCK-' + Date.now(),
           user_id: user?.id || 'usr_kk',
           user_email: user?.email || 'kk7953926@gmail.com',
           upi_id: user?.fampay_upi_id || 'kalamakash@fam',
@@ -157,13 +148,13 @@ export class PaymentService {
           action: 'UPI_PAYMENT_CONFIRMED_VIA_UTR',
           ip,
           status: 'SUCCESS',
-          details: `Instant UTR/Mock verification '${cleanUtr}' processed. ₹${confirmedPayment.amount} credited.`,
+          details: `Mock verification 'mock' processed. ₹${confirmedPayment.amount} credited.`,
         });
 
         return {
           success: true,
           payment: confirmedPayment,
-          message: `Payment Verified! Transaction Ref '${cleanUtr}' captured. ₹${confirmedPayment.amount} INR credited to merchant wallet.`,
+          message: `Mock Payment Verified! ₹${confirmedPayment.amount} INR credited to merchant wallet.`,
         };
       }
     }

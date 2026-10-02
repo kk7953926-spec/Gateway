@@ -270,6 +270,9 @@ export class ImapService {
                 recentEmailSummaries.push(`"${rawSubject.slice(0, 45)}"`);
               }
 
+              // Debug Log for troubleshooting email matching
+              console.log('Scanning email:', { subject, from: fromAddress, amount: targetAmount });
+
               // Check email timestamp to reject old emails from prior sessions
               // Relaxed by 24 hours to prevent clock skews and delayed email arrivals
               const adjustedMinTimestamp = minTimestamp ? minTimestamp - (24 * 60 * 60 * 1000) : 0;
