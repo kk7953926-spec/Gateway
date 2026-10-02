@@ -26,6 +26,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { User, VerificationLog, SmtpConfig, SystemLog, UpiPaymentRecord, LiveVisitor } from '../types';
+import { useFirestoreRealtime } from '../hooks/useFirestoreRealtime';
 
 export const AdminPage: React.FC = () => {
   const { user, token } = useAuth();
@@ -33,7 +34,14 @@ export const AdminPage: React.FC = () => {
 
   const [users, setUsers] = useState<User[]>([]);
   const [verifications, setVerifications] = useState<VerificationLog[]>([]);
+  
+  // Realtime payments
+  const { data: realtimePayments } = useFirestoreRealtime<UpiPaymentRecord>('upi_payments');
   const [payments, setPayments] = useState<UpiPaymentRecord[]>([]);
+
+  useEffect(() => {
+    setPayments(realtimePayments);
+  }, [realtimePayments]);
   const [logs, setLogs] = useState<SystemLog[]>([]);
   const [plans, setPlans] = useState<any[]>([]);
   const [visitors, setVisitors] = useState<LiveVisitor[]>([]);
@@ -98,6 +106,7 @@ export const AdminPage: React.FC = () => {
         if (vData.verifications) setVerifications(vData.verifications);
       }
 
+      /*
       const payRes = await fetch('/api/payment/admin/payments', {
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -105,6 +114,7 @@ export const AdminPage: React.FC = () => {
         const pData = await payRes.json();
         if (pData.payments) setPayments(pData.payments);
       }
+      */
 
       const setRes = await fetch('/api/admin/settings', {
         headers: { Authorization: `Bearer ${token}` },
