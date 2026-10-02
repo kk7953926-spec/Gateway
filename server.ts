@@ -124,10 +124,20 @@ async function startServer() {
         return res.status(404).json({ error: 'Endpoint not found' });
       }
       const indexPath = path.resolve(distPath, 'index.html');
-      res.sendFile(indexPath, (err) => {
+      res.sendFile(indexPath, async (err) => {
         if (err) {
           console.error(`Error sending index.html from ${indexPath}:`, err);
-          res.status(500).send("Build files not found. Please ensure 'npm run build' was executed successfully.");
+          
+          // Debugging: List files in dist to see what's happening
+          try {
+            const fs = await import('fs/promises');
+            const files = await fs.readdir(distPath);
+            console.log(`Files found in dist: ${files.join(', ')}`);
+          } catch (readdirErr) {
+            console.error(`Could not read dist directory:`, readdirErr);
+          }
+          
+          res.status(500).send(`Build files not found at ${indexPath}. Please ensure 'npm run build' was executed successfully during deployment.`);
         }
       });
     });
