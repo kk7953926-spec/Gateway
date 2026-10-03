@@ -72,17 +72,29 @@ export async function requireAdmin(req: AuthenticatedRequest, res: Response, nex
 }
 
 export async function requireApiKey(req: AuthenticatedRequest, res: Response, next: NextFunction) {
-  const apiKey = req.headers['x-api-key'] || req.query.api_key;
+  let apiKey = 
+    (req.headers['x-api-key'] as string) || 
+    (req.headers['X-Api-Key'] as string) || 
+    (req.query.api_key as string) || 
+    (req.body && req.body.api_key);
+
+  if (!apiKey && req.headers.authorization) {
+    const auth = req.headers.authorization;
+    if (auth.startsWith('Bearer fam_') || auth.startsWith('Bearer fgw_')) {
+      apiKey = auth.split(' ')[1];
+    } else if (auth.startsWith('fam_') || auth.startsWith('fgw_')) {
+      apiKey = auth;
+    }
+  }
 
   if (!apiKey) {
     return res.status(401).json({
       success: false,
-      error: 'API Key is missing. Please provide it in x-api-key header.',
+      error: 'API Key is missing. Please provide it in X-Api-Key header or api_key parameter.',
     });
   }
 
-  const users = await dbService.getAllUsers();
-  const user = users.find((u) => u.api_key === apiKey);
+  const user = await dbService.findUserByApiKey(String(apiKey).trim());
 
   if (!user) {
     return res.status(401).json({

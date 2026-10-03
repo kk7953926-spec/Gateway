@@ -21,8 +21,8 @@ export const DocumentationView: React.FC = () => {
   const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
   const [activeTab, setActiveTab] = useState<'cURL' | 'JavaScript' | 'PHP' | 'Python'>('cURL');
 
-  const apiKey = user?.api_key || 'fgw_live_9a8b7c6d5e4f3a2b1c0d9e8f7a6b5c4d';
-  const baseUrl = window.location.origin;
+  const apiKey = user?.api_key || 'fam_a9527c6c2dd4d26ad5223cfc3c4c5fa9289b574e';
+  const baseUrl = typeof window !== 'undefined' ? window.location.origin : 'https://famgateway.in';
 
   const handleCopy = (text: string, index: number) => {
     navigator.clipboard.writeText(text);
@@ -31,49 +31,54 @@ export const DocumentationView: React.FC = () => {
   };
 
   // cURL Code Snippets
-  const curlCreateOrder = `curl -X POST "${baseUrl}/api/v1/order/create" \\
+  const curlCreateOrder = `# 1. Canonical REST API (POST JSON) — Recommended for Production
+curl -X POST "${baseUrl}/api/create-order" \\
   -H "Content-Type: application/json" \\
-  -H "x-api-key: ${apiKey}" \\
+  -H "X-Api-Key: ${apiKey}" \\
   -d '{
-    "amount": 500,
-    "note": "Payment for Order #1024",
-    "customer_name": "Ramesh Kumar",
-    "success_url": "https://yoursite.com/success",
-    "cancel_url": "https://yoursite.com/cancel"
-  }'`;
+    "amount": 499.00,
+    "customer_name": "Rahul Sharma",
+    "customer_email": "rahul@example.com",
+    "redirect_url": "https://yoursite.com/payment-success"
+  }'
 
-  const curlCheckStatus = `curl -X GET "${baseUrl}/api/v1/order/status/txn_a1b2c3d4" \\
-  -H "x-api-key: ${apiKey}"`;
+# 2. Query Alias (GET) — Ideal for quick terminal testing & scripts
+curl -X GET "${baseUrl}/api/qr.php?api_key=${apiKey}&amount=499&customer_name=Rahul"`;
+
+  const curlCheckStatus = `curl -X GET "${baseUrl}/api/order-status/lnk_1024" \\
+  -H "X-Api-Key: ${apiKey}"`;
 
   const curlWebhookHandler = `curl -X POST "${baseUrl}/api/payment/webhook" \\
   -H "Content-Type: application/json" \\
   -d '{
     "event": "payment.captured",
-    "paymentId": "ORD_1024",
+    "paymentId": "lnk_1024",
     "status": "SUCCESS",
     "utr": "428910284719",
-    "amount": 500.00
+    "amount": 499.00
   }'`;
 
   // JavaScript / Node.js
-  const jsCode = `// 1. Create Payment Order
+  const jsCode = `// 1. Create Payment Order (POST JSON)
 const createOrder = async () => {
-  const response = await fetch('${baseUrl}/api/v1/order/create', {
+  const response = await fetch('${baseUrl}/api/create-order', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      'x-api-key': '${apiKey}'
+      'X-Api-Key': '${apiKey}'
     },
     body: JSON.stringify({
-      amount: 500,
-      note: "Order #1024",
-      success_url: "https://yoursite.com/success"
+      amount: 499.00,
+      customer_name: "Rahul Sharma",
+      customer_email: "rahul@example.com",
+      redirect_url: "https://yoursite.com/payment-success"
     })
   });
   const data = await response.json();
   
   if (data.success) {
-    // Redirect customer to the checkout page
+    // Redirect customer to the checkout page or display UPI QR
+    console.log("UPI Link:", data.upi_uri);
     window.location.href = data.payment_url;
   }
 };`;
@@ -82,17 +87,18 @@ const createOrder = async () => {
   const phpCode = `<?php
 // 1. Create Payment Order in PHP
 $apiKey = "${apiKey}";
-$ch = curl_init("${baseUrl}/api/v1/order/create");
+$ch = curl_init("${baseUrl}/api/create-order");
 
 curl_setopt($ch, CURLOPT_HTTPHEADER, [
     "Content-Type: application/json",
-    "x-api-key: " . $apiKey
+    "X-Api-Key: " . $apiKey
 ]);
 curl_setopt($ch, CURLOPT_POST, true);
 curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode([
-    "amount" => 500,
-    "note" => "PHP Order #1024",
-    "success_url" => "https://yoursite.com/success"
+    "amount" => 499.00,
+    "customer_name" => "Rahul Sharma",
+    "customer_email" => "rahul@example.com",
+    "redirect_url" => "https://yoursite.com/payment-success"
 ]));
 curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
 
@@ -109,17 +115,18 @@ if ($data['success']) {
   const pythonCode = `import requests
 
 API_KEY = "${apiKey}"
-url = "${baseUrl}/api/v1/order/create"
+url = "${baseUrl}/api/create-order"
 
 headers = {
     "Content-Type": "application/json",
-    "x-api-key": API_KEY
+    "X-Api-Key": API_KEY
 }
 
 payload = {
-    "amount": 500,
-    "note": "Python Order #1024",
-    "success_url": "https://yoursite.com/success"
+    "amount": 499.00,
+    "customer_name": "Rahul Sharma",
+    "customer_email": "rahul@example.com",
+    "redirect_url": "https://yoursite.com/payment-success"
 }
 
 response = requests.post(url, json=payload, headers=headers)
@@ -129,8 +136,9 @@ if data.get("success"):
     print("Redirect customer to:", data.get("payment_url"))`;
 
   const endpoints = [
-    { method: 'POST', path: '/api/v1/order/create', desc: 'Create a new payment session and get QR/Link' },
-    { method: 'GET', path: '/api/v1/order/status/:id', desc: 'Check status of a transaction' },
+    { method: 'POST', path: '/api/create-order', desc: 'Canonical REST API to create orders with customer details and redirect URL' },
+    { method: 'GET', path: '/api/qr.php', desc: 'Quick 1-click Query Alias endpoint for terminal scripts, bots and direct GET orders' },
+    { method: 'GET', path: '/api/order-status/:id', desc: 'Check status and UTR of a transaction' },
     { method: 'POST', path: '/api/payment/webhook', desc: 'Inbound Webhook Handler for external gateway payment notifications' },
     { method: 'POST', path: '/api/integrations/webhook', desc: 'Configure your notification endpoint' },
   ];

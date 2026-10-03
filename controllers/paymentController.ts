@@ -537,43 +537,77 @@ export class PaymentController {
   }
 
   /**
+   * POST /api/create-order
    * POST /api/v1/order/create
-   * Enterprise API to create a payment order
+   * GET /api/create-order
+   * GET /api/qr.php
+   * Enterprise & Quick Query API to create a payment order
    */
   public static async createApiOrder(req: AuthenticatedRequest, res: Response) {
     dbService.incrementApiRequests();
-    const { amount, note, customer_name, success_url, cancel_url } = req.body || {};
+    const source = req.method === 'GET' ? req.query : { ...req.query, ...req.body };
+    const { 
+      amount, 
+      note, 
+      title, 
+      customer_name, 
+      customer_email, 
+      redirect_url, 
+      success_url, 
+      cancel_url 
+    } = source || {};
 
-    if (!amount || isNaN(parseFloat(amount))) {
+    if (!amount || isNaN(parseFloat(amount as string))) {
       return res.status(400).json({ success: false, error: 'Valid amount is required.' });
     }
 
+    const parsedAmount = parseFloat(amount as string);
     const user = req.user!;
-    const platformUpi = user.fampay_upi_id || 'merchant@fam';
+    const platformUpi = user.fampay_upi_id || '8056317218@fam';
+    const effectiveSuccessUrl = redirect_url || success_url;
+    const orderTitle = note || title || (customer_name ? `Order - ${customer_name}` : `Payment ₹${parsedAmount}`);
 
     try {
       const { payment, qrCodeUrl, upiUri } = await PaymentService.createUpiPayment(
         user.id,
         user.email,
         platformUpi,
-        parseFloat(amount),
-        note || 'API Order',
+        parsedAmount,
+        orderTitle,
         (req.headers['x-forwarded-for'] as string) || req.socket.remoteAddress || '127.0.0.1',
-        success_url,
+        effectiveSuccessUrl,
         cancel_url
       );
 
-      const checkoutUrl = `${process.env.APP_URL || ''}/pay/${payment.id}`;
+      const origin = `${req.protocol}://${req.get('host')}`;
+      const checkoutUrl = `${origin}/pay/${payment.id}`;
+
+      // If requested format is raw QR image
+      if (req.query.format === 'image' || req.query.format === 'qr_image') {
+        const qrBase64 = qrCodeUrl.replace(/^data:image\/png;base64,/, '');
+        const imgBuffer = Buffer.from(qrBase64, 'base64');
+        res.writeHead(200, {
+          'Content-Type': 'image/png',
+          'Content-Length': imgBuffer.length
+        });
+        return res.end(imgBuffer);
+      }
 
       return res.status(201).json({
         success: true,
         order_id: payment.id,
         amount: payment.amount,
         currency: 'INR',
+        customer_name: customer_name || undefined,
+        customer_email: customer_email || undefined,
+        redirect_url: effectiveSuccessUrl || undefined,
         note: payment.note,
         payment_url: checkoutUrl,
+        checkout_url: checkoutUrl,
+        merchant_upi_id: platformUpi,
+        merchant_name: user.name,
         upi_uri: upiUri,
-        qr_code: qrCodeUrl,
+        qr_data_url: qrCodeUrl,
         status: payment.status,
       });
     } catch (e) {

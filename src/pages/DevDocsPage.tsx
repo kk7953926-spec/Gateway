@@ -4,7 +4,7 @@ import { FileCode2, Copy, Check, QrCode, Shield, Key, AlertTriangle, Zap, Mail, 
 export const DevDocsPage: React.FC = () => {
   const [copiedSection, setCopiedSection] = useState<string | null>(null);
 
-  const host = window.location.origin;
+  const host = typeof window !== 'undefined' ? window.location.origin : 'https://famgateway.in';
 
   const copyCode = (code: string, sectionKey: string) => {
     navigator.clipboard.writeText(code);
@@ -12,37 +12,20 @@ export const DevDocsPage: React.FC = () => {
     setTimeout(() => setCopiedSection(null), 2000);
   };
 
-  const registerCode = `curl -X POST "${host}/api/auth/register" \\
+  const createOrderPost = `curl -X POST "${host}/api/create-order" \\
   -H "Content-Type: application/json" \\
+  -H "X-Api-Key: fam_a9527c6c2dd4d26ad5223cfc3c4c5fa9289b574e" \\
   -d '{
-    "name": "Alexander Wright",
-    "email": "alexander@famgateway.in",
-    "password": "Password123!",
-    "confirmPassword": "Password123!"
+    "amount": 499.00,
+    "customer_name": "Rahul Sharma",
+    "customer_email": "rahul@example.com",
+    "redirect_url": "https://yoursite.com/payment-success"
   }'`;
 
-  const verifyCodeSnippet = `curl -X POST "${host}/api/auth/verify-email" \\
-  -H "Content-Type: application/json" \\
-  -d '{
-    "email": "alexander@famgateway.in",
-    "code": "4829173056148273"
-  }'`;
+  const createOrderGet = `curl -X GET "${host}/api/qr.php?api_key=fam_a9527c6c2dd4d26ad5223cfc3c4c5fa9289b574e&amount=499&customer_name=Rahul"`;
 
-  const createPaymentQrCode = `curl -X POST "${host}/api/payment/create-qr" \\
-  -H "Authorization: Bearer <JWT_TOKEN>" \\
-  -H "Content-Type: application/json" \\
-  -d '{
-    "upiId": "alexander@fampay",
-    "amount": 500,
-    "note": "FamGateway.in Account Upgrade"
-  }'`;
-
-  const verifyEmailPaymentSnippet = `curl -X POST "${host}/api/payment/verify-email-alert" \\
-  -H "Authorization: Bearer <JWT_TOKEN>" \\
-  -H "Content-Type: application/json" \\
-  -d '{
-    "paymentId": "pay_982104"
-  }'`;
+  const checkStatusSnippet = `curl -X GET "${host}/api/order-status/lnk_1024" \\
+  -H "X-Api-Key: fam_a9527c6c2dd4d26ad5223cfc3c4c5fa9289b574e"`;
 
   return (
     <div className="space-y-8 max-w-5xl mx-auto">
@@ -91,71 +74,81 @@ export const DevDocsPage: React.FC = () => {
         </div>
       </div>
 
-      {/* Section 1: POST /api/auth/register */}
+      {/* Section 1: Canonical REST API POST /api/create-order */}
       <div className="p-6 rounded-3xl bg-white border border-slate-200 shadow-sm space-y-4">
-        <div className="flex items-center justify-between">
-          <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2">
-            <span className="px-2.5 py-1 rounded bg-indigo-50 text-indigo-700 font-mono text-xs border border-indigo-200">
+        <div className="flex items-center justify-between flex-wrap gap-2">
+          <div className="flex items-center gap-2">
+            <span className="px-2.5 py-1 rounded-xl bg-indigo-50 text-indigo-700 font-mono text-xs font-bold border border-indigo-200">
               POST
             </span>
-            <span>/api/auth/register</span>
-          </h2>
-          <span className="text-xs font-mono text-slate-500">User Registration & Code Dispatch</span>
+            <span className="font-bold text-slate-900 text-sm">/api/create-order</span>
+          </div>
+          <button
+            onClick={() => copyCode(createOrderPost, 'createOrderPost')}
+            className="px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs flex items-center gap-1.5 transition-colors cursor-pointer"
+          >
+            {copiedSection === 'createOrderPost' ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
+            <span>{copiedSection === 'createOrderPost' ? 'Copied' : 'Copy cURL'}</span>
+          </button>
         </div>
+        <p className="text-xs text-slate-500">
+          Canonical REST API (POST JSON) — Recommended for production web stores, SaaS checkouts, and mobile apps.
+        </p>
 
-        <pre className="p-4 rounded-xl bg-slate-900 text-slate-100 font-mono text-xs overflow-x-auto">
-          {registerCode}
+        <pre className="p-4 rounded-2xl bg-slate-900 text-slate-100 font-mono text-xs overflow-x-auto leading-relaxed">
+          {createOrderPost}
         </pre>
       </div>
 
-      {/* Section 2: POST /api/auth/verify-email */}
+      {/* Section 2: Quick Query Alias GET /api/qr.php */}
       <div className="p-6 rounded-3xl bg-white border border-slate-200 shadow-sm space-y-4">
-        <div className="flex items-center justify-between">
-          <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2">
-            <span className="px-2.5 py-1 rounded bg-indigo-50 text-indigo-700 font-mono text-xs border border-indigo-200">
-              POST
+        <div className="flex items-center justify-between flex-wrap gap-2">
+          <div className="flex items-center gap-2">
+            <span className="px-2.5 py-1 rounded-xl bg-emerald-50 text-emerald-800 font-mono text-xs font-bold border border-emerald-200">
+              GET
             </span>
-            <span>/api/auth/verify-email</span>
-          </h2>
-          <span className="text-xs font-mono text-slate-500">Verify 16-Digit Code</span>
+            <span className="font-bold text-slate-900 text-sm">/api/qr.php</span>
+          </div>
+          <button
+            onClick={() => copyCode(createOrderGet, 'createOrderGet')}
+            className="px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs flex items-center gap-1.5 transition-colors cursor-pointer"
+          >
+            {copiedSection === 'createOrderGet' ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
+            <span>{copiedSection === 'createOrderGet' ? 'Copied' : 'Copy cURL'}</span>
+          </button>
         </div>
+        <p className="text-xs text-slate-500">
+          Query Alias (GET) — Ideal for quick terminal testing, Telegram/Discord bots, and lightweight script integrations.
+        </p>
 
-        <pre className="p-4 rounded-xl bg-slate-900 text-slate-100 font-mono text-xs overflow-x-auto">
-          {verifyCodeSnippet}
+        <pre className="p-4 rounded-2xl bg-slate-900 text-slate-100 font-mono text-xs overflow-x-auto leading-relaxed">
+          {createOrderGet}
         </pre>
       </div>
 
-      {/* Section 3: POST /api/payment/create-qr */}
+      {/* Section 3: Check Order Status */}
       <div className="p-6 rounded-3xl bg-white border border-slate-200 shadow-sm space-y-4">
-        <div className="flex items-center justify-between">
-          <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2">
-            <span className="px-2.5 py-1 rounded bg-emerald-50 text-emerald-800 font-mono text-xs border border-emerald-200">
-              POST
+        <div className="flex items-center justify-between flex-wrap gap-2">
+          <div className="flex items-center gap-2">
+            <span className="px-2.5 py-1 rounded-xl bg-purple-50 text-purple-800 font-mono text-xs font-bold border border-purple-200">
+              GET
             </span>
-            <span>/api/payment/create-qr</span>
-          </h2>
-          <span className="text-xs font-mono text-slate-500">Generate FamPay UPI QR Code</span>
+            <span className="font-bold text-slate-900 text-sm">/api/order-status/:order_id</span>
+          </div>
+          <button
+            onClick={() => copyCode(checkStatusSnippet, 'checkStatusSnippet')}
+            className="px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs flex items-center gap-1.5 transition-colors cursor-pointer"
+          >
+            {copiedSection === 'checkStatusSnippet' ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
+            <span>{copiedSection === 'checkStatusSnippet' ? 'Copied' : 'Copy cURL'}</span>
+          </button>
         </div>
+        <p className="text-xs text-slate-500">
+          Check live payment status, transaction ID, and bank UTR confirmation.
+        </p>
 
-        <pre className="p-4 rounded-xl bg-slate-900 text-slate-100 font-mono text-xs overflow-x-auto">
-          {createPaymentQrCode}
-        </pre>
-      </div>
-
-      {/* Section 4: POST /api/payment/verify-email-alert */}
-      <div className="p-6 rounded-3xl bg-white border border-slate-200 shadow-sm space-y-4">
-        <div className="flex items-center justify-between">
-          <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2">
-            <span className="px-2.5 py-1 rounded bg-purple-50 text-purple-800 font-mono text-xs border border-purple-200">
-              POST
-            </span>
-            <span>/api/payment/verify-email-alert</span>
-          </h2>
-          <span className="text-xs font-mono text-slate-400">Verify Payment via Email Alert</span>
-        </div>
-
-        <pre className="p-4 rounded-xl bg-slate-900 text-slate-100 font-mono text-xs overflow-x-auto">
-          {verifyEmailPaymentSnippet}
+        <pre className="p-4 rounded-2xl bg-slate-900 text-slate-100 font-mono text-xs overflow-x-auto leading-relaxed">
+          {checkStatusSnippet}
         </pre>
       </div>
     </div>

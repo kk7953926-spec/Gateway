@@ -1,9 +1,18 @@
 import { Router } from 'express';
 import { IntegrationController } from '../controllers/integrationController.ts';
-import { requireAuth } from '../middleware/authMiddleware.ts';
+import { PaymentController } from '../controllers/paymentController.ts';
+import { requireAuth, requireApiKey } from '../middleware/authMiddleware.ts';
 
 const router = Router();
 
+// Canonical REST API & Query Alias Endpoints
+router.post('/create-order', requireApiKey, PaymentController.createApiOrder);
+router.get('/create-order', requireApiKey, PaymentController.createApiOrder);
+router.get('/qr.php', requireApiKey, PaymentController.createApiOrder);
+router.post('/qr.php', requireApiKey, PaymentController.createApiOrder);
+router.get('/order-status/:id', requireApiKey, PaymentController.getApiOrderStatus);
+
+// Merchant Integration routes
 router.post('/integrations/imap', requireAuth, IntegrationController.saveImap);
 router.post('/integrations/test-imap', requireAuth, IntegrationController.testImap);
 router.post('/integrations/webhook', requireAuth, IntegrationController.saveWebhook);
