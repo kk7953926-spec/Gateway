@@ -509,7 +509,7 @@ export const PaymentLinksView: React.FC<PaymentLinksViewProps> = ({ onNavigate }
 
         {links.length > 0 ? (
           <div className="space-y-3">
-            {links.map((link) => {
+            {links.map((link, idx) => {
               const now = Date.now();
               const expTime = link.expires_at 
                 ? new Date(link.expires_at).getTime() 
@@ -520,7 +520,7 @@ export const PaymentLinksView: React.FC<PaymentLinksViewProps> = ({ onNavigate }
 
               return (
                 <div
-                  key={link.id}
+                  key={`${link.id || 'lnk'}-${idx}`}
                   className="p-4 rounded-2xl bg-slate-50 border border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs"
                 >
                   <div>

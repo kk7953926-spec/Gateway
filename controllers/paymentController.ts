@@ -654,10 +654,31 @@ export class PaymentController {
   public static async getApiOrderStatus(req: AuthenticatedRequest, res: Response) {
     dbService.incrementApiRequests();
     const { id } = req.params;
-    const payment = await dbService.getPaymentById(id);
+    let payment = await dbService.getPaymentById(id);
 
-    if (!payment || payment.user_id !== req.user!.id) {
+    if (!payment) {
+      const link = await dbService.getPaymentLinkById(id);
+      if (link) {
+        if (link.status === 'ACTIVE') {
+          await PaymentService.autoDetectAndConfirm(link.id, link.amount);
+        }
+        return res.status(200).json({
+          success: true,
+          order_id: link.id,
+          amount: link.amount,
+          status: link.status === 'CAPTURED' ? 'CONFIRMED' : link.status,
+          created_at: link.created_at,
+        });
+      }
       return res.status(404).json({ success: false, error: 'Order not found.' });
+    }
+
+    // If still pending, actively run auto-detection scanner against Gmail IMAP
+    if (payment.status === 'PENDING') {
+      const detectRes = await PaymentService.autoDetectAndConfirm(payment.id, payment.amount);
+      if (detectRes.status === 'CONFIRMED' && detectRes.payment) {
+        payment = detectRes.payment;
+      }
     }
 
     return res.status(200).json({

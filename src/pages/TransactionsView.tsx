@@ -206,8 +206,8 @@ export const TransactionsView: React.FC = () => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {filtered.map((t) => (
-                  <tr key={t.id} className="hover:bg-slate-50 transition-colors">
+                {filtered.map((t, idx) => (
+                  <tr key={`${t.id || 'txn'}-${t.created_at || ''}-${idx}`} className="hover:bg-slate-50 transition-colors">
                     <td className="py-3 font-bold text-indigo-700">{t.id}</td>
                     <td className="py-3 text-slate-700">{t.upi_id}</td>
                     <td className="py-3 font-bold text-slate-900">₹{(Number(t?.amount) || 0).toFixed(2)}</td>
@@ -222,7 +222,7 @@ export const TransactionsView: React.FC = () => {
                         </span>
                       )}
                     </td>
-                    <td className="py-3 text-slate-500">{new Date(t.created_at).toLocaleString()}</td>
+                    <td className="py-3 text-slate-500">{t.created_at ? new Date(t.created_at).toLocaleString() : 'N/A'}</td>
                   </tr>
                 ))}
               </tbody>

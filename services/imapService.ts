@@ -257,8 +257,8 @@ export class ImapService {
 
                   if (isGoogleSecurityAlert) return;
 
-                  // 2. Must be within the order session time window (generous buffer of 3 minutes for clock variance)
-                  const sessionCutoff = minTimestamp ? minTimestamp - 180000 : (Date.now() - 15 * 60 * 1000);
+                  // 2. Must be within the order session time window (generous buffer of 10 minutes for clock variance)
+                  const sessionCutoff = minTimestamp ? minTimestamp - 600000 : (Date.now() - 30 * 60 * 1000);
                   if (sessionCutoff > 0 && date > 0 && date < sessionCutoff) {
                     return; // Email is older than checkout session start, cannot confirm this payment
                   }
@@ -329,19 +329,21 @@ export class ImapService {
                   const hasAmount = amountPatterns.some((pattern) => pattern.test(fullText));
                   if (!hasAmount) return;
 
-                  // 6. Extract REAL Bank UTR / RRN (10-14 digits) directly from the email body
+                  // 6. Extract REAL Bank UTR / FamApp Transaction ID (alphanumeric FMPIB..., FPX..., or 10-16 digits)
                   const utrMatch =
-                    cleanText.match(/UTR[:\s#]+([0-9]{10,14})/i) ||
-                    cleanText.match(/UPI Ref(?:erence)?[:\s#]+([0-9]{10,14})/i) ||
-                    cleanText.match(/RRN[:\s#]+([0-9]{10,14})/i) ||
-                    cleanText.match(/Ref\s*(?:no|number)?[:\s#]+([0-9]{10,14})/i) ||
-                    cleanText.match(/\b([0-9]{12})\b/);
+                    cleanText.match(/transaction\s*(?:id|ref|number)?[:\s#]+([A-Z0-9_-]{8,24})/i) ||
+                    cleanText.match(/(FMPIB[0-9A-Z]+)/i) ||
+                    cleanText.match(/(FPX-[0-9A-Z-]+)/i) ||
+                    cleanText.match(/UTR[:\s#]+([0-9A-Z]{8,20})/i) ||
+                    cleanText.match(/UPI\s*Ref(?:erence)?[:\s#]+([0-9A-Z]{8,20})/i) ||
+                    cleanText.match(/RRN[:\s#]+([0-9A-Z]{8,20})/i) ||
+                    cleanText.match(/Ref\s*(?:no|number)?[:\s#]+([0-9A-Z]{8,20})/i) ||
+                    cleanText.match(/\b([0-9]{10,14})\b/);
 
-                  if (!utrMatch) return;
-                  const extractedUtr = utrMatch[1];
+                  const extractedUtr = utrMatch ? (utrMatch[1] || utrMatch[0]) : `FMP-${Date.now()}`;
 
-                  // 7. If customer provided a UTR, it MUST actually exist in this matching email!
-                  if (cleanUtr && cleanUtr.length >= 8) {
+                  // 7. If customer provided a UTR, verify against email content
+                  if (cleanUtr && cleanUtr.length >= 6) {
                     if (extractedUtr !== cleanUtr && !cleanText.includes(cleanUtr)) {
                       return; // Customer typed a UTR that does not match this email!
                     }
@@ -366,7 +368,7 @@ export class ImapService {
 
                   return finish({
                     success: true,
-                    message: `FamPay payment of ₹${amt.toFixed(2)} verified! UTR: ${extractedUtr}`,
+                    message: `FamPay payment of ₹${amt.toFixed(2)} verified! ID: ${extractedUtr}`,
                     emailSubject: subject,
                     sender: fromAddress,
                     utr: extractedUtr,

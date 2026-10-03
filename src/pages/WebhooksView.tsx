@@ -502,11 +502,11 @@ export const WebhooksView: React.FC<{ onNavigate: (nav: string) => void }> = ({ 
               </div>
             ) : logs.length > 0 ? (
               <div className="space-y-2">
-                {logs.map((log) => {
+                {logs.map((log, idx) => {
                   const isInbound = log.action.includes('PAYMENT_CONFIRMED') || log.action.includes('IDEMPOTENT') || log.action.includes('REJECTED');
                   const isSuccess = log.status === 'SUCCESS' || log.status === 'INFO';
                   return (
-                    <div key={log.id} className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div key={`${log.id || 'log'}-${idx}`} className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                       <div className="flex items-start sm:items-center gap-3">
                         <div className={`p-2 rounded-xl shrink-0 ${isSuccess ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'}`}>
                           {isInbound ? <ArrowDownLeft className="w-4 h-4" /> : <ArrowUpRight className="w-4 h-4" />}
