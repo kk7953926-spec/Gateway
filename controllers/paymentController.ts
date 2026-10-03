@@ -67,18 +67,51 @@ export class PaymentController {
     // Check payments map
     const payment = await dbService.getPaymentById(id);
     if (payment) {
+      const merchant = await dbService.findUserById(payment.user_id);
+      const merchantUpi = payment.upi_id || merchant?.fampay_upi_id || '8056317218@fam';
+      const merchantName = merchant?.name || 'FamGateway Merchant';
+      const upiUri = `upi://pay?pa=${encodeURIComponent(merchantUpi)}&pn=${encodeURIComponent(merchantName)}&am=${payment.amount.toFixed(2)}&cu=INR&tn=${encodeURIComponent(payment.transaction_ref || payment.note || 'Payment')}`;
+
+      const now = Date.now();
+      const createdAtMs = payment.created_at ? new Date(payment.created_at).getTime() : now;
+      const expTime = createdAtMs + 8 * 60 * 1000;
+      const secondsLeft = Math.max(0, Math.floor((expTime - now) / 1000));
+      const effectiveStatus = (payment.status === 'PENDING' && secondsLeft <= 0) ? 'EXPIRED' : payment.status;
+
+      const linkData = {
+        id: payment.id,
+        title: payment.note || 'Payment Order',
+        amount: payment.amount,
+        description: `Order Ref: ${payment.transaction_ref || payment.id}`,
+        merchant_name: merchantName,
+        merchant_upi_id: merchantUpi,
+        upi_uri: upiUri,
+        qr_data_url: payment.qr_data_url,
+        status: effectiveStatus,
+        created_at: payment.created_at,
+        expires_at: new Date(expTime).toISOString(),
+        expiry_minutes: 8,
+        seconds_left: secondsLeft,
+        redirect_url: payment.success_url,
+        success_url: payment.success_url,
+        cancel_url: payment.cancel_url,
+        transaction_ref: payment.transaction_ref,
+        custom_settings: merchant?.checkout_settings || {
+          brand_name: 'FAMGATEWAY',
+          subtitle: 'VERIFIED MERCHANT',
+          avatar_url: 'https://images.unsplash.com/photo-1566492031773-4f4e44671857?w=150&auto=format&fit=crop&q=80',
+          theme_color: 'purple',
+          session_timeout_minutes: 8,
+          enable_utr_submission: true,
+          enable_save_qr: true,
+          show_apps: true,
+        },
+      };
+
       return res.status(200).json({
         success: true,
-        payment: {
-          id: payment.id,
-          title: payment.note,
-          amount: payment.amount,
-          merchant_upi_id: payment.upi_id,
-          upi_uri: `upi://pay?pa=${encodeURIComponent(payment.upi_id)}&am=${payment.amount.toFixed(2)}&cu=INR&tn=${encodeURIComponent(payment.note)}`,
-          status: payment.status,
-          success_url: payment.success_url,
-          cancel_url: payment.cancel_url,
-        },
+        link: linkData,
+        payment: linkData,
       });
     }
 

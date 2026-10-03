@@ -19,6 +19,7 @@ import {
   RotateCcw,
   ArrowLeft,
   Mail,
+  ExternalLink,
 } from 'lucide-react';
 import QRCode from 'qrcode';
 import { listenToPaymentStatus } from '../hooks/usePaymentListener';
@@ -36,6 +37,7 @@ export const PublicCheckoutView: React.FC<PublicCheckoutViewProps> = ({ linkId }
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [showCancelModal, setShowCancelModal] = useState(false);
+  const [redirectCountdown, setRedirectCountdown] = useState<number | null>(null);
 
   // Confirmed details
   const [confirmedUtr, setConfirmedUtr] = useState<string>('');
@@ -50,53 +52,90 @@ export const PublicCheckoutView: React.FC<PublicCheckoutViewProps> = ({ linkId }
   const totalDurationRef = useRef<number>(480);
   const sessionStartTimeRef = useRef<number>(Date.now());
 
+  // Function to return to the previous page or external merchant website
+  const handleReturnToPreviousPage = () => {
+    const returnUrl = details?.redirect_url || details?.cancel_url || details?.success_url;
+    if (returnUrl) {
+      window.location.href = returnUrl;
+      return;
+    }
+
+    if (document.referrer && !document.referrer.includes(window.location.host)) {
+      window.location.href = document.referrer;
+      return;
+    }
+
+    if (window.history.length > 1) {
+      window.history.back();
+      return;
+    }
+
+    window.location.href = '/';
+  };
+
+  const generateAndSetQr = async (upiUri: string) => {
+    try {
+      const url = await QRCode.toDataURL(upiUri, {
+        margin: 1,
+        width: 380,
+        errorCorrectionLevel: 'M',
+        color: {
+          dark: '#000000',
+          light: '#ffffff',
+        },
+      });
+      setQrDataUrl(url);
+    } catch {
+      // Reliable fallback image service if canvas rendering fails
+      setQrDataUrl(`https://api.qrserver.com/v1/create-qr-code/?size=320x320&data=${encodeURIComponent(upiUri)}`);
+    }
+  };
+
   const fetchLinkDetails = async () => {
     try {
       const res = await fetch(`/api/payment/public-link/${linkId}`);
       if (res.ok) {
         const data = await res.json();
-        if (data.link) {
-          setDetails(data.link);
-          const upiString =
-            data.link.upi_uri ||
-            `upi://pay?pa=${encodeURIComponent(data.link.merchant_upi_id)}&pn=${encodeURIComponent(
-              data.link.merchant_name || 'FAMGATEWAY'
-            )}&am=${data.link.amount}&cu=INR&tn=${encodeURIComponent(data.link.title || 'Order')}`;
+        const linkObj = data.link || data.payment;
+        if (linkObj) {
+          setDetails(linkObj);
 
-          try {
-            const url = await QRCode.toDataURL(upiString, {
-              margin: 1,
-              width: 320,
-              color: {
-                dark: '#0f172a',
-                light: '#ffffff',
-              },
-            });
-            setQrDataUrl(url);
-          } catch {
-            // Fallback
-          }
+          const merchantUpi = linkObj.merchant_upi_id || '8056317218@fam';
+          const merchantName = linkObj.merchant_name || 'FAMGATEWAY';
+          const amountFormatted = Number(linkObj.amount || 0).toFixed(2);
+          const noteParam = linkObj.transaction_ref || linkObj.title || linkId;
+
+          const upiString =
+            linkObj.upi_uri ||
+            `upi://pay?pa=${encodeURIComponent(merchantUpi)}&pn=${encodeURIComponent(
+              merchantName
+            )}&am=${amountFormatted}&cu=INR&tn=${encodeURIComponent(noteParam)}`;
+
+          // Generate scannable QR code
+          await generateAndSetQr(upiString);
 
           // Calculate remaining seconds strictly from link.expires_at or link.created_at
           const now = Date.now();
-          const expTimestamp = data.link.expires_at
-            ? new Date(data.link.expires_at).getTime()
-            : (data.link.created_at 
-                ? new Date(data.link.created_at).getTime() + (data.link.expiry_minutes || data.link.custom_settings?.session_timeout_minutes || 8) * 60 * 1000
+          const expTimestamp = linkObj.expires_at
+            ? new Date(linkObj.expires_at).getTime()
+            : (linkObj.created_at 
+                ? new Date(linkObj.created_at).getTime() + (linkObj.expiry_minutes || linkObj.custom_settings?.session_timeout_minutes || 8) * 60 * 1000
                 : now + 480000);
 
-          const totalDurationSecs = (data.link.expiry_minutes || data.link.custom_settings?.session_timeout_minutes || 8) * 60;
+          const totalDurationSecs = (linkObj.expiry_minutes || linkObj.custom_settings?.session_timeout_minutes || 8) * 60;
           totalDurationRef.current = totalDurationSecs;
 
           const remainingSeconds = Math.max(0, Math.floor((expTimestamp - now) / 1000));
           setTimeLeft(remainingSeconds);
 
-          if (data.link.status === 'EXPIRED' || remainingSeconds <= 0) {
+          if (linkObj.status === 'EXPIRED' || remainingSeconds <= 0) {
             setStatus('FAILED');
             setStatusMessage('This payment link has expired and is no longer valid. Please request a new payment link.');
-          } else if (data.link.status === 'CAPTURED') {
+          } else if (linkObj.status === 'CAPTURED' || linkObj.status === 'CONFIRMED') {
             setStatus('CONFIRMED');
             setStatusMessage('This payment link has already been completed.');
+            setConfirmedTxnId(linkObj.id);
+            setConfirmedUtr(linkObj.transaction_ref || 'VERIFIED');
           }
         }
       }
@@ -181,6 +220,7 @@ export const PublicCheckoutView: React.FC<PublicCheckoutViewProps> = ({ linkId }
     setStatusMessage(null);
     sessionStartTimeRef.current = Date.now();
     setTimeLeft(totalDurationRef.current);
+    fetchLinkDetails();
   };
 
   // Download QR code image to gallery
@@ -218,9 +258,9 @@ export const PublicCheckoutView: React.FC<PublicCheckoutViewProps> = ({ linkId }
             <div class="row"><span>Date:</span><strong>${new Date().toLocaleString()}</strong></div>
             <div class="row"><span>Order Ref:</span><strong>${linkId}</strong></div>
             <div class="row"><span>Bank UTR:</span><strong>${confirmedUtr || 'N/A'}</strong></div>
-            <div class="row"><span>Transaction ID:</span><strong>${confirmedTxnId || 'N/A'}</strong></div>
-            <div class="row total"><span>Amount Paid:</span><strong>₹${details?.amount?.toFixed(2) || '0.00'}</strong></div>
-            <div class="footer">Thank you for choosing ${brandName}. This is a secure digitally generated transaction receipt.</div>
+            <div class="row"><span>Transaction ID:</span><strong>${confirmedTxnId || linkId}</strong></div>
+            <div class="row total"><span>Amount Paid:</span><span>₹${Number(details?.amount || 0).toFixed(2)}</span></div>
+            <div class="footer">Thank you for your business. Verified by FamGateway IMAP.</div>
           </div>
         </body>
       </html>
@@ -232,152 +272,135 @@ export const PublicCheckoutView: React.FC<PublicCheckoutViewProps> = ({ linkId }
     fetchLinkDetails();
   }, [linkId]);
 
+  // Real-time Firestore payment listener
   useEffect(() => {
-    fetch('/api/public/ping', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        page: window.location.pathname,
-        referrer: document.referrer,
-        isCheckout: true,
-        orderAmount: details?.amount,
-      }),
-    }).catch(() => {});
-  }, [linkId, details?.amount]);
+    if (!linkId) return;
 
-  useEffect(() => {
-    let unsubscribe: () => void;
-    if (linkId) {
-      unsubscribe = listenToPaymentStatus(linkId, (newStatus) => {
-        // Only allow status to move to CONFIRMED via server callback
-        if (newStatus === 'CONFIRMED' || newStatus === 'CAPTURED') {
-          setStatus('CONFIRMED');
-          setStatusMessage('Payment Successfully Received & Confirmed! 🎉');
-        } else if (newStatus === 'VERIFYING') {
-          setStatus('VERIFYING');
-          setStatusMessage('Payment detected, verifying funds...');
+    const unsubscribe = listenToPaymentStatus(linkId, (status, paymentData) => {
+      if (status === 'CONFIRMED' || status === 'CAPTURED') {
+        setStatus('CONFIRMED');
+        setStatusMessage('Payment Automatically Detected & Confirmed via UPI Alert! 🎉');
+        if (paymentData?.transaction_ref) {
+          setConfirmedUtr(paymentData.transaction_ref);
         }
-      });
-    }
+        if (paymentData?.id) {
+          setConfirmedTxnId(paymentData.id);
+        }
+      }
+    });
+
     return () => {
-      if (unsubscribe) unsubscribe();
+      if (typeof unsubscribe === 'function') {
+        unsubscribe();
+      }
     };
   }, [linkId]);
 
-  // Active Real-Time Background IMAP Scanner: Polls every 2.5 seconds for incoming payment
+  // Countdown timer effect
   useEffect(() => {
     if (status !== 'PENDING') return;
 
-    const initialCheck = setTimeout(() => {
-      checkStatus();
-    }, 1000);
-
-    const pollInterval = setInterval(() => {
-      checkStatus();
-    }, 2500);
-
-    return () => {
-      clearTimeout(initialCheck);
-      clearInterval(pollInterval);
-    };
-  }, [status, details?.amount, linkId]);
-
-  // Countdown timer interval
-  useEffect(() => {
-    if (status !== 'PENDING' || timeLeft <= 0) return;
     const timer = setInterval(() => {
-      setTimeLeft((prev) => (prev > 0 ? prev - 1 : 0));
+      setTimeLeft((prev) => {
+        if (prev <= 1) {
+          clearInterval(timer);
+          setStatus('FAILED');
+          setStatusMessage('Payment session expired. Please restart transaction.');
+          return 0;
+        }
+        return prev - 1;
+      });
     }, 1000);
+
     return () => clearInterval(timer);
-  }, [timeLeft, status]);
+  }, [status]);
 
+  // Active Gmail IMAP scanning loop (every 2.5 seconds)
   useEffect(() => {
-    if (status === 'PENDING' && timeLeft === 0) {
-      setStatus('FAILED');
-    }
-  }, [timeLeft, status]);
+    if (status !== 'PENDING') return;
+    const pollInterval = setInterval(checkStatus, 2500);
+    return () => clearInterval(pollInterval);
+  }, [status, details?.amount, details?.created_at, customerEmail]);
 
-  const formatTimer = (secs: number) => {
-    const mins = Math.floor(secs / 60);
-    const remainingSecs = secs % 60;
-    return `${mins.toString().padStart(2, '0')}:${remainingSecs.toString().padStart(2, '0')}`;
+  // Auto redirect on success if redirect_url or success_url exists
+  useEffect(() => {
+    const returnUrl = details?.redirect_url || details?.success_url;
+    if (status === 'CONFIRMED' && returnUrl) {
+      setRedirectCountdown(5);
+      const countdownInterval = setInterval(() => {
+        setRedirectCountdown((prev) => {
+          if (prev !== null && prev <= 1) {
+            clearInterval(countdownInterval);
+            window.location.href = returnUrl;
+            return 0;
+          }
+          return prev !== null ? prev - 1 : null;
+        });
+      }, 1000);
+
+      return () => clearInterval(countdownInterval);
+    }
+  }, [status, details?.redirect_url, details?.success_url]);
+
+  const formatTimer = (seconds: number) => {
+    const m = Math.floor(seconds / 60);
+    const s = seconds % 60;
+    return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
   };
 
-  // Timer progress percentage
-  const timerPercentage = Math.max(0, Math.min(100, (timeLeft / totalDurationRef.current) * 100));
+  const custom = details?.custom_settings || {};
+  const brandName = custom.brand_name || details?.merchant_name || 'FAMGATEWAY STORE';
+  const subtitle = custom.subtitle || 'VERIFIED MERCHANT';
+  const avatarUrl =
+    custom.avatar_url ||
+    'https://images.unsplash.com/photo-1566492031773-4f4e44671857?w=150&auto=format&fit=crop&q=80';
+  const contactUrl = custom.contact_url || '';
 
-  // Automatic redirect logic
-  useEffect(() => {
-    let timeout: NodeJS.Timeout;
-    
-    if (status === 'CONFIRMED' && details?.success_url) {
-      timeout = setTimeout(() => {
-        try {
-          const url = new URL(details.success_url);
-          url.searchParams.set('order_id', linkId);
-          url.searchParams.set('status', 'success');
-          url.searchParams.set('utr', confirmedUtr);
-          window.location.href = url.toString();
-        } catch {
-          window.location.href = details.success_url;
-        }
-      }, 3000); // 3 second delay so they see the success message
-    } else if ((status === 'FAILED' || status === 'CANCELLED') && details?.cancel_url) {
-      timeout = setTimeout(() => {
-        try {
-          const url = new URL(details.cancel_url);
-          url.searchParams.set('order_id', linkId);
-          url.searchParams.set('status', status.toLowerCase());
-          window.location.href = url.toString();
-        } catch {
-          window.location.href = details.cancel_url;
-        }
-      }, 3000);
-    }
+  const merchantUpi = details?.merchant_upi_id || '8056317218@fam';
+  const amountFormatted = Number(details?.amount || 0).toFixed(2);
+  const noteParam = details?.transaction_ref || details?.title || linkId;
+  const upiUri =
+    details?.upi_uri ||
+    `upi://pay?pa=${encodeURIComponent(merchantUpi)}&pn=${encodeURIComponent(
+      brandName
+    )}&am=${amountFormatted}&cu=INR&tn=${encodeURIComponent(noteParam)}`;
 
-    return () => {
-      if (timeout) clearTimeout(timeout);
-    };
-  }, [status, details?.success_url, details?.cancel_url, linkId, confirmedUtr]);
+  const timerPercentage = totalDurationRef.current > 0 ? (timeLeft / totalDurationRef.current) * 100 : 0;
 
   if (loading) {
     return (
-      <div className="fixed inset-0 bg-[#070a12] text-slate-100 flex items-center justify-center p-4 font-sans z-50">
+      <div className="min-h-screen bg-[#070a13] flex items-center justify-center p-4">
         <div className="text-center space-y-3">
-          <Loader2 className="w-10 h-10 text-purple-500 animate-spin mx-auto" />
-          <p className="text-xs font-mono font-bold text-slate-400">Loading Secure UPI Checkout...</p>
+          <Loader2 className="w-8 h-8 text-purple-500 animate-spin mx-auto" />
+          <p className="text-xs font-mono text-slate-400">Loading Secure FamPay UPI Checkout...</p>
         </div>
       </div>
     );
   }
 
-  const custom = details?.custom_settings || {};
-  const brandName = custom.brand_name || 'FAMGATEWAY';
-  const subtitle = custom.subtitle || 'VERIFIED MERCHANT';
-  const avatarUrl =
-    custom.avatar_url ||
-    'https://images.unsplash.com/photo-1566492031773-4f4e44671857?w=150&auto=format&fit=crop&q=80';
-  const contactUrl = custom.contact_url || 'https://wa.me/911234567890';
-  const upiUri =
-    details?.upi_uri ||
-    `upi://pay?pa=${encodeURIComponent(details?.merchant_upi_id || 'merchant@fam')}&pn=${encodeURIComponent(
-      brandName
-    )}&am=${details?.amount || 50}&cu=INR&tn=${encodeURIComponent(details?.title || 'Payment')}`;
-
   return (
-    <div
-      className="fixed inset-0 w-full h-full bg-[#070a12] text-slate-100 overflow-y-auto overflow-x-hidden font-sans selection:bg-purple-500 selection:text-white"
-      style={{
-        WebkitOverflowScrolling: 'touch',
-        overscrollBehaviorY: 'contain',
-      }}
-    >
-      {/* Scrollable Container Wrapper */}
-      <div className="min-h-full flex flex-col justify-between max-w-md mx-auto relative pb-28 pt-2 px-3 sm:px-4">
-        {/* Top Header / Bar */}
-        <div className="w-full rounded-3xl overflow-hidden shadow-2xl border border-slate-800 bg-[#0a0f1d] mb-4">
-          <div className="bg-gradient-to-r from-purple-700 via-fuchsia-600 to-indigo-700 px-4 py-3 flex items-center justify-between shadow-xl">
+    <div className="min-h-screen bg-[#060911] text-slate-100 flex flex-col items-center justify-center p-3 sm:p-4 font-sans selection:bg-purple-600 selection:text-white relative">
+      {/* Background radial highlights */}
+      <div className="fixed inset-0 pointer-events-none bg-[radial-gradient(circle_at_top,_var(--tw-gradient-stops))] from-purple-950/20 via-slate-950 to-[#060911]" />
+
+      {/* Main Checkout Container */}
+      <div className="w-full max-w-md relative z-10 space-y-4 my-4">
+        {/* Top Header Card */}
+        <div className="rounded-3xl bg-gradient-to-r from-purple-900/90 via-indigo-900/90 to-purple-900/90 p-4 sm:p-5 border border-purple-500/30 shadow-2xl backdrop-blur-md relative overflow-hidden">
+          <div className="absolute top-0 right-0 w-32 h-32 bg-white/5 rounded-full -mr-10 -mt-10 blur-xl pointer-events-none" />
+
+          <div className="flex items-center justify-between relative z-10">
             <div className="flex items-center gap-3">
+              {/* Return / Back Button */}
+              <button
+                type="button"
+                onClick={handleReturnToPreviousPage}
+                className="p-2 rounded-xl bg-white/10 hover:bg-white/20 text-white transition-colors cursor-pointer shrink-0"
+                title="Return to Previous Page"
+              >
+                <ArrowLeft className="w-4 h-4" />
+              </button>
+
               {/* Merchant Avatar / Logo */}
               <div className="w-10 h-10 rounded-full border-2 border-white/40 overflow-hidden bg-slate-900 shrink-0 shadow-md">
                 <img
@@ -440,7 +463,7 @@ export const PublicCheckoutView: React.FC<PublicCheckoutViewProps> = ({ linkId }
                 <div className="flex justify-between text-slate-400">
                   <span>Amount Paid:</span>
                   <span className="text-emerald-400 font-extrabold text-sm">
-                    ₹{details?.amount?.toFixed(2) || '50.00'}
+                    ₹{amountFormatted}
                   </span>
                 </div>
                 <div className="flex justify-between text-slate-400">
@@ -465,20 +488,32 @@ export const PublicCheckoutView: React.FC<PublicCheckoutViewProps> = ({ linkId }
                 </div>
               </div>
 
-              <div className="pt-2">
+              {/* Redirect Countdown if redirect_url is present */}
+              {redirectCountdown !== null && (
+                <div className="p-3 rounded-2xl bg-indigo-950/50 border border-indigo-500/30 text-xs text-indigo-200">
+                  Redirecting back to store in <strong className="text-white font-bold">{redirectCountdown}s</strong>...
+                </div>
+              )}
+
+              <div className="space-y-2.5 pt-2">
+                <button
+                  type="button"
+                  onClick={handleReturnToPreviousPage}
+                  className="w-full py-3.5 rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-extrabold text-xs transition-all flex items-center justify-center gap-2 shadow-lg shadow-emerald-600/30 cursor-pointer"
+                >
+                  <ArrowLeft className="w-4 h-4" />
+                  <span>Return to Store / Previous Page</span>
+                </button>
+
                 <button
                   type="button"
                   onClick={handleDownloadPdfReceipt}
-                  className="w-full py-3.5 rounded-2xl bg-purple-600 hover:bg-purple-700 text-white font-extrabold text-xs transition-all flex items-center justify-center gap-1.5 shadow-md shadow-purple-600/20 cursor-pointer"
+                  className="w-full py-2.5 rounded-2xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white font-bold text-xs transition-all flex items-center justify-center gap-1.5 cursor-pointer"
                 >
                   <Download className="w-4 h-4" />
                   <span>Download PDF Receipt</span>
                 </button>
               </div>
-
-              <p className="text-xs text-slate-500">
-                You can safely close this window now. Receipt generated.
-              </p>
             </div>
           ) : (status === 'CANCELLED' || status === 'FAILED') ? (
             /* CANCELLED OR EXPIRED VIEW */
@@ -493,7 +528,7 @@ export const PublicCheckoutView: React.FC<PublicCheckoutViewProps> = ({ linkId }
                 </h2>
                 <p className="text-xs text-slate-400 font-medium">
                   {status === 'FAILED' 
-                    ? 'The 5-minute session expired because no payment was captured. Please retry.' 
+                    ? 'The session expired because no payment was captured. Please retry.' 
                     : 'This transaction has been cancelled. No funds were debited.'}
                 </p>
               </div>
@@ -505,7 +540,7 @@ export const PublicCheckoutView: React.FC<PublicCheckoutViewProps> = ({ linkId }
                 </div>
                 <div className="flex justify-between text-slate-400">
                   <span>Amount:</span>
-                  <span className="text-slate-300">₹{details?.amount?.toFixed(2) || '50.00'}</span>
+                  <span className="text-slate-300">₹{amountFormatted}</span>
                 </div>
                 <div className="flex justify-between text-slate-400">
                   <span>Status:</span>
@@ -519,7 +554,7 @@ export const PublicCheckoutView: React.FC<PublicCheckoutViewProps> = ({ linkId }
                 <button
                   type="button"
                   onClick={handleRestartPayment}
-                  className="w-full py-3 rounded-2xl bg-purple-600 hover:bg-purple-50 text-white font-extrabold text-xs flex items-center justify-center gap-2 shadow-lg shadow-purple-600/30 transition-all cursor-pointer"
+                  className="w-full py-3 rounded-2xl bg-purple-600 hover:bg-purple-500 text-white font-extrabold text-xs flex items-center justify-center gap-2 shadow-lg shadow-purple-600/30 transition-all cursor-pointer"
                 >
                   <RotateCcw className="w-4 h-4" />
                   <span>Retry & Pay Again</span>
@@ -527,7 +562,7 @@ export const PublicCheckoutView: React.FC<PublicCheckoutViewProps> = ({ linkId }
 
                 <button
                   type="button"
-                  onClick={() => window.history.back()}
+                  onClick={handleReturnToPreviousPage}
                   className="w-full py-2.5 rounded-2xl bg-slate-800/80 hover:bg-slate-800 text-slate-300 hover:text-white font-bold text-xs flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
                 >
                   <ArrowLeft className="w-3.5 h-3.5" />
@@ -547,18 +582,18 @@ export const PublicCheckoutView: React.FC<PublicCheckoutViewProps> = ({ linkId }
                 <span className="text-indigo-300 text-[10px] hidden sm:inline">Auto-Confirm On</span>
               </div>
 
-              {/* Card 1: QR Code Card */}
+              {/* Card 1: High-Contrast Scannable QR Code Card */}
               <div className="rounded-3xl bg-[#0e1320] border border-slate-800/80 p-5 sm:p-6 shadow-2xl text-center space-y-4">
-                {/* QR Code Container with Violet Dashed Outline */}
-                <div className="p-3.5 rounded-3xl bg-white text-slate-900 border-2 border-dashed border-purple-500/90 shadow-2xl inline-block mx-auto">
+                {/* Clean Pure White Container with Rounded Corners for Easy Scanning */}
+                <div className="p-4 rounded-3xl bg-white text-slate-900 border-4 border-purple-500/80 shadow-2xl inline-block mx-auto">
                   {qrDataUrl ? (
                     <img
                       src={qrDataUrl}
                       alt="UPI QR Code"
-                      className="w-56 h-56 sm:w-60 sm:h-60 mx-auto rounded-xl object-contain block"
+                      className="w-56 h-56 sm:w-60 sm:h-60 mx-auto rounded-lg object-contain block"
                     />
                   ) : (
-                    <div className="w-56 h-56 flex items-center justify-center bg-slate-100 rounded-xl">
+                    <div className="w-56 h-56 flex items-center justify-center bg-slate-100 rounded-lg">
                       <QrCode className="w-14 h-14 text-slate-400 animate-pulse" />
                     </div>
                   )}
@@ -582,10 +617,10 @@ export const PublicCheckoutView: React.FC<PublicCheckoutViewProps> = ({ linkId }
                 <div className="pt-1 space-y-1">
                   <div className="text-4xl font-black text-white tracking-tight flex items-baseline justify-center gap-1">
                     <span className="text-2xl font-bold text-slate-300">₹</span>
-                    <span>{details?.amount ? details.amount.toFixed(2) : '50.00'}</span>
+                    <span>{amountFormatted}</span>
                   </div>
                   <div className="text-[11px] font-mono text-slate-400 tracking-wide">
-                    Transaction ID: <span className="text-slate-300">{linkId}</span>
+                    VPA: <span className="text-purple-300 font-bold">{merchantUpi}</span>
                   </div>
                 </div>
               </div>
@@ -601,65 +636,68 @@ export const PublicCheckoutView: React.FC<PublicCheckoutViewProps> = ({ linkId }
               {/* Card 2: PAY BY APPS Section */}
               {custom.show_apps !== false && (
                 <div className="rounded-2xl bg-[#0e1320] border border-slate-800/80 p-4 space-y-3">
-                  <div className="flex items-center gap-1.5 text-[11px] font-extrabold text-teal-400 uppercase tracking-wider">
-                    <Smartphone className="w-4 h-4 text-teal-400" />
-                    <span>PAY BY APPS</span>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-1.5 text-[11px] font-extrabold text-teal-400 uppercase tracking-wider">
+                      <Smartphone className="w-4 h-4 text-teal-400" />
+                      <span>PAY BY APPS (1-CLICK TAP)</span>
+                    </div>
+                    <span className="text-[10px] text-slate-500 font-mono">Instant redirect</span>
                   </div>
 
                   <div className="grid grid-cols-2 gap-2.5">
+                    {/* Generic UPI / All Apps */}
+                    <a
+                      href={upiUri}
+                      className="p-3 rounded-xl bg-[#141a29] border border-slate-800/90 hover:border-purple-500/50 hover:bg-[#182033] flex items-center gap-3 transition-all text-left group cursor-pointer"
+                    >
+                      <div className="w-8 h-8 rounded-lg bg-purple-500/20 border border-purple-500/30 flex items-center justify-center font-bold text-purple-400 text-xs shrink-0">
+                        UPI
+                      </div>
+                      <div>
+                        <div className="text-xs font-bold text-white group-hover:text-purple-300">Any UPI App</div>
+                        <div className="text-[10px] text-slate-400">Default app</div>
+                      </div>
+                    </a>
+
                     {/* FamPay Button */}
                     <a
                       href={upiUri}
-                      className="p-3 rounded-xl bg-[#141a29] border border-slate-800/90 hover:border-purple-500/50 hover:bg-[#182033] flex items-center gap-3 transition-all text-left group"
+                      className="p-3 rounded-xl bg-[#141a29] border border-slate-800/90 hover:border-amber-500/50 hover:bg-[#182033] flex items-center gap-3 transition-all text-left group cursor-pointer"
                     >
                       <div className="w-8 h-8 rounded-lg bg-amber-500/20 border border-amber-500/30 flex items-center justify-center font-black text-amber-400 text-xs shrink-0">
                         Fam
                       </div>
                       <div>
-                        <div className="text-xs font-bold text-white group-hover:text-purple-300">FamPay</div>
-                        <div className="text-[10px] text-slate-400">Tap to open</div>
+                        <div className="text-xs font-bold text-white group-hover:text-amber-300">FamPay</div>
+                        <div className="text-[10px] text-slate-400">Tap to pay</div>
                       </div>
                     </a>
 
                     {/* Google Pay Button */}
                     <a
                       href={upiUri}
-                      className="p-3 rounded-xl bg-[#141a29] border border-slate-800/90 hover:border-blue-500/50 hover:bg-[#182033] flex items-center gap-3 transition-all text-left group"
+                      className="p-3 rounded-xl bg-[#141a29] border border-slate-800/90 hover:border-blue-500/50 hover:bg-[#182033] flex items-center gap-3 transition-all text-left group cursor-pointer"
                     >
                       <div className="w-8 h-8 rounded-lg bg-blue-500/20 border border-blue-500/30 flex items-center justify-center font-bold text-blue-400 text-xs shrink-0">
                         GPay
                       </div>
                       <div>
-                        <div className="text-xs font-bold text-white group-hover:text-blue-300">GPay</div>
-                        <div className="text-[10px] text-slate-400">Tap to open</div>
-                      </div>
-                    </a>
-
-                    {/* Paytm Button */}
-                    <a
-                      href={upiUri}
-                      className="p-3 rounded-xl bg-[#141a29] border border-slate-800/90 hover:border-sky-500/50 hover:bg-[#182033] flex items-center gap-3 transition-all text-left group"
-                    >
-                      <div className="w-8 h-8 rounded-lg bg-sky-500/20 border border-sky-500/30 flex items-center justify-center font-black text-sky-400 text-[10px] shrink-0">
-                        Paytm
-                      </div>
-                      <div>
-                        <div className="text-xs font-bold text-white group-hover:text-sky-300">Paytm</div>
-                        <div className="text-[10px] text-slate-400">Tap to open</div>
+                        <div className="text-xs font-bold text-white group-hover:text-blue-300">Google Pay</div>
+                        <div className="text-[10px] text-slate-400">Tap to pay</div>
                       </div>
                     </a>
 
                     {/* PhonePe Button */}
                     <a
                       href={upiUri}
-                      className="p-3 rounded-xl bg-[#141a29] border border-slate-800/90 hover:border-purple-500/50 hover:bg-[#182033] flex items-center gap-3 transition-all text-left group"
+                      className="p-3 rounded-xl bg-[#141a29] border border-slate-800/90 hover:border-purple-500/50 hover:bg-[#182033] flex items-center gap-3 transition-all text-left group cursor-pointer"
                     >
                       <div className="w-8 h-8 rounded-lg bg-purple-500/20 border border-purple-500/30 flex items-center justify-center font-bold text-purple-400 text-xs shrink-0">
                         Pe
                       </div>
                       <div>
                         <div className="text-xs font-bold text-white group-hover:text-purple-300">PhonePe</div>
-                        <div className="text-[10px] text-slate-400">Tap to open</div>
+                        <div className="text-[10px] text-slate-400">Tap to pay</div>
                       </div>
                     </a>
                   </div>
@@ -671,7 +709,6 @@ export const PublicCheckoutView: React.FC<PublicCheckoutViewProps> = ({ linkId }
                 {/* Circular SVG Ring */}
                 <div className="relative w-16 h-16 shrink-0 flex items-center justify-center">
                   <svg className="w-16 h-16 transform -rotate-90" viewBox="0 0 64 64">
-                    {/* Background Ring */}
                     <circle
                       cx="32"
                       cy="32"
@@ -680,7 +717,6 @@ export const PublicCheckoutView: React.FC<PublicCheckoutViewProps> = ({ linkId }
                       strokeWidth="5"
                       fill="transparent"
                     />
-                    {/* Progress Ring */}
                     <circle
                       cx="32"
                       cy="32"
@@ -704,7 +740,7 @@ export const PublicCheckoutView: React.FC<PublicCheckoutViewProps> = ({ linkId }
                     SESSION EXPIRES IN
                   </div>
                   <div className="text-xs text-slate-300 font-medium mt-0.5">
-                    Complete payment before time runs out
+                    Scan & pay before timer reaches 00:00
                   </div>
                 </div>
               </div>
@@ -715,7 +751,7 @@ export const PublicCheckoutView: React.FC<PublicCheckoutViewProps> = ({ linkId }
                   <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
                   <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
                 </span>
-                <span>Auto-Confirm Active: This page confirms automatically once you pay!</span>
+                <span>Auto-Confirm Active: Confirms instantly upon payment alert!</span>
               </div>
 
               {/* Card 3.5: Customer Receipt Email */}
@@ -725,18 +761,15 @@ export const PublicCheckoutView: React.FC<PublicCheckoutViewProps> = ({ linkId }
                     <Mail className="w-3.5 h-3.5 text-teal-400" />
                     <span>Receipt Email Address (Optional)</span>
                   </div>
-                  <span className="text-[10px] text-slate-400 font-mono">Instant confirmation</span>
+                  <span className="text-[10px] text-slate-400 font-mono">Instant notification</span>
                 </div>
                 <input
                   type="email"
                   value={customerEmail}
                   onChange={(e) => setCustomerEmail(e.target.value)}
-                  placeholder="yourname@gmail.com to receive receipt & UTR"
+                  placeholder="yourname@gmail.com to receive receipt"
                   className="w-full px-3.5 py-2.5 rounded-xl bg-[#070b14] border border-slate-700/80 text-xs font-mono text-white placeholder-slate-500 focus:outline-none focus:border-purple-500 transition-colors"
                 />
-                <div className="text-[10px] text-slate-400">
-                  A confirmation email with your Amount, Transaction ID, and Bank UTR will be sent as soon as you pay.
-                </div>
               </div>
 
               {/* Card 4: MANUAL UTR ENTRY (FALLBACK) */}
@@ -776,7 +809,7 @@ export const PublicCheckoutView: React.FC<PublicCheckoutViewProps> = ({ linkId }
                       ) : (
                         <>
                           <Check className="w-3.5 h-3.5" />
-                          <span>Confirm Payment</span>
+                          <span>Confirm</span>
                         </>
                       )}
                     </button>
@@ -797,7 +830,7 @@ export const PublicCheckoutView: React.FC<PublicCheckoutViewProps> = ({ linkId }
                   className="w-full py-3 rounded-2xl bg-rose-950/30 hover:bg-rose-900/50 border border-rose-800/40 text-rose-300 hover:text-rose-100 font-extrabold text-xs flex items-center justify-center gap-2 transition-all cursor-pointer shadow-sm"
                 >
                   <XCircle className="w-4 h-4 text-rose-400" />
-                  <span>Cancel Payment & Return</span>
+                  <span>Cancel Payment & Return to Store</span>
                 </button>
               </div>
             </>
@@ -807,7 +840,7 @@ export const PublicCheckoutView: React.FC<PublicCheckoutViewProps> = ({ linkId }
           <div className="text-center pt-3">
             <div className="inline-flex items-center gap-1.5 text-[11px] font-mono text-slate-500 font-medium">
               <ShieldCheck className="w-3.5 h-3.5 text-slate-500" />
-              <span>Powered by Unknown Gateway</span>
+              <span>Powered by FAMGATEWAY Zero-Fee UPI Engine</span>
             </div>
           </div>
         </div>
@@ -838,7 +871,7 @@ export const PublicCheckoutView: React.FC<PublicCheckoutViewProps> = ({ linkId }
               <h3 className="text-base font-extrabold text-white">Cancel Payment?</h3>
               <p className="text-xs text-slate-400">
                 Are you sure you want to cancel this payment of{' '}
-                <strong className="text-white">₹{details?.amount?.toFixed(2) || '50.00'}</strong>? Your order will not be completed.
+                <strong className="text-white">₹{amountFormatted}</strong>? Your order will not be completed.
               </p>
             </div>
 

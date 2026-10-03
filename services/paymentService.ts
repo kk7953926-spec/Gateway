@@ -30,14 +30,14 @@ export class PaymentService {
       'FAMGATEWAY'
     )}&am=${amount.toFixed(2)}&cu=INR&tn=${encodeURIComponent(transactionRef)}`;
 
-    // Render QR code
+    // Render standard high-contrast scannable QR code
     const qrCodeUrl = await QRCode.toDataURL(upiUri, {
-      errorCorrectionLevel: 'H',
-      margin: 2,
-      width: 320,
+      errorCorrectionLevel: 'M',
+      margin: 1,
+      width: 400,
       color: {
-        dark: '#00f2fe',
-        light: '#070a12',
+        dark: '#000000',
+        light: '#ffffff',
       },
     });
 
