@@ -105,11 +105,10 @@ export const PublicCheckoutView: React.FC<PublicCheckoutViewProps> = ({ linkId }
           const amountFormatted = Number(linkObj.amount || 0).toFixed(2);
           const noteParam = linkObj.transaction_ref || linkObj.title || linkId;
 
-          const upiString =
-            linkObj.upi_uri ||
-            `upi://pay?pa=${encodeURIComponent(merchantUpi)}&pn=${encodeURIComponent(
-              merchantName
-            )}&am=${amountFormatted}&cu=INR&tn=${encodeURIComponent(noteParam)}`;
+          const cleanMerchantUpi = (linkObj.merchant_upi_id || '8056317218@fam').trim();
+          const upiString = `upi://pay?pa=${cleanMerchantUpi}&pn=${encodeURIComponent(
+            merchantName
+          )}&am=${amountFormatted}&cu=INR&tn=${encodeURIComponent(noteParam)}`;
 
           // Generate scannable QR code
           await generateAndSetQr(upiString);
@@ -394,11 +393,10 @@ export const PublicCheckoutView: React.FC<PublicCheckoutViewProps> = ({ linkId }
   const merchantUpi = details?.merchant_upi_id || '8056317218@fam';
   const amountFormatted = Number(details?.amount || 0).toFixed(2);
   const noteParam = details?.transaction_ref || details?.title || linkId;
-  const upiUri =
-    details?.upi_uri ||
-    `upi://pay?pa=${encodeURIComponent(merchantUpi)}&pn=${encodeURIComponent(
-      brandName
-    )}&am=${amountFormatted}&cu=INR&tn=${encodeURIComponent(noteParam)}`;
+  const cleanMerchantUpi = merchantUpi.trim();
+  const upiUri = `upi://pay?pa=${cleanMerchantUpi}&pn=${encodeURIComponent(
+    brandName
+  )}&am=${amountFormatted}&cu=INR&tn=${encodeURIComponent(noteParam)}`;
 
   const timerPercentage = totalDurationRef.current > 0 ? (timeLeft / totalDurationRef.current) * 100 : 0;
 

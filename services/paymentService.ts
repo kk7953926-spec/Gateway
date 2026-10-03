@@ -27,7 +27,7 @@ export class PaymentService {
     const transactionRef = `FGW-TXN-${Math.floor(100000 + Math.random() * 900000)}`;
 
     // Build standard UPI URI
-    const upiUri = `upi://pay?pa=${encodeURIComponent(cleanUpi)}&pn=${encodeURIComponent(
+    const upiUri = `upi://pay?pa=${cleanUpi}&pn=${encodeURIComponent(
       'FAMGATEWAY'
     )}&am=${amount.toFixed(2)}&cu=INR&tn=${encodeURIComponent(transactionRef)}`;
 

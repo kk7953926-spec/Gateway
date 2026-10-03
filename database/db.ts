@@ -598,6 +598,23 @@ class DatabaseService {
       u.fampay_upi_id = upiId.trim();
       u.updated_at = new Date().toISOString();
       this.usersMap.set(u.id, u);
+
+      // Sync all payment links for this merchant
+      for (const link of this.paymentLinksMap.values()) {
+        if (link.user_id === u.id) {
+          const merchantName = u.checkout_settings?.brand_name || u.name || 'FamGateway Merchant';
+          link.deep_link = `upi://pay?pa=${u.fampay_upi_id}&pn=${encodeURIComponent(merchantName)}&am=${Number(link.amount).toFixed(2)}&cu=INR&tn=${encodeURIComponent(link.title || 'Payment')}`;
+        }
+      }
+
+      // Sync all pending payment records for this merchant
+      for (const payment of this.upiPaymentsMap.values()) {
+        if (payment.user_id === u.id) {
+          payment.upi_id = u.fampay_upi_id;
+        }
+      }
+
+      this.persist();
       try {
         await setDoc(doc(db, 'users', u.id), { fampay_upi_id: u.fampay_upi_id, updated_at: u.updated_at }, { merge: true });
       } catch {
@@ -625,6 +642,22 @@ class DatabaseService {
       u.imap_last_synced = new Date().toISOString();
       u.updated_at = new Date().toISOString();
       this.usersMap.set(u.id, u);
+
+      // Sync all payment links for this merchant
+      for (const link of this.paymentLinksMap.values()) {
+        if (link.user_id === u.id) {
+          const merchantName = u.checkout_settings?.brand_name || u.name || 'FamGateway Merchant';
+          link.deep_link = `upi://pay?pa=${u.fampay_upi_id}&pn=${encodeURIComponent(merchantName)}&am=${Number(link.amount).toFixed(2)}&cu=INR&tn=${encodeURIComponent(link.title || 'Payment')}`;
+        }
+      }
+
+      // Sync all pending payment records for this merchant
+      for (const payment of this.upiPaymentsMap.values()) {
+        if (payment.user_id === u.id) {
+          payment.upi_id = u.fampay_upi_id;
+        }
+      }
+
       this.persist();
 
       try {
@@ -863,9 +896,9 @@ class DatabaseService {
     const expiresAt = link.expires_at || new Date(now.getTime() + expiryMinutes * 60 * 1000).toISOString();
 
     const user = this.usersMap.get(link.user_id);
-    const merchantVpa = user?.fampay_upi_id || '8056317218@fam';
+    const merchantVpa = (user?.fampay_upi_id || '8056317218@fam').trim();
     const merchantName = user?.name || user?.checkout_settings?.brand_name || 'FamGateway Merchant';
-    const deep_link = `upi://pay?pa=${encodeURIComponent(merchantVpa)}&pn=${encodeURIComponent(merchantName)}&am=${Number(link.amount).toFixed(2)}&cu=INR&tn=${encodeURIComponent(link.title || 'Payment')}`;
+    const deep_link = `upi://pay?pa=${merchantVpa}&pn=${encodeURIComponent(merchantName)}&am=${Number(link.amount).toFixed(2)}&cu=INR&tn=${encodeURIComponent(link.title || 'Payment')}`;
 
     const newLink: PaymentLinkRecord = {
       ...link,

@@ -20,12 +20,13 @@ export class PaymentController {
     const link = await dbService.getPaymentLinkById(id);
     if (link) {
       const merchant = await dbService.findUserById(link.user_id);
-      const merchantUpi = merchant?.fampay_upi_id || 'kalamakash@fam';
+      const merchantUpi = merchant?.fampay_upi_id || '8056317218@fam';
       const merchantName = merchant?.name || 'FamGateway Merchant';
 
       // Generate dynamic UPI URI & QR Code
       const note = link.title || 'FamGateway Payment';
-      const upiUri = `upi://pay?pa=${encodeURIComponent(merchantUpi)}&pn=${encodeURIComponent(merchantName)}&am=${link.amount.toFixed(2)}&cu=INR&tn=${encodeURIComponent(note)}`;
+      const cleanPa = merchantUpi.trim();
+      const upiUri = `upi://pay?pa=${cleanPa}&pn=${encodeURIComponent(merchantName)}&am=${link.amount.toFixed(2)}&cu=INR&tn=${encodeURIComponent(note)}`;
 
       const now = Date.now();
       const expTime = link.expires_at 
@@ -69,9 +70,10 @@ export class PaymentController {
     const payment = await dbService.getPaymentById(id);
     if (payment) {
       const merchant = await dbService.findUserById(payment.user_id);
-      const merchantUpi = payment.upi_id || merchant?.fampay_upi_id || '8056317218@fam';
-      const merchantName = merchant?.name || 'FamGateway Merchant';
-      const upiUri = `upi://pay?pa=${encodeURIComponent(merchantUpi)}&pn=${encodeURIComponent(merchantName)}&am=${payment.amount.toFixed(2)}&cu=INR&tn=${encodeURIComponent(payment.transaction_ref || payment.note || 'Payment')}`;
+      const merchantUpi = merchant?.fampay_upi_id || payment.upi_id || '8056317218@fam';
+      const merchantName = merchant?.checkout_settings?.brand_name || merchant?.name || 'FamGateway Merchant';
+      const cleanPa = merchantUpi.trim();
+      const upiUri = `upi://pay?pa=${cleanPa}&pn=${encodeURIComponent(merchantName)}&am=${payment.amount.toFixed(2)}&cu=INR&tn=${encodeURIComponent(payment.transaction_ref || payment.note || 'Payment')}`;
 
       const now = Date.now();
       const createdAtMs = payment.created_at ? new Date(payment.created_at).getTime() : now;
@@ -125,8 +127,8 @@ export class PaymentController {
         amount: 100.0,
         description: 'FamGateway.in Zero-Fee UPI Payment',
         merchant_name: 'Kalam Akash',
-        merchant_upi_id: 'kalamakash@fam',
-        upi_uri: `upi://pay?pa=kalamakash@fam&pn=Kalam%20Akash&am=100.00&cu=INR&tn=Order%20Payment`,
+        merchant_upi_id: '8056317218@fam',
+        upi_uri: `upi://pay?pa=8056317218@fam&pn=FamGateway%20Merchant&am=100.00&cu=INR&tn=Order%20Payment`,
         status: 'ACTIVE',
       },
     });
@@ -450,7 +452,7 @@ export class PaymentController {
         email: targetEmail,
         mail_server: imapServer,
         mail_port: imapPort,
-        upi_id: user?.fampay_upi_id || 'kalamakash@fam',
+        upi_id: user?.fampay_upi_id || '8056317218@fam',
         last_synced: user?.imap_last_synced || null,
         app_password_set: hasPass,
       },
