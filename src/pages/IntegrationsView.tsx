@@ -16,7 +16,7 @@ import { DebugView } from '../components/DebugView';
 
 export const IntegrationsView: React.FC = () => {
   const { user, token, refreshProfile } = useAuth();
-  const [fampayGmail, setFampayGmail] = useState(user?.fampay_gmail || user?.email || 'kk7953926@gmail.com');
+  const [fampayGmail, setFampayGmail] = useState(user?.fampay_gmail || user?.email || 'kalam172010@gmail.com');
   const [fampayUpiId, setFampayUpiId] = useState(user?.fampay_upi_id || 'kalamakash@fam');
   const [appPassword, setAppPassword] = useState(user?.google_app_password || '');
   const [imapHost, setImapHost] = useState(user?.imap_host || 'imap.gmail.com');

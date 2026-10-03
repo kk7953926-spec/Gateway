@@ -598,6 +598,7 @@ export const AdminPage: React.FC = () => {
                   <th className="pb-3">Wallet Balance</th>
                   <th className="pb-3">Sub Plan</th>
                   <th className="pb-3">Sub Expiry</th>
+                  <th className="pb-3">Account Role</th>
                   <th className="pb-3">Verification</th>
                 </tr>
               </thead>
@@ -610,9 +611,78 @@ export const AdminPage: React.FC = () => {
                       <td className="py-3 text-indigo-700">{u.email}</td>
                       <td className="py-3 text-slate-700 font-mono">{u.fampay_upi_id || 'Not configured'}</td>
                       <td className="py-3 font-bold text-emerald-600">₹{(u.wallet_balance || 0).toFixed(2)}</td>
-                      <td className="py-3 text-purple-700 font-bold font-mono">{u.subscription_plan_id || 'None'}</td>
-                      <td className="py-3 text-slate-500 font-mono text-[10px]">
-                        {u.subscription_expires_at ? new Date(u.subscription_expires_at).toLocaleDateString() : 'N/A'}
+                      <td className="py-3 text-purple-700 font-bold font-mono">
+                        {u.subscription_plan_id || 'Free Trial'}
+                      </td>
+                      <td className="py-3 font-mono text-[10px]">
+                        <div className="flex flex-col gap-1">
+                          <span className={`font-bold ${new Date(u.subscription_expires_at || 0) > new Date() ? 'text-emerald-700' : 'text-rose-600'}`}>
+                            {u.subscription_expires_at ? new Date(u.subscription_expires_at).toLocaleDateString() : 'N/A'}
+                          </span>
+                          <input
+                            type="date"
+                            defaultValue={u.subscription_expires_at ? new Date(u.subscription_expires_at).toISOString().slice(0, 10) : ''}
+                            onChange={async (e) => {
+                              if (!e.target.value) return;
+                              try {
+                                const res = await fetch('/api/admin/users/assign-subscription', {
+                                  method: 'POST',
+                                  headers: {
+                                    'Content-Type': 'application/json',
+                                    Authorization: `Bearer ${token}`,
+                                  },
+                                  body: JSON.stringify({
+                                    userId: u.id,
+                                    expiryDate: e.target.value,
+                                    status: 'active',
+                                  }),
+                                });
+                                if (res.ok) {
+                                  setFeedback({ type: 'success', msg: `Updated subscription expiry for ${u.name}` });
+                                  fetchAdminData();
+                                }
+                              } catch {
+                                setFeedback({ type: 'error', msg: 'Failed to update subscription date.' });
+                              }
+                            }}
+                            className="px-1.5 py-0.5 bg-slate-50 border border-slate-300 rounded text-[10px]"
+                          />
+                        </div>
+                      </td>
+                      <td className="py-3 font-mono text-[10px]">
+                        <select
+                          value={u.role || 'user'}
+                          onChange={async (e) => {
+                            const newRole = e.target.value;
+                            try {
+                              const res = await fetch('/api/admin/users/update-role', {
+                                method: 'POST',
+                                headers: {
+                                  'Content-Type': 'application/json',
+                                  Authorization: `Bearer ${token}`,
+                                },
+                                body: JSON.stringify({
+                                  userId: u.id,
+                                  role: newRole,
+                                }),
+                              });
+                              if (res.ok) {
+                                setFeedback({ type: 'success', msg: `Updated account role for ${u.name} to ${newRole.toUpperCase()}` });
+                                fetchAdminData();
+                              }
+                            } catch {
+                              setFeedback({ type: 'error', msg: 'Failed to update account role.' });
+                            }
+                          }}
+                          className={`px-2 py-1 rounded border font-bold text-[10px] cursor-pointer ${
+                            u.role === 'admin'
+                              ? 'bg-purple-100 text-purple-900 border-purple-300'
+                              : 'bg-slate-100 text-slate-700 border-slate-300'
+                          }`}
+                        >
+                          <option value="user">User (Merchant)</option>
+                          <option value="admin">Administrator (Admin)</option>
+                        </select>
                       </td>
                       <td className="py-3">
                         {u.email_verified ? (

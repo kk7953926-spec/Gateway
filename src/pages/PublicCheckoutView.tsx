@@ -208,6 +208,39 @@ export const PublicCheckoutView: React.FC<PublicCheckoutViewProps> = ({ linkId }
     }
   };
 
+  const handleSimulatePayment = async () => {
+    setVerifying(true);
+    setErrorMessage(null);
+    try {
+      const fakeUtr = utrInput.trim() || `SIM-${Math.floor(100000000000 + Math.random() * 900000000000)}`;
+      const res = await fetch('/api/payment/public-verify-email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          paymentId: linkId,
+          utr: fakeUtr,
+          amount: details?.amount || 100,
+          customer_email: customerEmail.trim() || undefined,
+        }),
+      });
+
+      const data = await res.json();
+
+      if (data.success) {
+        setStatus('CONFIRMED');
+        setStatusMessage(data.message || 'Payment Simulated & Confirmed successfully! ✓');
+        setConfirmedUtr(data.payment?.transaction_ref || fakeUtr);
+        setConfirmedTxnId(data.payment?.id || linkId);
+      } else {
+        setErrorMessage(data.error || 'Verification failed');
+      }
+    } catch {
+      setErrorMessage('Failed to connect to verification service.');
+    } finally {
+      setVerifying(false);
+    }
+  };
+
   const handleCancelPayment = () => {
     setShowCancelModal(false);
     setStatus('CANCELLED');
@@ -354,6 +387,8 @@ export const PublicCheckoutView: React.FC<PublicCheckoutViewProps> = ({ linkId }
   const avatarUrl =
     custom.avatar_url ||
     'https://images.unsplash.com/photo-1566492031773-4f4e44671857?w=150&auto=format&fit=crop&q=80';
+  const bannerUrl = custom.banner_url || '';
+  const customMessage = custom.custom_message || '';
   const contactUrl = custom.contact_url || '';
 
   const merchantUpi = details?.merchant_upi_id || '8056317218@fam';
@@ -385,6 +420,19 @@ export const PublicCheckoutView: React.FC<PublicCheckoutViewProps> = ({ linkId }
 
       {/* Main Checkout Container */}
       <div className="w-full max-w-md relative z-10 space-y-4 my-4">
+        {bannerUrl && (
+          <div className="w-full h-28 rounded-3xl overflow-hidden border border-purple-500/30 shadow-xl relative">
+            <img src={bannerUrl} alt="Store Banner" className="w-full h-full object-cover" />
+            <div className="absolute inset-0 bg-gradient-to-t from-[#060911] via-transparent to-transparent" />
+          </div>
+        )}
+
+        {customMessage && (
+          <div className="p-3.5 rounded-2xl bg-purple-950/70 border border-purple-500/40 text-purple-200 text-xs font-semibold text-center shadow-lg backdrop-blur-md">
+            {customMessage}
+          </div>
+        )}
+
         {/* Top Header Card */}
         <div className="rounded-3xl bg-gradient-to-r from-purple-900/90 via-indigo-900/90 to-purple-900/90 p-4 sm:p-5 border border-purple-500/30 shadow-2xl backdrop-blur-md relative overflow-hidden">
           <div className="absolute top-0 right-0 w-32 h-32 bg-white/5 rounded-full -mr-10 -mt-10 blur-xl pointer-events-none" />
@@ -815,9 +863,21 @@ export const PublicCheckoutView: React.FC<PublicCheckoutViewProps> = ({ linkId }
                     </button>
                   </div>
 
-                  <div className="flex items-center gap-1.5 text-[10px] text-slate-400 font-medium">
-                    <Info className="w-3.5 h-3.5 text-slate-500 shrink-0" />
-                    <span>Find UTR in your bank app transaction history</span>
+                  <div className="flex items-center justify-between pt-1">
+                    <div className="flex items-center gap-1.5 text-[10px] text-slate-400 font-medium">
+                      <Info className="w-3.5 h-3.5 text-slate-500 shrink-0" />
+                      <span>Find UTR in your bank app history</span>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={handleSimulatePayment}
+                      disabled={verifying}
+                      className="px-3 py-1.5 rounded-lg bg-emerald-950/40 border border-emerald-500/40 text-emerald-300 hover:bg-emerald-900/60 hover:text-emerald-100 text-[10px] font-bold flex items-center gap-1 transition-all cursor-pointer"
+                    >
+                      <Sparkles className="w-3 h-3 text-emerald-400" />
+                      <span>Simulate / Test Verify</span>
+                    </button>
                   </div>
                 </div>
               )}

@@ -13,6 +13,15 @@ export class IntegrationController {
       return res.status(401).json({ success: false, error: 'Unauthorized' });
     }
 
+    if (!dbService.isUserSubscriptionActive(req.user)) {
+      return res.status(403).json({
+        success: false,
+        error: 'Subscription Expired',
+        message: 'Your 5-day trial or subscription has expired. Please activate your subscription to create payment links.',
+        requires_subscription: true,
+      });
+    }
+
     const { fampayGmail, fampayUpiId, googleAppPassword, imapHost, imapPort } = req.body || {};
 
     if (!fampayGmail || !fampayGmail.includes('@')) {
@@ -137,6 +146,15 @@ export class IntegrationController {
    */
   public static async createPaymentLink(req: AuthenticatedRequest, res: Response) {
     if (!req.user) return res.status(401).json({ success: false, error: 'Unauthorized' });
+
+    if (!dbService.isUserSubscriptionActive(req.user)) {
+      return res.status(403).json({
+        success: false,
+        error: 'Subscription Expired',
+        message: 'Your 5-day free trial or active subscription has expired. Please activate your subscription to create payment links.',
+        requires_subscription: true,
+      });
+    }
 
     const { title, amount, description, success_url, cancel_url, expiry_minutes } = req.body || {};
     const parsedAmount = parseFloat(amount);

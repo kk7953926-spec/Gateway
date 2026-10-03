@@ -203,7 +203,7 @@ export const SystemStatusView: React.FC = () => {
           <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-1">
             <span className="text-[10px] font-bold text-slate-400 uppercase">Your Email Account</span>
             <div className="font-bold text-slate-800 truncate text-sm">
-              {imapStatus?.email || imapStatus?.gmail || user?.email || 'kk7953926@gmail.com'}
+              {imapStatus?.email || imapStatus?.gmail || user?.email || 'kalam172010@gmail.com'}
             </div>
             <div className="text-[10px] text-slate-500">
               Host: <span className="text-purple-700 font-semibold">{imapStatus?.mail_server || 'imap.gmail.com'}:{imapStatus?.mail_port || 993}</span>

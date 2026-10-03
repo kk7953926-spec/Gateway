@@ -2,9 +2,14 @@ export interface CheckoutCustomizationSettings {
   brand_name: string; // e.g. "UNKNOWN GATEWAY"
   subtitle: string; // e.g. "VERIFIED MERCHANT"
   avatar_url?: string;
+  banner_url?: string;
   theme_color: 'purple' | 'indigo' | 'emerald' | 'cyan' | 'rose' | 'amber';
+  primary_color?: string;
   session_timeout_minutes: number;
   contact_url?: string;
+  support_phone?: string;
+  support_email?: string;
+  custom_message?: string;
   enable_utr_submission: boolean;
   enable_save_qr: boolean;
   show_apps: boolean;
@@ -68,6 +73,9 @@ export interface UpiPaymentRecord {
   note: string;
   qr_data_url: string;
   status: 'PENDING' | 'VERIFYING' | 'CONFIRMED' | 'FAILED';
+  source?: 'API_ONLY' | 'MERCHANT_LINK';
+  success_url?: string;
+  cancel_url?: string;
   confirmed_at?: string;
   created_at: string;
 }
@@ -81,6 +89,7 @@ export interface PaymentLinkRecord {
   checkout_url: string;
   deep_link?: string;
   status: 'ACTIVE' | 'EXPIRED' | 'DISABLED' | 'CAPTURED';
+  source?: 'API_ONLY' | 'MERCHANT_LINK';
   success_url?: string;
   cancel_url?: string;
   created_at: string;
@@ -97,6 +106,7 @@ export interface OrderTransactionRecord {
   upi_id: string;
   note: string;
   status: 'CREATED' | 'CAPTURED' | 'EXPIRED' | 'FAILED' | 'PENDING';
+  source?: 'API_ONLY' | 'MERCHANT_LINK';
   qr_data_url?: string;
   settled: boolean;
   success_url?: string;

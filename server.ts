@@ -11,6 +11,7 @@ import paymentRoutes from './routes/paymentRoutes.ts';
 import integrationRoutes from './routes/integrationRoutes.ts';
 import { dbService } from './database/db.ts';
 import { telemetryService } from './services/telemetryService.ts';
+import { PaymentSyncService } from './services/paymentSyncService.ts';
 
 dotenv.config();
 
@@ -156,6 +157,8 @@ async function startServer() {
 
   app.listen(PORT, '0.0.0.0', () => {
     console.log(`🚀 FamGateway.in server listening on port ${PORT}`);
+    // Start continuous background cross-referencing auto-sync service
+    PaymentSyncService.startBackgroundPoller(6000);
   });
 }
 

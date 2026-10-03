@@ -12,22 +12,30 @@ import {
   Image as ImageIcon,
   Sparkles,
   RefreshCw,
-  ExternalLink,
+  UploadCloud,
+  X,
+  Phone,
+  Mail,
+  MessageSquare,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { CheckoutCustomizationSettings } from '../types';
 
 export const CustomizeView: React.FC = () => {
-  const { user, token } = useAuth();
+  const { token } = useAuth();
 
   const [brandName, setBrandName] = useState('FAMGATEWAY');
   const [subtitle, setSubtitle] = useState('VERIFIED MERCHANT');
   const [avatarUrl, setAvatarUrl] = useState(
     'https://images.unsplash.com/photo-1566492031773-4f4e44671857?w=150&auto=format&fit=crop&q=80'
   );
+  const [bannerUrl, setBannerUrl] = useState('');
   const [themeColor, setThemeColor] = useState<'purple' | 'indigo' | 'emerald' | 'cyan' | 'rose' | 'amber'>('purple');
   const [sessionTimeout, setSessionTimeout] = useState<number>(8);
   const [contactUrl, setContactUrl] = useState('https://wa.me/911234567890');
+  const [supportPhone, setSupportPhone] = useState('+91 9876543210');
+  const [supportEmail, setSupportEmail] = useState('support@famgateway.in');
+  const [customMessage, setCustomMessage] = useState('Scan QR or select your preferred UPI app to complete instant payment.');
   const [enableUtr, setEnableUtr] = useState<boolean>(true);
   const [enableSaveQr, setEnableSaveQr] = useState<boolean>(true);
   const [showApps, setShowApps] = useState<boolean>(true);
@@ -58,6 +66,22 @@ export const CustomizeView: React.FC = () => {
     },
   ];
 
+  // Preset Banners
+  const presetBanners = [
+    {
+      name: 'Neon Dark',
+      url: 'https://images.unsplash.com/photo-1550745165-9bc0b252726f?w=600&auto=format&fit=crop&q=80',
+    },
+    {
+      name: 'Cyber Purple',
+      url: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=600&auto=format&fit=crop&q=80',
+    },
+    {
+      name: 'Minimal Store',
+      url: 'https://images.unsplash.com/photo-1526304640581-d334cdbbf45e?w=600&auto=format&fit=crop&q=80',
+    },
+  ];
+
   // Load current settings
   useEffect(() => {
     const loadSettings = async () => {
@@ -69,12 +93,16 @@ export const CustomizeView: React.FC = () => {
         if (res.ok) {
           const data = await res.json();
           if (data.settings) {
-            setBrandName(data.settings.brand_name || 'UNKNOWN GATEWAY');
+            setBrandName(data.settings.brand_name || 'FAMGATEWAY');
             setSubtitle(data.settings.subtitle || 'VERIFIED MERCHANT');
             if (data.settings.avatar_url) setAvatarUrl(data.settings.avatar_url);
+            if (data.settings.banner_url) setBannerUrl(data.settings.banner_url);
             if (data.settings.theme_color) setThemeColor(data.settings.theme_color);
             if (data.settings.session_timeout_minutes) setSessionTimeout(data.settings.session_timeout_minutes);
             if (data.settings.contact_url) setContactUrl(data.settings.contact_url);
+            if (data.settings.support_phone) setSupportPhone(data.settings.support_phone);
+            if (data.settings.support_email) setSupportEmail(data.settings.support_email);
+            if (data.settings.custom_message) setCustomMessage(data.settings.custom_message);
             if (data.settings.enable_utr_submission !== undefined) setEnableUtr(data.settings.enable_utr_submission);
             if (data.settings.enable_save_qr !== undefined) setEnableSaveQr(data.settings.enable_save_qr);
             if (data.settings.show_apps !== undefined) setShowApps(data.settings.show_apps);
@@ -95,12 +123,16 @@ export const CustomizeView: React.FC = () => {
     setSavedSuccess(false);
 
     const payload: CheckoutCustomizationSettings = {
-      brand_name: brandName.trim() || 'UNKNOWN GATEWAY',
+      brand_name: brandName.trim() || 'FAMGATEWAY',
       subtitle: subtitle.trim() || 'VERIFIED MERCHANT',
       avatar_url: avatarUrl.trim(),
+      banner_url: bannerUrl.trim(),
       theme_color: themeColor,
       session_timeout_minutes: sessionTimeout,
       contact_url: contactUrl.trim(),
+      support_phone: supportPhone.trim(),
+      support_email: supportEmail.trim(),
+      custom_message: customMessage.trim(),
       enable_utr_submission: enableUtr,
       enable_save_qr: enableSaveQr,
       show_apps: showApps,
@@ -129,50 +161,92 @@ export const CustomizeView: React.FC = () => {
     }
   };
 
+  const handleLogoFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 3 * 1024 * 1024) {
+      setUploadError('Image size exceeds 3MB. Please select a smaller logo.');
+      setTimeout(() => setUploadError(null), 4000);
+      return;
+    }
+    setUploadError(null);
+    const reader = new FileReader();
+    reader.onload = (evt) => {
+      if (evt.target?.result) {
+        setAvatarUrl(evt.target.result as string);
+      }
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleBannerFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 3 * 1024 * 1024) {
+      setUploadError('Banner size exceeds 3MB. Please select a smaller image.');
+      setTimeout(() => setUploadError(null), 4000);
+      return;
+    }
+    setUploadError(null);
+    const reader = new FileReader();
+    reader.onload = (evt) => {
+      if (evt.target?.result) {
+        setBannerUrl(evt.target.result as string);
+      }
+    };
+    reader.readAsDataURL(file);
+  };
+
   return (
     <div className="space-y-6 max-w-6xl mx-auto">
       <div>
         <h1 className="text-2xl font-extrabold text-slate-900 tracking-tight flex items-center gap-2">
           <Palette className="w-6 h-6 text-purple-600" />
-          <span>Payment Page Customization</span>
+          <span>Checkout Page Customization</span>
         </h1>
         <p className="text-xs text-slate-500 mt-1">
-          Customize your checkout page branding, logo, colors, and options. Changes apply instantly to all your payment links.
+          Upload custom website logos, store banners from gallery, adjust theme colors, and configure support details.
         </p>
       </div>
+
+      {uploadError && (
+        <div className="p-3.5 rounded-2xl bg-rose-50 border border-rose-200 text-rose-800 text-xs font-bold flex items-center justify-between">
+          <span>{uploadError}</span>
+          <button onClick={() => setUploadError(null)}>
+            <X className="w-4 h-4 text-rose-600" />
+          </button>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
         {/* Left Side: Customization Form (7 Cols) */}
         <div className="lg:col-span-7 space-y-6">
           <form onSubmit={handleSave} className="space-y-6">
-            {/* Branding Card */}
+            {/* Branding & Logo Gallery Upload Card */}
             <div className="p-6 rounded-3xl bg-white border border-slate-200 shadow-sm space-y-4">
               <h2 className="text-sm font-bold text-slate-900 flex items-center gap-2 border-b border-slate-100 pb-3">
                 <Sparkles className="w-4 h-4 text-purple-600" />
-                <span>Brand Identity & Header</span>
+                <span>Logo & Gallery Media Customization</span>
               </h2>
 
               <div className="space-y-4">
                 <div>
                   <label className="block text-xs font-bold text-slate-700 mb-1">
-                    Gateway / Store Name
+                    Store / Brand Name
                   </label>
                   <input
                     type="text"
                     required
                     value={brandName}
                     onChange={(e) => setBrandName(e.target.value)}
-                    placeholder="e.g. UNKNOWN GATEWAY"
+                    placeholder="e.g. FAMGATEWAY STORE"
                     className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs text-slate-900 focus:outline-none focus:border-purple-600 font-semibold"
                   />
-                  <p className="text-[11px] text-slate-500 mt-1">
-                    Displayed prominently at the top of the payment screen.
-                  </p>
                 </div>
 
                 <div>
                   <label className="block text-xs font-bold text-slate-700 mb-1">
-                    Verified Badge / Subtitle
+                    Tagline / Subtitle
                   </label>
                   <input
                     type="text"
@@ -184,81 +258,54 @@ export const CustomizeView: React.FC = () => {
                   />
                 </div>
 
+                {/* Website Logo Upload from Phone Gallery */}
                 <div>
                   <label className="block text-xs font-bold text-slate-700 mb-1">
-                    Merchant Avatar / Logo Image
+                    Website Logo (Pick from Phone Gallery / Files)
                   </label>
                   <div className="flex flex-col sm:flex-row items-center gap-3 bg-slate-50 p-3.5 rounded-2xl border border-slate-200">
-                    <div className="w-14 h-14 rounded-full overflow-hidden border border-slate-300 shrink-0 bg-slate-100 flex items-center justify-center">
+                    <div className="w-16 h-16 rounded-2xl overflow-hidden border border-slate-300 shrink-0 bg-white flex items-center justify-center p-1 shadow-xs">
                       {avatarUrl ? (
-                        <img src={avatarUrl} alt="Preview" className="w-full h-full object-cover" />
+                        <img src={avatarUrl} alt="Logo Preview" className="w-full h-full object-contain" />
                       ) : (
-                        <ImageIcon className="w-6 h-6 text-slate-400" />
+                        <ImageIcon className="w-8 h-8 text-slate-400" />
                       )}
                     </div>
-                    <div className="space-y-1.5 w-full">
+                    <div className="space-y-2 w-full">
                       <input
                         type="file"
                         accept="image/*"
-                        onChange={(e) => {
-                          const file = e.target.files?.[0];
-                          if (!file) return;
-                          if (file.size > 1.5 * 1024 * 1024) {
-                            setUploadError("Image is too large. Please select an image under 1.5MB.");
-                            setTimeout(() => setUploadError(null), 4000);
-                            return;
-                          }
-                          setUploadError(null);
-                          const reader = new FileReader();
-                          reader.onload = (event) => {
-                            if (event.target?.result) {
-                              setAvatarUrl(event.target.result as string);
-                            }
-                          };
-                          reader.readAsDataURL(file);
-                        }}
+                        onChange={handleLogoFileUpload}
                         className="hidden"
-                        id="avatar-upload-file"
+                        id="logo-gallery-picker"
                       />
-                      <div className="flex gap-2">
+                      <div className="flex flex-wrap gap-2">
                         <label
-                          htmlFor="avatar-upload-file"
-                          className="px-3.5 py-1.5 bg-purple-600 hover:bg-purple-700 text-white text-[11px] font-bold rounded-lg cursor-pointer transition-colors shadow-sm inline-block"
+                          htmlFor="logo-gallery-picker"
+                          className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white text-xs font-extrabold rounded-xl cursor-pointer transition-colors shadow-sm inline-flex items-center gap-1.5"
                         >
-                          Choose from Phone Gallery
+                          <UploadCloud className="w-4 h-4" />
+                          <span>Choose Logo from Gallery</span>
                         </label>
                         {avatarUrl && (
                           <button
                             type="button"
                             onClick={() => setAvatarUrl('')}
-                            className="px-2.5 py-1.5 bg-slate-200 hover:bg-slate-300 text-slate-700 text-[11px] font-bold rounded-lg cursor-pointer transition-colors"
+                            className="px-3 py-2 bg-slate-200 hover:bg-slate-300 text-slate-700 text-xs font-bold rounded-xl cursor-pointer transition-colors"
                           >
                             Remove
                           </button>
                         )}
                       </div>
                       <p className="text-[10px] text-slate-400">
-                        PNG, JPG or SVG format. Max size 1.5MB.
+                        Upload PNG, JPG, WEBP, or SVG logo directly from your device gallery.
                       </p>
                     </div>
                   </div>
 
-                  <div className="mt-3.5">
-                    <label className="block text-[11px] font-bold text-slate-600 mb-1">
-                      Or type a custom Image URL:
-                    </label>
-                    <input
-                      type="url"
-                      value={avatarUrl.startsWith('data:') ? '' : avatarUrl}
-                      onChange={(e) => setAvatarUrl(e.target.value)}
-                      placeholder="https://example.com/logo.png"
-                      className="w-full px-3.5 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs text-slate-900 focus:outline-none focus:border-purple-600"
-                    />
-                  </div>
-
-                  {/* Preset Avatar Pickers */}
+                  {/* Preset Logos */}
                   <div className="mt-2.5">
-                    <span className="text-[11px] font-bold text-slate-500">Or select from presets:</span>
+                    <span className="text-[11px] font-bold text-slate-500">Or pick a preset logo:</span>
                     <div className="flex items-center gap-2 mt-1.5 flex-wrap">
                       {presetAvatars.map((preset) => (
                         <button
@@ -278,10 +325,139 @@ export const CustomizeView: React.FC = () => {
                     </div>
                   </div>
                 </div>
+
+                {/* Store Header Banner Upload from Phone Gallery */}
+                <div className="pt-2 border-t border-slate-100">
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                    Store Header Banner Image (Pick from Gallery)
+                  </label>
+                  <div className="space-y-2 bg-slate-50 p-3.5 rounded-2xl border border-slate-200">
+                    {bannerUrl ? (
+                      <div className="relative w-full h-24 rounded-xl overflow-hidden border border-slate-300">
+                        <img src={bannerUrl} alt="Banner Preview" className="w-full h-full object-cover" />
+                        <button
+                          type="button"
+                          onClick={() => setBannerUrl('')}
+                          className="absolute top-2 right-2 bg-slate-900/80 text-white p-1 rounded-full text-xs"
+                        >
+                          <X className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="h-16 rounded-xl border-2 border-dashed border-slate-300 bg-white flex items-center justify-center text-slate-400 text-xs font-mono">
+                        No custom banner selected
+                      </div>
+                    )}
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={handleBannerFileUpload}
+                      className="hidden"
+                      id="banner-gallery-picker"
+                    />
+                    <div className="flex gap-2">
+                      <label
+                        htmlFor="banner-gallery-picker"
+                        className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-extrabold rounded-xl cursor-pointer transition-colors shadow-sm inline-flex items-center gap-1.5"
+                      >
+                        <UploadCloud className="w-4 h-4" />
+                        <span>Choose Banner from Gallery</span>
+                      </label>
+                    </div>
+                  </div>
+
+                  {/* Preset Banners */}
+                  <div className="mt-2">
+                    <span className="text-[11px] font-bold text-slate-500">Preset Store Banners:</span>
+                    <div className="flex items-center gap-2 mt-1.5 flex-wrap">
+                      {presetBanners.map((p) => (
+                        <button
+                          key={p.name}
+                          type="button"
+                          onClick={() => setBannerUrl(p.url)}
+                          className={`px-2.5 py-1.5 rounded-lg border text-[11px] font-semibold ${
+                            bannerUrl === p.url
+                              ? 'border-indigo-600 bg-indigo-50 text-indigo-700'
+                              : 'border-slate-200 bg-slate-50 text-slate-600'
+                          }`}
+                        >
+                          {p.name}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
 
-            {/* Features & Options Card */}
+            {/* Support Details & Message Settings */}
+            <div className="p-6 rounded-3xl bg-white border border-slate-200 shadow-sm space-y-4">
+              <h2 className="text-sm font-bold text-slate-900 flex items-center gap-2 border-b border-slate-100 pb-3">
+                <Headphones className="w-4 h-4 text-purple-600" />
+                <span>Support Contacts & Message Customization</span>
+              </h2>
+
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                    Custom Announcement / Instruction Note
+                  </label>
+                  <textarea
+                    rows={2}
+                    value={customMessage}
+                    onChange={(e) => setCustomMessage(e.target.value)}
+                    placeholder="e.g. Scan QR or click your preferred UPI app to complete instant payment."
+                    className="w-full px-3.5 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs text-slate-900 focus:outline-none focus:border-purple-600"
+                  />
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1 flex items-center gap-1">
+                      <Phone className="w-3.5 h-3.5 text-purple-600" />
+                      <span>Support Phone / WhatsApp Number</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={supportPhone}
+                      onChange={(e) => setSupportPhone(e.target.value)}
+                      placeholder="+91 9876543210"
+                      className="w-full px-3.5 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs text-slate-900 focus:outline-none focus:border-purple-600 font-mono"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1 flex items-center gap-1">
+                      <Mail className="w-3.5 h-3.5 text-purple-600" />
+                      <span>Support Email</span>
+                    </label>
+                    <input
+                      type="email"
+                      value={supportEmail}
+                      onChange={(e) => setSupportEmail(e.target.value)}
+                      placeholder="support@famgateway.in"
+                      className="w-full px-3.5 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs text-slate-900 focus:outline-none focus:border-purple-600 font-mono"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1 flex items-center gap-1">
+                    <MessageSquare className="w-3.5 h-3.5 text-purple-600" />
+                    <span>Contact Us / WhatsApp Redirect URL</span>
+                  </label>
+                  <input
+                    type="url"
+                    value={contactUrl}
+                    onChange={(e) => setContactUrl(e.target.value)}
+                    placeholder="https://wa.me/919876543210"
+                    className="w-full px-3.5 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs text-slate-900 focus:outline-none focus:border-purple-600 font-mono"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Timer & Redirect Controls */}
             <div className="p-6 rounded-3xl bg-white border border-slate-200 shadow-sm space-y-4">
               <h2 className="text-sm font-bold text-slate-900 flex items-center gap-2 border-b border-slate-100 pb-3">
                 <Clock className="w-4 h-4 text-purple-600" />
@@ -307,25 +483,7 @@ export const CustomizeView: React.FC = () => {
                     <option value={15}>15 Minutes</option>
                     <option value={20}>20 Minutes</option>
                     <option value={30}>30 Minutes</option>
-                    <option value={45}>45 Minutes</option>
-                    <option value={60}>60 Minutes (1 Hour)</option>
                   </select>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">
-                    Contact Us WhatsApp / Support Link
-                  </label>
-                  <input
-                    type="url"
-                    value={contactUrl}
-                    onChange={(e) => setContactUrl(e.target.value)}
-                    placeholder="e.g. https://wa.me/911234567890"
-                    className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs text-slate-900 focus:outline-none focus:border-purple-600"
-                  />
-                  <p className="text-[11px] text-slate-500 mt-1">
-                    Opens when customers click the floating "Contact Us" button.
-                  </p>
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2 border-t border-slate-100">
@@ -337,12 +495,9 @@ export const CustomizeView: React.FC = () => {
                       type="url"
                       value={successUrl}
                       onChange={(e) => setSuccessUrl(e.target.value)}
-                      placeholder="e.g. https://your-website.com/success"
+                      placeholder="https://your-website.com/success"
                       className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs text-slate-900 focus:outline-none focus:border-purple-600 font-mono"
                     />
-                    <p className="text-[10px] text-slate-400 mt-1">
-                      Redirects customer after payment is CONFIRMED.
-                    </p>
                   </div>
 
                   <div>
@@ -353,18 +508,14 @@ export const CustomizeView: React.FC = () => {
                       type="url"
                       value={cancelUrl}
                       onChange={(e) => setCancelUrl(e.target.value)}
-                      placeholder="e.g. https://your-website.com/failed"
+                      placeholder="https://your-website.com/failed"
                       className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs text-slate-900 focus:outline-none focus:border-purple-600 font-mono"
                     />
-                    <p className="text-[10px] text-slate-400 mt-1">
-                      Redirects if customer cancels or session expires.
-                    </p>
                   </div>
                 </div>
 
-                {/* Toggles */}
+                {/* Feature Toggles */}
                 <div className="pt-2 space-y-3 border-t border-slate-100">
-                  {/* Save QR to Gallery Toggle */}
                   <label className="flex items-center justify-between p-3 rounded-2xl bg-slate-50 border border-slate-200 cursor-pointer hover:bg-slate-100/70 transition-colors">
                     <div className="flex items-center gap-2.5">
                       <Download className="w-4 h-4 text-purple-600" />
@@ -381,7 +532,6 @@ export const CustomizeView: React.FC = () => {
                     />
                   </label>
 
-                  {/* Pay by Apps Toggle */}
                   <label className="flex items-center justify-between p-3 rounded-2xl bg-slate-50 border border-slate-200 cursor-pointer hover:bg-slate-100/70 transition-colors">
                     <div className="flex items-center gap-2.5">
                       <Smartphone className="w-4 h-4 text-teal-600" />
@@ -398,7 +548,6 @@ export const CustomizeView: React.FC = () => {
                     />
                   </label>
 
-                  {/* Manual UTR Verification Toggle */}
                   <label className="flex items-center justify-between p-3 rounded-2xl bg-slate-50 border border-slate-200 cursor-pointer hover:bg-slate-100/70 transition-colors">
                     <div className="flex items-center gap-2.5">
                       <CreditCard className="w-4 h-4 text-indigo-600" />
@@ -428,47 +577,58 @@ export const CustomizeView: React.FC = () => {
                 {saving ? (
                   <>
                     <RefreshCw className="w-4 h-4 animate-spin" />
-                    <span>Saving Settings...</span>
+                    <span>Saving Customization...</span>
                   </>
                 ) : (
                   <>
                     <Save className="w-4 h-4" />
-                    <span>Save Checkout Design</span>
+                    <span>Save All Customization Settings</span>
                   </>
                 )}
               </button>
 
               {savedSuccess && (
-                <div className="flex items-center gap-1.5 text-xs font-bold text-emerald-600 bg-emerald-50 px-3 py-2 rounded-xl border border-emerald-200 animate-in fade-in">
+                <div className="flex items-center gap-1.5 text-xs font-bold text-emerald-600 bg-emerald-50 px-3 py-2 rounded-xl border border-emerald-200">
                   <Check className="w-4 h-4 text-emerald-600" />
-                  <span>Design saved successfully!</span>
+                  <span>Customizations saved successfully!</span>
                 </div>
               )}
             </div>
           </form>
         </div>
 
-        {/* Right Side: Real-Time Mobile Phone Mockup Preview (5 Cols) */}
+        {/* Right Side: Real-Time Mobile Mockup Preview (5 Cols) */}
         <div className="lg:col-span-5 sticky top-6">
           <div className="text-center mb-2">
             <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider font-mono">
-              Live Real-Time Checkout Preview
+              Live Real-Time Mobile Preview
             </span>
           </div>
 
           {/* Smartphone Frame */}
           <div className="w-[340px] mx-auto rounded-[40px] bg-slate-900 p-3 shadow-2xl border-4 border-slate-800">
-            {/* Camera notch */}
             <div className="w-28 h-4 bg-slate-950 rounded-full mx-auto mb-2" />
 
             {/* Inner Phone Screen */}
             <div className="rounded-[30px] overflow-hidden bg-[#070a12] text-slate-100 text-xs shadow-inner min-h-[580px] flex flex-col justify-between relative pb-10 border border-slate-800">
-              {/* Header */}
               <div>
+                {/* Custom Banner Background if set */}
+                {bannerUrl && (
+                  <div className="h-16 w-full overflow-hidden relative">
+                    <img src={bannerUrl} alt="Header Banner" className="w-full h-full object-cover" />
+                    <div className="absolute inset-0 bg-gradient-to-b from-black/40 to-[#070a12]" />
+                  </div>
+                )}
+
+                {/* Header */}
                 <div className="bg-gradient-to-r from-purple-700 via-fuchsia-600 to-indigo-700 px-3.5 py-3 flex items-center justify-between shadow-md">
                   <div className="flex items-center gap-2.5">
-                    <div className="w-8 h-8 rounded-full border border-white/40 overflow-hidden bg-slate-900 shrink-0">
-                      <img src={avatarUrl} alt="Avatar" className="w-full h-full object-cover" />
+                    <div className="w-9 h-9 rounded-full border-2 border-white/40 overflow-hidden bg-slate-900 shrink-0 p-0.5">
+                      {avatarUrl ? (
+                        <img src={avatarUrl} alt="Logo" className="w-full h-full object-cover rounded-full" />
+                      ) : (
+                        <ImageIcon className="w-4 h-4 text-white mx-auto my-1" />
+                      )}
                     </div>
                     <div>
                       <div className="font-extrabold text-white text-xs leading-tight">{brandName}</div>
@@ -482,6 +642,13 @@ export const CustomizeView: React.FC = () => {
                     ✕
                   </div>
                 </div>
+
+                {/* Custom Announcement Message */}
+                {customMessage && (
+                  <div className="mx-3 mt-3 p-2 rounded-xl bg-purple-950/60 border border-purple-500/30 text-purple-200 text-[10px] text-center">
+                    {customMessage}
+                  </div>
+                )}
 
                 {/* Body Content */}
                 <div className="p-3 space-y-3">
@@ -512,7 +679,7 @@ export const CustomizeView: React.FC = () => {
                     )}
 
                     <div>
-                      <div className="text-2xl font-black text-white">₹ 50.00</div>
+                      <div className="text-2xl font-black text-white">₹ 100.00</div>
                       <div className="text-[9px] font-mono text-slate-400">
                         Transaction ID: ZU8CF7B24B7C929C1E
                       </div>
@@ -549,7 +716,7 @@ export const CustomizeView: React.FC = () => {
                     </div>
                   )}
 
-                  {/* Circular Timer */}
+                  {/* Timer */}
                   <div className="rounded-xl bg-[#0e1320] border border-slate-800 p-2.5 flex items-center gap-2.5">
                     <div className="w-10 h-10 rounded-full border-2 border-teal-400 flex items-center justify-center font-mono font-bold text-[10px] text-white shrink-0">
                       0{sessionTimeout}:00

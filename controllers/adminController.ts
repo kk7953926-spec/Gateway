@@ -220,21 +220,51 @@ export class AdminController {
     });
   }
 
-  public static async assignSubscription(req: AuthenticatedRequest, res: Response) {
+  public static async updateUserRole(req: AuthenticatedRequest, res: Response) {
     dbService.incrementApiRequests();
-    const { userId, planId, durationDays } = req.body || {};
-    if (!userId || !planId || !durationDays) {
-      return res.status(400).json({ success: false, error: 'userId, planId, and durationDays are required.' });
+    const { userId, role } = req.body || {};
+    if (!userId || !role) {
+      return res.status(400).json({ success: false, error: 'userId and role are required.' });
     }
 
-    const updatedUser = await dbService.updateUserSubscription(userId, planId, Number(durationDays));
+    const updatedUser = await dbService.updateUserRole(userId, role as 'admin' | 'user');
     if (!updatedUser) {
       return res.status(404).json({ success: false, error: 'User not found.' });
     }
 
     return res.status(200).json({
       success: true,
-      message: 'Subscription plan assigned to user successfully.',
+      message: `User role updated to ${role} successfully.`,
+      user: {
+        id: updatedUser.id,
+        email: updatedUser.email,
+        role: updatedUser.role,
+      },
+    });
+  }
+
+  public static async assignSubscription(req: AuthenticatedRequest, res: Response) {
+    dbService.incrementApiRequests();
+    const { userId, planId, durationDays, expiryDate, status } = req.body || {};
+    if (!userId) {
+      return res.status(400).json({ success: false, error: 'userId is required.' });
+    }
+
+    let updatedUser;
+    if (expiryDate) {
+      const expIso = new Date(expiryDate).toISOString();
+      updatedUser = await dbService.updateUserSubscriptionByDate(userId, planId || 'Custom Plan', expIso, status || 'active');
+    } else {
+      updatedUser = await dbService.updateUserSubscription(userId, planId || 'Pro Plan', Number(durationDays || 30));
+    }
+
+    if (!updatedUser) {
+      return res.status(404).json({ success: false, error: 'User not found.' });
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: 'Subscription plan updated for user successfully.',
       user: {
         id: updatedUser.id,
         email: updatedUser.email,

@@ -9,7 +9,10 @@ const router = Router();
 router.get('/public-link/:id', PaymentController.getPublicLinkDetails);
 router.get('/public-status/:id', PaymentController.getStatus);
 router.get('/auto-detect/:id', PaymentController.autoDetect);
+router.post('/sync/:id', PaymentController.syncPayment);
+router.get('/sync/:id', PaymentController.syncPayment);
 router.post('/public-verify-email', PaymentController.verifyEmailAlert);
+router.post('/reconcile', requireAuth, PaymentController.reconcilePendingPayments);
 
 // Standard API V1 (For external integrations)
 router.post('/v1/order/create', requireApiKey, PaymentController.createApiOrder);

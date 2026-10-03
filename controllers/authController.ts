@@ -94,6 +94,9 @@ export class AuthController {
         api_key: newUser.api_key,
         wallet_balance: newUser.wallet_balance || 0,
         role: newUser.role,
+        subscription_status: newUser.subscription_status,
+        subscription_expires_at: newUser.subscription_expires_at,
+        subscription_plan_id: newUser.subscription_plan_id,
       },
     });
   }
@@ -208,6 +211,9 @@ export class AuthController {
         wallet_balance: user.wallet_balance || 0,
         role: user.role,
         checkout_settings: user.checkout_settings,
+        subscription_status: user.subscription_status,
+        subscription_expires_at: user.subscription_expires_at,
+        subscription_plan_id: user.subscription_plan_id,
       },
     });
   }
@@ -432,6 +438,9 @@ export class AuthController {
           wallet_balance: user.wallet_balance || 0,
           role: user.role,
           checkout_settings: user.checkout_settings,
+          subscription_status: user.subscription_status,
+          subscription_expires_at: user.subscription_expires_at,
+          subscription_plan_id: user.subscription_plan_id,
         },
       });
     } catch {

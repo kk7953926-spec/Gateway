@@ -84,7 +84,7 @@ export const WebhooksView: React.FC<{ onNavigate: (nav: string) => void }> = ({ 
         const data = await res.json();
         // Filter for all webhook related logs (both inbound and outbound)
         const webhookLogs = (data.logs || []).filter((l: any) => 
-          l.action.startsWith('WEBHOOK_') || l.action.includes('WEBHOOK')
+          Boolean(l?.action && typeof l.action === 'string' && (l.action.startsWith('WEBHOOK_') || l.action.includes('WEBHOOK')))
         );
         setLogs(webhookLogs);
       }

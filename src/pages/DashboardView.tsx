@@ -13,13 +13,227 @@ import {
   ArrowUpRight,
   ShieldCheck,
   Zap,
-  Globe
+  Globe,
+  Clock,
+  AlertTriangle,
+  ShoppingBag
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
 interface DashboardViewProps {
   onNavigate: (nav: string) => void;
 }
+
+const TrialProgressCard: React.FC<{ user: any; onNavigate: (nav: string) => void }> = ({ user, onNavigate }) => {
+  const [timeLeft, setTimeLeft] = useState<{
+    days: number;
+    hours: number;
+    minutes: number;
+    seconds: number;
+    percent: number;
+    isExpired: boolean;
+    isTrial: boolean;
+  }>({
+    days: 0,
+    hours: 0,
+    minutes: 0,
+    seconds: 0,
+    percent: 100,
+    isExpired: false,
+    isTrial: true,
+  });
+
+  useEffect(() => {
+    const calculateTime = () => {
+      if (!user) return;
+
+      const isAdmin = user.role === 'admin';
+      const expiresAt = user.subscription_expires_at
+        ? new Date(user.subscription_expires_at).getTime()
+        : Date.now() + 5 * 24 * 60 * 60 * 1000;
+
+      const createdAt = user.created_at
+        ? new Date(user.created_at).getTime()
+        : expiresAt - 5 * 24 * 60 * 60 * 1000;
+
+      const now = Date.now();
+      const totalDuration = Math.max(1, expiresAt - createdAt);
+      const remainingMs = Math.max(0, expiresAt - now);
+
+      const isExpired = !isAdmin && (user.subscription_status === 'expired' || remainingMs <= 0);
+      const percent = isAdmin ? 100 : Math.min(100, Math.max(0, (remainingMs / totalDuration) * 100));
+
+      const days = Math.floor(remainingMs / (1000 * 60 * 60 * 24));
+      const hours = Math.floor((remainingMs % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+      const minutes = Math.floor((remainingMs % (1000 * 60 * 60)) / (1000 * 60));
+      const seconds = Math.floor((remainingMs % (1000 * 60)) / 1000);
+
+      const isTrial = !user.subscription_plan_id || user.subscription_plan_id.toLowerCase().includes('trial') || user.subscription_plan_id.toLowerCase().includes('free');
+
+      setTimeLeft({
+        days,
+        hours,
+        minutes,
+        seconds,
+        percent,
+        isExpired,
+        isTrial,
+      });
+    };
+
+    calculateTime();
+    const timer = setInterval(calculateTime, 1000);
+    return () => clearInterval(timer);
+  }, [user]);
+
+  if (user?.role === 'admin') {
+    return (
+      <div className="p-5 rounded-3xl bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 text-white border border-indigo-500/30 shadow-lg flex items-center justify-between flex-wrap gap-4">
+        <div className="flex items-center gap-3">
+          <div className="p-2.5 rounded-2xl bg-indigo-500/20 text-indigo-400 border border-indigo-500/30">
+            <ShieldCheck className="w-6 h-6" />
+          </div>
+          <div>
+            <div className="flex items-center gap-2">
+              <h3 className="text-sm font-black text-white">Administrator Lifetime Account</h3>
+              <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 text-[10px] font-mono font-bold">UNLIMITED ACCESS</span>
+            </div>
+            <p className="text-xs text-slate-400 mt-0.5">You have permanent full system control and gateway processing privileges.</p>
+          </div>
+        </div>
+        <button
+          onClick={() => onNavigate('admin')}
+          className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs shadow-md transition-all"
+        >
+          Manage Platform
+        </button>
+      </div>
+    );
+  }
+
+  if (timeLeft.isExpired) {
+    return (
+      <div className="p-6 rounded-3xl bg-gradient-to-r from-rose-950 via-slate-900 to-rose-950 text-white border border-rose-500/40 shadow-xl space-y-4 relative overflow-hidden">
+        <div className="absolute top-0 right-0 w-64 h-64 bg-rose-500/10 rounded-full blur-3xl pointer-events-none" />
+        
+        <div className="flex items-center justify-between flex-wrap gap-3">
+          <div className="flex items-center gap-2">
+            <div className="p-2 rounded-xl bg-rose-500/20 text-rose-400 border border-rose-500/30">
+              <AlertTriangle className="w-5 h-5 text-rose-400" />
+            </div>
+            <div>
+              <span className="px-2.5 py-0.5 rounded-full bg-rose-500/20 border border-rose-500/30 text-rose-300 font-mono text-[10px] font-extrabold uppercase tracking-wider">
+                Trial Expired
+              </span>
+              <h3 className="text-base font-black text-white mt-0.5">Your 5-Day Free Trial Has Ended</h3>
+            </div>
+          </div>
+
+          <button
+            onClick={() => onNavigate('subscription')}
+            className="px-5 py-2.5 rounded-2xl bg-gradient-to-r from-rose-600 to-amber-600 hover:from-rose-500 hover:to-amber-500 text-white font-extrabold text-xs shadow-lg transition-all flex items-center gap-2 cursor-pointer"
+          >
+            <Zap className="w-4 h-4 fill-white" />
+            <span>Subscribe & Activate Gateway</span>
+          </button>
+        </div>
+
+        {/* Progress Bar 0% */}
+        <div className="space-y-1.5">
+          <div className="flex justify-between text-xs font-mono">
+            <span className="text-rose-300 font-bold">0 Days Remaining</span>
+            <span className="text-rose-400 font-bold">0% Completed</span>
+          </div>
+          <div className="w-full h-3 rounded-full bg-rose-950 border border-rose-800/50 p-0.5 overflow-hidden">
+            <div className="h-full rounded-full bg-rose-600/30 w-0 transition-all duration-500" />
+          </div>
+        </div>
+
+        <p className="text-xs text-rose-200/80 leading-relaxed">
+          Payment link generation and automated API payment detection are currently paused for your account. Please activate a plan to resume processing UPI transactions instantly.
+        </p>
+      </div>
+    );
+  }
+
+  // Active Trial or Subscription Mode
+  const progressColor =
+    timeLeft.percent > 40
+      ? 'from-emerald-500 to-teal-400'
+      : timeLeft.percent > 15
+      ? 'from-amber-500 to-orange-400'
+      : 'from-rose-500 to-pink-500';
+
+  return (
+    <div className="p-6 rounded-3xl bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 text-white border border-indigo-500/30 shadow-xl space-y-5 relative overflow-hidden">
+      <div className="absolute top-0 right-0 w-72 h-72 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none" />
+
+      {/* Header & Status Badge */}
+      <div className="flex items-center justify-between flex-wrap gap-3 relative z-10">
+        <div className="flex items-center gap-2.5">
+          <div className="p-2 rounded-xl bg-indigo-500/20 text-indigo-400 border border-indigo-500/30">
+            <Clock className="w-5 h-5 text-indigo-400 animate-pulse" />
+          </div>
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="px-2.5 py-0.5 rounded-full bg-emerald-500/20 border border-emerald-500/30 text-emerald-400 font-mono text-[10px] font-extrabold tracking-wider uppercase flex items-center gap-1.5">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping" />
+                {timeLeft.isTrial ? '5-Day Free Trial Active' : 'Pro Subscription Active'}
+              </span>
+            </div>
+            <h3 className="text-base font-black text-white mt-0.5">
+              {timeLeft.isTrial ? 'Free Trial Countdown & Progress' : 'Subscription Active Period'}
+            </h3>
+          </div>
+        </div>
+
+        <button
+          onClick={() => onNavigate('subscription')}
+          className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-extrabold text-xs shadow-md transition-all flex items-center gap-2 border border-indigo-400/30 cursor-pointer"
+        >
+          <Zap className="w-3.5 h-3.5 text-amber-300 fill-amber-300" />
+          <span>{timeLeft.isTrial ? 'Upgrade Plan' : 'Extend Subscription'}</span>
+        </button>
+      </div>
+
+      {/* Live Countdown Timer Grid */}
+      <div className="grid grid-cols-4 gap-2 sm:gap-3 text-center font-mono relative z-10">
+        <div className="p-2.5 rounded-2xl bg-white/5 border border-white/10 backdrop-blur-md">
+          <div className="text-xl sm:text-2xl font-black text-white">{String(timeLeft.days).padStart(2, '0')}</div>
+          <div className="text-[10px] text-indigo-200 font-bold uppercase tracking-wider mt-0.5">Days</div>
+        </div>
+        <div className="p-2.5 rounded-2xl bg-white/5 border border-white/10 backdrop-blur-md">
+          <div className="text-xl sm:text-2xl font-black text-indigo-300">{String(timeLeft.hours).padStart(2, '0')}</div>
+          <div className="text-[10px] text-indigo-200 font-bold uppercase tracking-wider mt-0.5">Hours</div>
+        </div>
+        <div className="p-2.5 rounded-2xl bg-white/5 border border-white/10 backdrop-blur-md">
+          <div className="text-xl sm:text-2xl font-black text-indigo-300">{String(timeLeft.minutes).padStart(2, '0')}</div>
+          <div className="text-[10px] text-indigo-200 font-bold uppercase tracking-wider mt-0.5">Mins</div>
+        </div>
+        <div className="p-2.5 rounded-2xl bg-white/5 border border-white/10 backdrop-blur-md">
+          <div className="text-xl sm:text-2xl font-black text-emerald-400">{String(timeLeft.seconds).padStart(2, '0')}</div>
+          <div className="text-[10px] text-indigo-200 font-bold uppercase tracking-wider mt-0.5">Secs</div>
+        </div>
+      </div>
+
+      {/* Visual Progress Bar */}
+      <div className="space-y-1.5 relative z-10">
+        <div className="flex justify-between items-center text-xs font-mono">
+          <span className="text-indigo-200 font-bold">
+            {timeLeft.days > 0 ? `${timeLeft.days} Days & ${timeLeft.hours} Hours Remaining` : `${timeLeft.hours}h ${timeLeft.minutes}m ${timeLeft.seconds}s Remaining`}
+          </span>
+          <span className="text-emerald-400 font-extrabold">{timeLeft.percent.toFixed(1)}% Remaining</span>
+        </div>
+        <div className="w-full h-3 rounded-full bg-slate-800/80 border border-white/10 p-0.5 overflow-hidden shadow-inner">
+          <div
+            className={`h-full rounded-full bg-gradient-to-r ${progressColor} transition-all duration-1000 shadow-sm`}
+            style={{ width: `${timeLeft.percent}%` }}
+          />
+        </div>
+      </div>
+    </div>
+  );
+};
 
 export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate }) => {
   const { user, token } = useAuth();
@@ -123,6 +337,9 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate }) => {
           )}
         </div>
       </div>
+
+      {/* Visual Progress Bar & Countdown Timer for 5-Day Free Trial */}
+      <TrialProgressCard user={user} onNavigate={onNavigate} />
 
       {/* 4 Stat Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">

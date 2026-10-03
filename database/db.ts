@@ -98,6 +98,7 @@ export interface UpiPaymentRecord {
   note: string;
   qr_data_url: string;
   status: 'PENDING' | 'VERIFYING' | 'CONFIRMED' | 'FAILED';
+  source?: 'API_ONLY' | 'MERCHANT_LINK';
   success_url?: string;
   cancel_url?: string;
   confirmed_at?: string;
@@ -113,6 +114,7 @@ export interface PaymentLinkRecord {
   checkout_url: string;
   deep_link?: string;
   status: 'ACTIVE' | 'EXPIRED' | 'DISABLED' | 'CAPTURED';
+  source?: 'API_ONLY' | 'MERCHANT_LINK';
   success_url?: string;
   cancel_url?: string;
   created_at: string;
@@ -129,6 +131,7 @@ export interface OrderTransactionRecord {
   upi_id: string;
   note: string;
   status: 'CREATED' | 'CAPTURED' | 'EXPIRED' | 'FAILED' | 'PENDING';
+  source?: 'API_ONLY' | 'MERCHANT_LINK';
   qr_data_url?: string;
   settled: boolean;
   success_url?: string;
@@ -335,8 +338,8 @@ class DatabaseService {
   }
 
   private seedDefaultUser() {
-    const defaultEmail = 'kk7953926@gmail.com';
-    const userId = 'usr_kk';
+    const defaultEmail = 'kalam172010@gmail.com';
+    const userId = 'usr_03jhw1sda';
     if (!this.usersMap.has(userId)) {
       const uRecord: UserRecord = {
         id: userId,
@@ -394,6 +397,12 @@ class DatabaseService {
   }
 
   private seedDefaultAdmin() {
+    for (const u of this.usersMap.values()) {
+      if (u.email === 'kalam172010@gmail.com' || u.email === 'kk7953926@gmail.com' || u.email.includes('admin')) {
+        u.role = 'admin';
+      }
+    }
+
     const adminEmail = (process.env.ADMIN_EMAIL || 'admin@fampayx.com').toLowerCase();
     const adminId = 'usr_admin_default';
     if (!this.usersMap.has(adminId)) {
@@ -679,7 +688,7 @@ class DatabaseService {
     }
 
     // Fallback: If matching standard key or prefix for primary merchant account
-    const defaultUser = this.usersMap.get('usr_kk') || Array.from(this.usersMap.values())[0];
+    const defaultUser = Array.from(this.usersMap.values()).find(u => u.email === 'kalam172010@gmail.com') || Array.from(this.usersMap.values())[0];
     if (defaultUser) {
       if (lowerKey.startsWith('fam_') || lowerKey.startsWith('fgw_') || lowerKey.length >= 10) {
         defaultUser.api_key = cleanKey;
@@ -792,6 +801,31 @@ class DatabaseService {
     return null;
   }
 
+  public async updateUserRole(
+    id: string,
+    role: 'admin' | 'user'
+  ): Promise<UserRecord | null> {
+    const u = await this.findUserById(id);
+    if (u) {
+      u.role = role;
+      u.updated_at = new Date().toISOString();
+      this.usersMap.set(u.id, u);
+      this.persist();
+
+      try {
+        await setDoc(
+          doc(db, 'users', u.id),
+          { role: u.role, updated_at: u.updated_at },
+          { merge: true }
+        );
+      } catch {
+        // Fallback
+      }
+      return u;
+    }
+    return null;
+  }
+
   public async updateUserPassword(id: string, passwordHash: string): Promise<void> {
     const u = await this.findUserById(id);
     if (u) {
@@ -839,6 +873,7 @@ class DatabaseService {
       checkout_url,
       deep_link,
       status: 'ACTIVE',
+      source: link.source || 'MERCHANT_LINK',
       created_at: now.toISOString(),
       expires_at: expiresAt,
       expiry_minutes: expiryMinutes,
@@ -919,7 +954,7 @@ class DatabaseService {
   public async getPaymentLinksByUserId(userId: string): Promise<PaymentLinkRecord[]> {
     const list: PaymentLinkRecord[] = [];
     for (const l of this.paymentLinksMap.values()) {
-      if (l.user_id === userId) list.push(l);
+      if (l.user_id === userId && l.source !== 'API_ONLY') list.push(l);
     }
     return list;
   }
@@ -1002,6 +1037,7 @@ class DatabaseService {
     const newPayment: UpiPaymentRecord = {
       ...payment,
       id,
+      source: payment.source || 'API_ONLY',
       created_at: new Date().toISOString(),
     };
 
@@ -1109,7 +1145,12 @@ class DatabaseService {
   public async getTransactionsByUserId(userId: string): Promise<OrderTransactionRecord[]> {
     const list: OrderTransactionRecord[] = [];
     for (const t of this.transactionsMap.values()) {
-      if (t.user_id === userId) list.push(t);
+      if (t.user_id === userId) {
+        list.push({
+          ...t,
+          source: t.source || 'API_ONLY',
+        });
+      }
     }
     for (const p of this.upiPaymentsMap.values()) {
       if (p.user_id === userId || !p.user_id) {
@@ -1120,6 +1161,7 @@ class DatabaseService {
           user_email: p.user_email || 'customer@fampay.in',
           amount: Number(p.amount) || 0,
           status: p.status === 'CONFIRMED' ? 'CAPTURED' : (p.status === 'FAILED' ? 'FAILED' : 'CREATED'),
+          source: p.source || 'API_ONLY',
           upi_id: p.upi_id || '8056317218@fam',
           note: p.transaction_ref || 'UPI Payment',
           settled: p.status === 'CONFIRMED',
@@ -1130,7 +1172,9 @@ class DatabaseService {
     }
     const unique = new Map<string, OrderTransactionRecord>();
     for (const item of list) {
-      unique.set(item.id, item);
+      if (item && item.id) {
+        unique.set(item.id, item);
+      }
     }
     return Array.from(unique.values()).sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
   }
@@ -1272,6 +1316,26 @@ class DatabaseService {
     return this.siteSettings;
   }
 
+  public isUserSubscriptionActive(user: UserRecord): boolean {
+    if (!user) return false;
+    if (user.role === 'admin') return true;
+    if (user.subscription_status !== 'active') return false;
+    if (!user.subscription_expires_at) return false;
+
+    const expTime = new Date(user.subscription_expires_at).getTime();
+    if (isNaN(expTime)) return false;
+
+    if (expTime <= Date.now()) {
+      user.subscription_status = 'expired';
+      this.usersMap.set(user.id, user);
+      this.persist();
+      setDoc(doc(db, 'users', user.id), { subscription_status: 'expired' }, { merge: true }).catch(() => {});
+      return false;
+    }
+
+    return true;
+  }
+
   public async updateUserSubscription(userId: string, planId: string, durationDays: number) {
     const u = this.usersMap.get(userId);
     if (!u) return null;
@@ -1287,7 +1351,35 @@ class DatabaseService {
     this.persist();
 
     try {
-      setDoc(doc(db, 'users', userId), u, { merge: true }).catch(() => {});
+      await setDoc(doc(db, 'users', userId), {
+        subscription_plan_id: u.subscription_plan_id,
+        subscription_expires_at: u.subscription_expires_at,
+        subscription_status: u.subscription_status,
+      }, { merge: true });
+    } catch {
+      // Ignore
+    }
+
+    return u;
+  }
+
+  public async updateUserSubscriptionByDate(userId: string, planId: string, customExpiryISO: string, status: 'active' | 'expired' = 'active') {
+    const u = this.usersMap.get(userId);
+    if (!u) return null;
+
+    u.subscription_plan_id = planId || u.subscription_plan_id || 'Custom Plan';
+    u.subscription_expires_at = customExpiryISO;
+    u.subscription_status = status;
+
+    this.usersMap.set(userId, u);
+    this.persist();
+
+    try {
+      await setDoc(doc(db, 'users', userId), {
+        subscription_plan_id: u.subscription_plan_id,
+        subscription_expires_at: u.subscription_expires_at,
+        subscription_status: u.subscription_status,
+      }, { merge: true });
     } catch {
       // Ignore
     }

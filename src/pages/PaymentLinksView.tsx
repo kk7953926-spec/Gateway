@@ -67,7 +67,10 @@ export const PaymentLinksView: React.FC<PaymentLinksViewProps> = ({ onNavigate }
       });
       if (res.ok) {
         const data = await res.json();
-        if (data.links) setLinks(data.links);
+        if (data.links) {
+          const merchantLinks = data.links.filter((l: any) => l.source !== 'API_ONLY');
+          setLinks(merchantLinks);
+        }
       }
     } catch {
       // Ignore
@@ -205,7 +208,7 @@ export const PaymentLinksView: React.FC<PaymentLinksViewProps> = ({ onNavigate }
   };
 
   const getFullCheckoutUrl = (url: string) => {
-    if (!url) return '';
+    if (!url || typeof url !== 'string') return '';
     if (typeof window === 'undefined') return url;
     if (url.startsWith('http://') || url.startsWith('https://')) {
       if (url.includes('famgateway.in')) {
@@ -290,14 +293,62 @@ export const PaymentLinksView: React.FC<PaymentLinksViewProps> = ({ onNavigate }
     }
   };
 
+  const isSubscriptionActive =
+    user?.role === 'admin' ||
+    (user?.subscription_status === 'active' && user?.subscription_expires_at && new Date(user.subscription_expires_at) > new Date());
+
+  const daysLeft = user?.subscription_expires_at
+    ? Math.max(0, Math.ceil((new Date(user.subscription_expires_at).getTime() - Date.now()) / (1000 * 60 * 60 * 24)))
+    : 0;
+
   return (
     <div className="space-y-6 max-w-5xl mx-auto">
-      <div>
-        <h1 className="text-2xl font-extrabold text-slate-900 tracking-tight">Payment Links</h1>
-        <p className="text-xs text-slate-500 mt-1">
-          Create, test, and manage checkout URLs to share with your customers.
-        </p>
+      <div className="flex items-center justify-between flex-wrap gap-3">
+        <div>
+          <h1 className="text-2xl font-extrabold text-slate-900 tracking-tight">Payment Links</h1>
+          <p className="text-xs text-slate-500 mt-1">
+            Create, test, and manage checkout URLs to share with your customers.
+          </p>
+        </div>
+
+        {/* Subscription Status Badge */}
+        {isSubscriptionActive ? (
+          <div className="px-3.5 py-1.5 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-bold flex items-center gap-2 font-mono">
+            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+            <span>Active Plan ({daysLeft} Days Remaining)</span>
+          </div>
+        ) : (
+          <div className="px-3.5 py-1.5 rounded-full bg-rose-50 border border-rose-200 text-rose-800 text-xs font-bold flex items-center gap-2 font-mono">
+            <span className="w-2 h-2 rounded-full bg-rose-500" />
+            <span>Subscription Expired</span>
+          </div>
+        )}
       </div>
+
+      {/* Subscription Expired Paywall Banner */}
+      {!isSubscriptionActive && (
+        <div className="p-5 rounded-3xl bg-gradient-to-r from-purple-900 via-indigo-900 to-slate-900 text-white shadow-xl border border-purple-500/30 space-y-3">
+          <div className="flex items-center gap-2 text-amber-400 font-extrabold text-sm">
+            <AlertTriangle className="w-5 h-5 text-amber-400" />
+            <span>5-Day Free Trial / Subscription Expired</span>
+          </div>
+          <p className="text-xs text-purple-200">
+            Your 5-day trial period or subscription has ended. Access to generating payment links and processing payments is paused until subscription activation.
+          </p>
+          <div className="pt-1">
+            <a
+              href="#subscription"
+              onClick={(e) => {
+                e.preventDefault();
+                window.location.hash = 'subscription';
+              }}
+              className="px-5 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-500 text-white font-extrabold text-xs inline-flex items-center gap-2 transition-all shadow-md"
+            >
+              <span>⚡ Subscribe & Activate Now via QR Code</span>
+            </a>
+          </div>
+        </div>
+      )}
 
       {/* Generate Payment Link Card */}
       <div className="p-6 rounded-3xl bg-white border border-slate-200 shadow-sm space-y-4">

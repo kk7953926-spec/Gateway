@@ -3,6 +3,7 @@ import crypto from 'crypto';
 import { PaymentService } from '../services/paymentService.ts';
 import { ImapService } from '../services/imapService.ts';
 import { EmailService } from '../services/emailService.ts';
+import { PaymentSyncService } from '../services/paymentSyncService.ts';
 import { dbService, UpiPaymentRecord } from '../database/db.ts';
 import { AuthenticatedRequest } from '../middleware/authMiddleware.ts';
 
@@ -171,6 +172,9 @@ export class PaymentController {
         cancel_url
       );
 
+      // Schedule automated delayed cross-reference sync workers (5s, 15s, 30s, 60s, 120s, 240s)
+      PaymentSyncService.scheduleDelayedSync(result.payment.id);
+
       return res.status(201).json({
         success: true,
         message: 'Dynamic FamPay UPI QR Code generated successfully.',
@@ -251,6 +255,62 @@ export class PaymentController {
     } catch {
       return res.status(200).json({ success: true, status: 'PENDING' });
     }
+  }
+
+  /**
+   * POST /api/payment/sync/:id
+   * Triggers an immediate cross-reference auto-sync on a specific payment
+   */
+  public static async syncPayment(req: Request, res: Response) {
+    dbService.incrementApiRequests();
+    const { id } = req.params;
+    let payment = await dbService.getPaymentById(id);
+    const link = !payment ? await dbService.getPaymentLinkById(id) : null;
+
+    if (!payment && !link) {
+      return res.status(404).json({ success: false, error: 'Payment or order not found.' });
+    }
+
+    if (payment && payment.status === 'CONFIRMED') {
+      return res.status(200).json({
+        success: true,
+        status: 'CONFIRMED',
+        message: 'Payment is already confirmed.',
+        payment,
+      });
+    }
+
+    const amt = payment?.amount || link?.amount || 100;
+    const since = payment
+      ? new Date(payment.created_at).getTime() - 300000
+      : (link ? new Date(link.created_at).getTime() - 300000 : Date.now() - 900000);
+
+    const result = await PaymentService.autoDetectAndConfirm(id, amt, since);
+
+    return res.status(200).json({
+      success: true,
+      status: result.status,
+      message: result.message || (result.status === 'CONFIRMED' ? 'Payment auto-synced and confirmed successfully! ✓' : 'Payment state verified (pending).'),
+      payment: result.payment || payment || link,
+    });
+  }
+
+  /**
+   * POST /api/payment/reconcile
+   * Actively reconciles all pending payments for the merchant/admin
+   */
+  public static async reconcilePendingPayments(req: AuthenticatedRequest, res: Response) {
+    dbService.incrementApiRequests();
+    const userId = req.user?.role === 'admin' ? undefined : req.user?.id;
+    const result = await PaymentSyncService.reconcileAllPendingPayments(userId);
+
+    return res.status(200).json({
+      success: true,
+      checked: result.checked,
+      confirmed: result.confirmed,
+      payments: result.payments,
+      message: `Reconciliation complete: checked ${result.checked} pending orders, confirmed ${result.confirmed}.`,
+    });
   }
 
   /**
@@ -376,7 +436,7 @@ export class PaymentController {
     const user = await dbService.findUserById(req.user.id);
     const logs = await dbService.getLogsByUserId(req.user.id);
 
-    const targetEmail = user?.fampay_gmail || user?.email || 'kk7953926@gmail.com';
+    const targetEmail = user?.fampay_gmail || user?.email || 'kalam172010@gmail.com';
     const imapServer = user?.imap_host || ImapService.resolveHost(targetEmail);
     const imapPort = user?.imap_port || 993;
     const hasPass = Boolean(user?.google_app_password && user.google_app_password.replace(/\s+/g, '').length >= 8);
@@ -596,6 +656,15 @@ export class PaymentController {
 
     const parsedAmount = parseFloat(amount as string);
     const user = req.user!;
+
+    if (!dbService.isUserSubscriptionActive(user)) {
+      return res.status(403).json({
+        success: false,
+        error: 'Subscription Expired',
+        message: 'Your 5-day trial or active gateway subscription has expired. Please subscribe to continue processing API payments.',
+        requires_subscription: true,
+      });
+    }
     const platformUpi = user.fampay_upi_id || '8056317218@fam';
     const effectiveSuccessUrl = redirect_url || success_url;
     const orderTitle = note || title || (customer_name ? `Order - ${customer_name}` : `Payment ₹${parsedAmount}`);
@@ -614,6 +683,9 @@ export class PaymentController {
 
       const origin = `${req.protocol}://${req.get('host')}`;
       const checkoutUrl = `${origin}/pay/${payment.id}`;
+
+      // Schedule automated delayed cross-referencing sync workers
+      PaymentSyncService.scheduleDelayedSync(payment.id);
 
       // If requested format is raw QR image
       if (req.query.format === 'image' || req.query.format === 'qr_image') {

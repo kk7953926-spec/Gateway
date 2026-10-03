@@ -22,5 +22,6 @@ router.post('/subscription-plans/create', requireAdmin, AdminController.createSu
 router.post('/subscription-plans/delete', requireAdmin, AdminController.deleteSubscriptionPlan);
 router.post('/subscription-plans/toggle', requireAdmin, AdminController.toggleSubscriptionPlan);
 router.post('/users/assign-subscription', requireAdmin, AdminController.assignSubscription);
+router.post('/users/update-role', requireAdmin, AdminController.updateUserRole);
 
 export default router;

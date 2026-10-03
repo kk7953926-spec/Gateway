@@ -18,7 +18,8 @@ export class PaymentService {
     note: string = 'FamPay X Gateway Payment',
     ip: string = '127.0.0.1',
     successUrl?: string,
-    cancelUrl?: string
+    cancelUrl?: string,
+    sourceTag: 'API_ONLY' | 'MERCHANT_LINK' = 'API_ONLY'
   ): Promise<{ payment: UpiPaymentRecord; qrCodeUrl: string; upiUri: string }> {
     const cleanUpi = upiId.trim().toLowerCase();
 
@@ -41,7 +42,7 @@ export class PaymentService {
       },
     });
 
-    // Save payment record to DB
+    // Save payment record to DB flagged as API_ONLY or MERCHANT_LINK
     const payment = await dbService.createPaymentRecord({
       transaction_ref: transactionRef,
       user_id: userId,
@@ -51,6 +52,7 @@ export class PaymentService {
       note,
       qr_data_url: qrCodeUrl,
       status: 'PENDING',
+      source: sourceTag,
       success_url: successUrl,
       cancel_url: cancelUrl,
     });
@@ -142,32 +144,46 @@ export class PaymentService {
     }
 
     // Perform REAL Email IMAP verification with timestamp and used-UTR protections
-    const imapResult = await ImapService.verifyLiveEmailAlert(
-      emailToUse,
-      user.google_app_password,
-      amount,
-      targetRef,
-      cleanUtr || undefined,
-      user.imap_host,
-      user.imap_port,
-      minTimestamp,
-      usedUtrs
-    );
+    let imapResult: any = { success: false, message: '', utr: cleanUtr || '', transactionId: cleanUtr || targetRef };
+    
+    if (hasAppPassword) {
+      try {
+        imapResult = await ImapService.verifyLiveEmailAlert(
+          emailToUse,
+          user.google_app_password,
+          amount,
+          targetRef,
+          cleanUtr || undefined,
+          user.imap_host,
+          user.imap_port,
+          minTimestamp,
+          usedUtrs
+        );
+      } catch (err: any) {
+        imapResult = { success: false, message: err.message || 'IMAP error', utr: cleanUtr || '', transactionId: targetRef };
+      }
+    } else {
+      imapResult = {
+        success: false,
+        message: 'Gmail IMAP App Password is not configured. Merchant must configure a 16-character Google App Password in Integrations.',
+      };
+    }
 
+    // STRICT PROTECTION: If IMAP check did NOT find a matching credit alert in Gmail, REJECT confirmation!
     if (!imapResult.success) {
       await dbService.addLog({
-        user_id: user.id,
-        user_email: user.email,
+        user_id: user?.id || 'system',
+        user_email: user?.email || 'merchant',
         action: 'UPI_PAYMENT_IMAP_VERIFY_FAILED',
         ip,
         status: 'FAILED',
-        details: `IMAP check failed for Ref ${targetRef}: ${imapResult.message}`,
+        details: `IMAP check failed for Ref ${targetRef}: ${imapResult.message || 'No matching payment alert found in INBOX'}`,
       });
 
       return {
         success: false,
         payment,
-        message: imapResult.message,
+        message: imapResult.message || 'No matching payment alert found in email inbox for ₹' + amount + '. Please complete the payment first.',
       };
     }
 
@@ -196,6 +212,17 @@ export class PaymentService {
 
     if (!confirmedPayment) {
       return { success: false, payment: null, message: 'Failed to update payment status in database.' };
+    }
+
+    // Auto-activate subscription if payment is for a subscription plan
+    if (confirmedPayment.note && (confirmedPayment.note.includes('Sub:') || confirmedPayment.note.toLowerCase().includes('subscription') || confirmedPayment.note.toLowerCase().includes('plan'))) {
+      const planId = confirmedPayment.note.replace('Sub:', '').trim();
+      const plans = dbService.getSubscriptionPlans();
+      const matchedPlan = plans.find(p => p.id === planId || p.name.toLowerCase() === planId.toLowerCase()) || plans[0];
+      const days = matchedPlan ? matchedPlan.duration_days : 30;
+
+      await dbService.updateUserSubscription(confirmedPayment.user_id, matchedPlan ? matchedPlan.id : 'Pro Plan', days);
+      console.log(`[Subscription Engine]: Auto-activated subscription for user ${confirmedPayment.user_id} (+${days} days)!`);
     }
 
     // Trigger Webhook async
@@ -342,6 +369,17 @@ export class PaymentService {
           }
 
           if (confirmedPayment) {
+            // Auto-activate subscription if payment is for a subscription plan
+            if (confirmedPayment.note && (confirmedPayment.note.includes('Sub:') || confirmedPayment.note.toLowerCase().includes('subscription') || confirmedPayment.note.toLowerCase().includes('plan'))) {
+              const planId = confirmedPayment.note.replace('Sub:', '').trim();
+              const plans = dbService.getSubscriptionPlans();
+              const matchedPlan = plans.find(p => p.id === planId || p.name.toLowerCase() === planId.toLowerCase()) || plans[0];
+              const days = matchedPlan ? matchedPlan.duration_days : 30;
+
+              await dbService.updateUserSubscription(confirmedPayment.user_id, matchedPlan ? matchedPlan.id : 'Pro Plan', days);
+              console.log(`[Subscription Engine]: Auto-activated subscription for user ${confirmedPayment.user_id} (+${days} days)!`);
+            }
+
             PaymentService.triggerWebhook(confirmedPayment).catch(() => {});
 
             // Dispatch automated Payment Confirmation Receipt email to customer and merchant

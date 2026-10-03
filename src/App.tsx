@@ -24,6 +24,14 @@ import {
   Activity,
   User as UserIcon,
   Sparkles,
+  ShoppingBag,
+  Box,
+  Zap,
+  Wallet,
+  Link2,
+  CreditCard,
+  LayoutGrid,
+  Plus
 } from 'lucide-react';
 
 const MainAppContent: React.FC = () => {
@@ -167,7 +175,7 @@ const MainAppContent: React.FC = () => {
             </div>
           </div>
 
-          {/* Right Controls: Live Visitors Badge + Profile Avatar + LOG OUT */}
+          {/* Right Controls: Live Visitors Badge + Profile Avatar */}
           <div className="flex items-center gap-3">
             {/* Live Visitors Real-time Indicator */}
             <button
@@ -191,7 +199,7 @@ const MainAppContent: React.FC = () => {
             <div
               onClick={() => setCurrentNav('profile')}
               className="flex items-center gap-2.5 p-1.5 rounded-xl bg-slate-900/80 hover:bg-slate-800 border border-slate-800 cursor-pointer transition-colors"
-              title="View Profile & Photo Album"
+              title="View Profile"
             >
               {user.avatar_url ? (
                 <img

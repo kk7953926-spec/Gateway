@@ -1,14 +1,21 @@
 import React, { useState, useEffect } from 'react';
-import { Search, CreditCard, RefreshCw, Zap, Download } from 'lucide-react';
+import { Search, CreditCard, RefreshCw, Zap, Download, ShieldCheck, CheckCircle2 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { OrderTransactionRecord } from '../types';
+import { collection, query, where, onSnapshot } from 'firebase/firestore';
+import { db } from '../firebase/config';
+import { generateTransactionPdfReport } from '../utils/pdfGenerator';
 
 export const TransactionsView: React.FC = () => {
-  const { token } = useAuth();
+  const { user, token } = useAuth();
   const [activeTab, setActiveTab] = useState<'All' | 'Created' | 'Captured' | 'Expired' | 'Failed'>('All');
   const [searchTerm, setSearchTerm] = useState('');
   const [transactions, setTransactions] = useState<OrderTransactionRecord[]>([]);
+  const [reconciling, setReconciling] = useState(false);
+  const [verifyingTxnId, setVerifyingTxnId] = useState<string | null>(null);
+  const [syncMsg, setSyncMsg] = useState<string | null>(null);
 
+  // 1. Fetch transactions via REST API
   const fetchTransactions = async () => {
     if (!token) return;
     try {
@@ -24,165 +31,236 @@ export const TransactionsView: React.FC = () => {
     }
   };
 
+  // 2. Real-Time Firestore Listener for Live Transaction Updates
   useEffect(() => {
     fetchTransactions();
-  }, [token]);
+
+    if (!user?.id) return;
+
+    try {
+      const q = query(
+        collection(db, 'upi_payments'),
+        where('user_id', '==', user.id)
+      );
+
+      const unsubscribe = onSnapshot(
+        q,
+        (snapshot) => {
+          if (!snapshot.empty) {
+            const fsUpdates: Record<string, any> = {};
+            snapshot.docs.forEach((docSnap) => {
+              fsUpdates[docSnap.id] = docSnap.data();
+            });
+
+            setTransactions((prev) => {
+              if (prev.length === 0) return prev;
+              return prev.map((item) => {
+                const fsData = fsUpdates[item.id];
+                if (fsData) {
+                  return {
+                    ...item,
+                    status: fsData.status || item.status,
+                    confirmed_at: fsData.confirmed_at || item.confirmed_at,
+                    transaction_ref: fsData.transaction_ref || (item as any).transaction_ref,
+                  };
+                }
+                return item;
+              });
+            });
+          }
+        },
+        (err) => {
+          console.warn('[TransactionsView Listener Notice]:', err.message);
+        }
+      );
+
+      return () => unsubscribe();
+    } catch {
+      // Fallback
+    }
+  }, [user?.id, token]);
+
+  // 3. Active Background Gateway Engine Verification for Pending API Transactions
+  useEffect(() => {
+    if (!token || transactions.length === 0) return;
+
+    const pendingItems = transactions.filter(
+      (t) => t.status === 'CREATED' || t.status === 'PENDING'
+    );
+    if (pendingItems.length === 0) return;
+
+    const poller = setInterval(async () => {
+      for (const t of pendingItems.slice(0, 3)) {
+        try {
+          const res = await fetch(`/api/payment/sync/${t.id}`, {
+            method: 'POST',
+            headers: { Authorization: `Bearer ${token}` },
+          });
+
+          if (res.ok) {
+            const data = await res.json();
+            if (data.status === 'CONFIRMED' || data.status === 'CAPTURED') {
+              setTransactions((prev) =>
+                prev.map((item) =>
+                  item.id === t.id
+                    ? {
+                        ...item,
+                        status: 'CAPTURED',
+                        confirmed_at: data.payment?.confirmed_at || new Date().toISOString(),
+                      }
+                    : item
+                )
+              );
+            }
+          }
+        } catch {
+          // Ignore
+        }
+      }
+    }, 8000);
+
+    return () => clearInterval(poller);
+  }, [token, transactions]);
+
+  // 4. Manual Single Transaction Verification Against Gateway Engine
+  const handleVerifySingle = async (txnId: string) => {
+    if (!token) return;
+    setVerifyingTxnId(txnId);
+    setSyncMsg(`Verifying ${txnId} against Gateway Engine...`);
+
+    try {
+      const res = await fetch(`/api/payment/sync/${txnId}`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        if (data.status === 'CONFIRMED' || data.status === 'CAPTURED') {
+          setSyncMsg(`✓ Transaction ${txnId} verified & confirmed! Bank Ref: ${data.payment?.transaction_ref || 'Confirmed'}`);
+          fetchTransactions();
+        } else {
+          setSyncMsg(`ℹ Gateway Engine Status for ${txnId}: PENDING (No matching payment credit alert found in Gmail).`);
+        }
+      } else {
+        setSyncMsg(`Failed to query gateway for ${txnId}.`);
+      }
+    } catch {
+      setSyncMsg(`Error verifying transaction ${txnId}.`);
+    } finally {
+      setVerifyingTxnId(null);
+      setTimeout(() => setSyncMsg(null), 5000);
+    }
+  };
+
+  // 5. Bulk Reconciliation
+  const handleReconcilePending = async () => {
+    if (!token) return;
+    setReconciling(true);
+    setSyncMsg('Running Gateway Engine cross-referencing auto-sync...');
+    try {
+      const res = await fetch('/api/payment/reconcile', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setSyncMsg(data.message || 'Reconciliation complete.');
+        fetchTransactions();
+      }
+    } catch {
+      setSyncMsg('Reconciliation failed.');
+    } finally {
+      setReconciling(false);
+      setTimeout(() => setSyncMsg(null), 4000);
+    }
+  };
 
   const handleDownloadSalesReport = () => {
-    const printWindow = window.open('', '_blank');
-    if (!printWindow) return;
-
-    const rowsHtml = filtered
-      .map(
-        (t) => `
-        <tr>
-          <td>${t.id || ''}</td>
-          <td>${t.upi_id || ''}</td>
-          <td>₹${(Number(t.amount) || 0).toFixed(2)}</td>
-          <td>${t.status || 'PENDING'}</td>
-          <td>${t.created_at ? new Date(t.created_at).toLocaleDateString() : ''}</td>
-        </tr>
-      `
-      )
-      .join('');
-
-    printWindow.document.write(`
-      <html>
-        <head>
-          <title>Monthly Sales Report</title>
-          <style>
-            body { font-family: sans-serif; padding: 40px; color: #333; }
-            h1 { text-align: center; margin-bottom: 5px; font-size: 24px; color: #1e1b4b; }
-            p.sub { text-align: center; font-size: 12px; color: #666; margin-bottom: 30px; }
-            table { border-collapse: collapse; margin-top: 20px; font-size: 12px; }
-            th, td { border: 1px solid #ddd; padding: 10px; text-align: left; }
-            th { background-color: #f3f4f6; font-weight: bold; }
-            .total { font-size: 16px; font-weight: bold; text-align: right; margin-top: 30px; }
-            .footer { text-align: center; font-size: 10px; color: #999; margin-top: 50px; }
-          </style>
-        </head>
-        <body onload="window.print(); window.close();">
-          <h1>MONTHLY SALES REPORT</h1>
-          <p class="sub">Generated on ${new Date().toLocaleDateString()} | Filter: ${activeTab}</p>
-          <table style="width: 100%;">
-            <thead>
-              <tr>
-                <th>Order ID</th>
-                <th>UPI ID</th>
-                <th>Amount</th>
-                <th>Status</th>
-                <th>Date</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${rowsHtml}
-            </tbody>
-          </table>
-          <div class="total">Total Collected: ₹${(Number(totalCapturedAmount) || 0).toFixed(2)}</div>
-          <div class="footer">FamGateway.in - Secure Zero-Fee Instant Payments</div>
-        </body>
-      </html>
-    `);
-    printWindow.document.close();
+    generateTransactionPdfReport(filtered, activeTab, user?.name || 'FamGateway Merchant');
   };
 
   const filtered = transactions.filter((t) => {
-    if (activeTab === 'Captured' && t.status !== 'CAPTURED') return false;
-    if (activeTab === 'Created' && t.status !== 'CREATED' && t.status !== 'PENDING') return false;
-    if (activeTab === 'Expired' && t.status !== 'EXPIRED') return false;
-    if (activeTab === 'Failed' && t.status !== 'FAILED') return false;
+    if (activeTab === 'Created') if (t.status !== 'CREATED' && t.status !== 'PENDING') return false;
+    if (activeTab === 'Captured') if (t.status !== 'CAPTURED') return false;
+    if (activeTab === 'Expired') if (t.status !== 'EXPIRED') return false;
+    if (activeTab === 'Failed') if (t.status !== 'FAILED') return false;
 
-    if (searchTerm) {
+    if (searchTerm.trim()) {
       const q = searchTerm.toLowerCase();
-      return (
-        (t.id && t.id.toLowerCase().includes(q)) ||
-        (t.upi_id && t.upi_id.toLowerCase().includes(q)) ||
-        (t.user_email && t.user_email.toLowerCase().includes(q))
-      );
+      const idMatch = t.id && t.id.toLowerCase().includes(q);
+      const upiMatch = t.upi_id && t.upi_id.toLowerCase().includes(q);
+      const refMatch = (t as any).transaction_ref && String((t as any).transaction_ref).toLowerCase().includes(q);
+      return idMatch || upiMatch || refMatch;
     }
     return true;
   });
 
-  const totalCapturedAmount = transactions
-    .filter((t) => t.status === 'CAPTURED')
-    .reduce((acc, curr) => acc + (Number(curr?.amount) || 0), 0);
-
   return (
-    <div className="space-y-6 max-w-5xl mx-auto">
-      <div>
-        <h1 className="text-2xl font-extrabold text-slate-900 tracking-tight">Transactions</h1>
-        <p className="text-xs text-slate-500 mt-1">View and manage all your payments.</p>
-      </div>
-
-      {/* Summary Card */}
-      <div className="p-6 rounded-3xl bg-white border border-slate-200 shadow-sm space-y-4">
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-200 pb-5">
         <div>
-          <div className="text-xs font-semibold text-slate-500">Collected Amount</div>
-          <div className="text-3xl font-extrabold text-slate-900 font-mono mt-1">
-            ₹{(Number(totalCapturedAmount) || 0).toFixed(2)}
-          </div>
-          <div className="text-xs text-slate-500 mt-0.5">
-            from {transactions.filter((t) => t.status === 'CAPTURED').length} captured payments
-          </div>
-        </div>
-
-        <div className="p-3 rounded-xl bg-indigo-50 border border-indigo-100 text-indigo-800 text-xs font-medium flex items-center gap-2">
-          <Zap className="w-4 h-4 text-indigo-600 shrink-0" />
-          <span>⚡ 100% of payments are settled instantly to your bank account with 0% fee.</span>
-        </div>
-
-        {/* Donut split */}
-        <div className="pt-2 border-t border-slate-100 flex items-center justify-between">
-          <div className="text-xs font-bold text-slate-700">Split by payment method</div>
-          <div className="flex items-center gap-2 text-xs font-mono text-indigo-700 font-bold">
-            <span className="w-2.5 h-2.5 rounded-full bg-indigo-600" />
-            <span>UPI 100%</span>
-          </div>
+          <h1 className="text-xl font-black text-slate-900 tracking-tight flex items-center gap-2">
+            <CreditCard className="w-5 h-5 text-indigo-600" />
+            Transactions Engine
+          </h1>
+          <p className="text-xs text-slate-500 mt-1">
+            Real-time transaction stream with automated Gateway Engine verification.
+          </p>
         </div>
       </div>
 
-      {/* Transactions List Card */}
-      <div className="p-6 rounded-3xl bg-white border border-slate-200 shadow-sm space-y-4">
+      {/* Content Card */}
+      <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm space-y-4">
         {/* Tabs */}
-        <div className="flex items-center gap-1 border-b border-slate-200 pb-2 overflow-x-auto">
-          {['All', 'Created', 'Captured', 'Expired', 'Failed'].map((tab) => (
+        <div className="flex border-b border-slate-200 gap-6 text-xs font-mono">
+          {(['All', 'Created', 'Captured', 'Expired', 'Failed'] as const).map((tab) => (
             <button
               key={tab}
-              onClick={() => setActiveTab(tab as any)}
-              className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all shrink-0 ${
+              onClick={() => setActiveTab(tab)}
+              className={`pb-3 font-bold cursor-pointer transition-colors ${
                 activeTab === tab
-                  ? 'bg-indigo-600 text-white shadow-xs'
-                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+                  ? 'border-b-2 border-indigo-600 text-indigo-700'
+                  : 'text-slate-400 hover:text-slate-600'
               }`}
             >
-              {tab}
+              {tab === 'Created' ? 'Pending' : tab}
             </button>
           ))}
         </div>
 
-        {/* Filters and search */}
+        {/* Filters and Search */}
         <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
           <div className="relative w-full sm:w-72">
             <input
               type="text"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder="Search in Order ID..."
+              placeholder="Search in Order ID, UTR, UPI..."
               className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:outline-none focus:border-indigo-600"
             />
             <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
           </div>
 
-          <div className="flex items-center gap-2 text-xs text-slate-500 font-mono w-full sm:w-auto justify-end">
+          <div className="flex items-center gap-2 text-xs text-slate-500 font-mono w-full sm:w-auto justify-end flex-wrap">
+            <button
+              onClick={handleReconcilePending}
+              disabled={reconciling}
+              className="px-3.5 py-2 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 hover:bg-emerald-100 flex items-center gap-1 font-bold cursor-pointer transition-all disabled:opacity-50"
+              title="Auto-Sync & Cross-Reference Pending Orders"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${reconciling ? 'animate-spin' : ''}`} />
+              <span>{reconciling ? 'Syncing...' : '⚡ Sync & Reconcile'}</span>
+            </button>
             <button
               onClick={handleDownloadSalesReport}
               className="px-3.5 py-2 rounded-xl bg-purple-50 border border-purple-200 text-purple-700 hover:bg-purple-100 flex items-center gap-1 font-bold cursor-pointer"
               title="Download PDF Report"
             >
               <Download className="w-3.5 h-3.5" />
-              <span>Download PDF Report</span>
+              <span>Download PDF</span>
             </button>
-            <span className="bg-slate-100 px-3 py-1.5 rounded-xl border border-slate-200">Last 30 Days</span>
             <button
               onClick={fetchTransactions}
               className="p-2 rounded-xl bg-slate-100 border border-slate-200 hover:bg-slate-200 text-slate-700"
@@ -192,6 +270,13 @@ export const TransactionsView: React.FC = () => {
           </div>
         </div>
 
+        {syncMsg && (
+          <div className="p-3 rounded-2xl bg-indigo-50 border border-indigo-200 text-indigo-900 text-xs font-mono font-bold flex items-center gap-2">
+            <Zap className="w-4 h-4 text-indigo-600 animate-pulse shrink-0" />
+            <span>{syncMsg}</span>
+          </div>
+        )}
+
         {/* Transactions Table / Empty State */}
         {filtered.length > 0 ? (
           <div className="overflow-x-auto">
@@ -199,32 +284,78 @@ export const TransactionsView: React.FC = () => {
               <thead>
                 <tr className="text-slate-500 border-b border-slate-200">
                   <th className="pb-3">Order ID</th>
-                  <th className="pb-3">UPI ID</th>
+                  <th className="pb-3">Source</th>
+                  <th className="pb-3">Merchant UPI</th>
                   <th className="pb-3">Amount</th>
                   <th className="pb-3">Status</th>
+                  <th className="pb-3">Gateway Check</th>
                   <th className="pb-3">Date</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {filtered.map((t, idx) => (
-                  <tr key={`${t.id || 'txn'}-${t.created_at || ''}-${idx}`} className="hover:bg-slate-50 transition-colors">
-                    <td className="py-3 font-bold text-indigo-700">{t.id}</td>
-                    <td className="py-3 text-slate-700">{t.upi_id}</td>
-                    <td className="py-3 font-bold text-slate-900">₹{(Number(t?.amount) || 0).toFixed(2)}</td>
-                    <td className="py-3">
-                      {t.status === 'CAPTURED' ? (
-                        <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300">
-                          CAPTURED ✓
-                        </span>
-                      ) : (
-                        <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-300">
-                          {t.status}
-                        </span>
-                      )}
-                    </td>
-                    <td className="py-3 text-slate-500">{t.created_at ? new Date(t.created_at).toLocaleString() : 'N/A'}</td>
-                  </tr>
-                ))}
+                {filtered.map((t, idx) => {
+                  const txnId = t?.id || '';
+                  const isApiOnly =
+                    t?.source === 'API_ONLY' ||
+                    Boolean(txnId && typeof txnId === 'string' && txnId.startsWith('txn_')) ||
+                    Boolean(t?.note && typeof t.note === 'string' && t.note.includes('Order'));
+
+                  const isCaptured = t.status === 'CAPTURED';
+
+                  return (
+                    <tr key={`${t.id || 'txn'}-${t.created_at || ''}-${idx}`} className="hover:bg-slate-50 transition-colors">
+                      <td className="py-3 font-bold text-indigo-700">
+                        {t.id}
+                        {(t as any)?.transaction_ref && (
+                          <div className="text-[10px] text-slate-400 font-normal">
+                            UTR: {(t as any).transaction_ref}
+                          </div>
+                        )}
+                      </td>
+                      <td className="py-3">
+                        {isApiOnly ? (
+                          <span className="px-1.5 py-0.5 rounded text-[9px] font-black uppercase bg-purple-100 text-purple-800 border border-purple-200" title="API Transaction (No public payment link generated)">
+                            API_ONLY
+                          </span>
+                        ) : (
+                          <span className="px-1.5 py-0.5 rounded text-[9px] font-black uppercase bg-slate-100 text-slate-700 border border-slate-200" title="Merchant Created Payment Link">
+                            MERCHANT_LINK
+                          </span>
+                        )}
+                      </td>
+                      <td className="py-3 text-slate-700">{t.upi_id}</td>
+                      <td className="py-3 font-bold text-slate-900">₹{(Number(t?.amount) || 0).toFixed(2)}</td>
+                      <td className="py-3">
+                        {isCaptured ? (
+                          <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300 inline-flex items-center gap-1">
+                            <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                            CONFIRMED ✓
+                          </span>
+                        ) : (
+                          <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-300">
+                            {t.status}
+                          </span>
+                        )}
+                      </td>
+                      <td className="py-3">
+                        {isCaptured ? (
+                          <span className="text-[10px] text-slate-400 font-sans">Verified by Engine</span>
+                        ) : (
+                          <button
+                            onClick={() => handleVerifySingle(t.id)}
+                            disabled={verifyingTxnId === t.id}
+                            className="px-2 py-1 rounded-lg bg-indigo-50 border border-indigo-200 text-indigo-700 hover:bg-indigo-100 text-[10px] font-bold flex items-center gap-1 cursor-pointer transition-all disabled:opacity-50"
+                            title="Verify against Gateway IMAP Engine"
+                          >
+                            <ShieldCheck className={`w-3 h-3 ${verifyingTxnId === t.id ? 'animate-spin' : ''}`} />
+                            <span>{verifyingTxnId === t.id ? 'Verifying...' : 'Verify Engine'}</span>
+                          </button>
+                        )}
+                      </td>
+                      <td className="py-3 text-slate-500">{t.created_at ? new Date(t.created_at).toLocaleString() : 'N/A'}</td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
