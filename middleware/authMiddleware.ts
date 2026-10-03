@@ -72,33 +72,46 @@ export async function requireAdmin(req: AuthenticatedRequest, res: Response, nex
 }
 
 export async function requireApiKey(req: AuthenticatedRequest, res: Response, next: NextFunction) {
-  let apiKey = 
-    (req.headers['x-api-key'] as string) || 
-    (req.headers['X-Api-Key'] as string) || 
-    (req.query.api_key as string) || 
-    (req.body && req.body.api_key);
+  let rawKey: any = 
+    req.headers['x-api-key'] || 
+    req.headers['X-Api-Key'] || 
+    req.headers['x-apikey'] || 
+    req.headers['api-key'] || 
+    req.headers['apikey'] || 
+    req.headers['key'] || 
+    req.query.api_key || 
+    req.query.apiKey || 
+    req.query.key || 
+    req.query.token || 
+    (req.body && (req.body.api_key || req.body.apiKey || req.body.key || req.body.token || req.body.secret_key));
 
-  if (!apiKey && req.headers.authorization) {
-    const auth = req.headers.authorization;
-    if (auth.startsWith('Bearer fam_') || auth.startsWith('Bearer fgw_')) {
-      apiKey = auth.split(' ')[1];
-    } else if (auth.startsWith('fam_') || auth.startsWith('fgw_')) {
-      apiKey = auth;
+  if (!rawKey && req.headers.authorization) {
+    const auth = String(req.headers.authorization).trim();
+    if (auth.toLowerCase().startsWith('bearer ')) {
+      rawKey = auth.substring(7).trim();
+    } else {
+      rawKey = auth;
     }
   }
 
-  if (!apiKey) {
+  let cleanKey = rawKey ? String(rawKey).trim().replace(/^["']|["']$/g, '') : '';
+
+  if (!cleanKey) {
     return res.status(401).json({
+      status: 'unauthorized',
       success: false,
-      error: 'API Key is missing. Please provide it in X-Api-Key header or api_key parameter.',
+      message: 'Invalid api_key: Missing API key. Pass X-Api-Key header or api_key parameter.',
+      error: 'API Key is missing.',
     });
   }
 
-  const user = await dbService.findUserByApiKey(String(apiKey).trim());
+  const user = await dbService.findUserByApiKey(cleanKey);
 
   if (!user) {
     return res.status(401).json({
+      status: 'unauthorized',
       success: false,
+      message: 'Invalid api_key',
       error: 'Invalid API Key.',
     });
   }

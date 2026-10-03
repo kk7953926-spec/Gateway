@@ -8,9 +8,21 @@ const router = Router();
 // Canonical REST API & Query Alias Endpoints
 router.post('/create-order', requireApiKey, PaymentController.createApiOrder);
 router.get('/create-order', requireApiKey, PaymentController.createApiOrder);
+router.post('/create_order', requireApiKey, PaymentController.createApiOrder);
+router.get('/create_order', requireApiKey, PaymentController.createApiOrder);
+router.post('/create-order.php', requireApiKey, PaymentController.createApiOrder);
+router.get('/create-order.php', requireApiKey, PaymentController.createApiOrder);
+
 router.get('/qr.php', requireApiKey, PaymentController.createApiOrder);
 router.post('/qr.php', requireApiKey, PaymentController.createApiOrder);
+router.get('/qr', requireApiKey, PaymentController.createApiOrder);
+router.post('/qr', requireApiKey, PaymentController.createApiOrder);
+router.get('/get_qr.php', requireApiKey, PaymentController.createApiOrder);
+router.get('/get_qr', requireApiKey, PaymentController.createApiOrder);
+
 router.get('/order-status/:id', requireApiKey, PaymentController.getApiOrderStatus);
+router.get('/order_status/:id', requireApiKey, PaymentController.getApiOrderStatus);
+router.get('/order/status/:id', requireApiKey, PaymentController.getApiOrderStatus);
 
 // Merchant Integration routes
 router.post('/integrations/imap', requireAuth, IntegrationController.saveImap);
