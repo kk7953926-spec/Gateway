@@ -24,4 +24,9 @@ router.post('/subscription-plans/toggle', requireAdmin, AdminController.toggleSu
 router.post('/users/assign-subscription', requireAdmin, AdminController.assignSubscription);
 router.post('/users/update-role', requireAdmin, AdminController.updateUserRole);
 
+// IMAP Live Health Inspector & Mail Server Debugger
+router.get('/imap-status', requireAdmin, AdminController.getImapStatus);
+router.post('/test-merchant-imap', requireAdmin, AdminController.testMerchantImap);
+router.post('/debug-mail-server', requireAdmin, AdminController.debugMailServer);
+
 export default router;

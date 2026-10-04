@@ -44,6 +44,7 @@ export class PaymentController {
           description: link.description || '',
           merchant_name: merchantName,
           merchant_upi_id: merchantUpi,
+          backup_upi_id: merchant?.backup_upi_id || null,
           upi_uri: upiUri,
           status: effectiveStatus,
           created_at: link.created_at,
@@ -88,6 +89,7 @@ export class PaymentController {
         description: `Order Ref: ${payment.transaction_ref || payment.id}`,
         merchant_name: merchantName,
         merchant_upi_id: merchantUpi,
+        backup_upi_id: merchant?.backup_upi_id || null,
         upi_uri: upiUri,
         qr_data_url: payment.qr_data_url,
         status: effectiveStatus,
@@ -1063,5 +1065,70 @@ export class PaymentController {
     } as unknown as Request;
 
     return PaymentController.handleGatewayWebhook(mockReq, res);
+  }
+
+  /**
+   * POST /api/payment/send-receipt
+   * Sends the official payment confirmation receipt to the requested email address
+   */
+  public static async sendReceipt(req: Request, res: Response) {
+    dbService.incrementApiRequests();
+    const { paymentId, email } = req.body || {};
+
+    if (!paymentId) {
+      return res.status(400).json({ success: false, error: 'Payment ID or Order Ref is required.' });
+    }
+
+    if (!email || !email.includes('@')) {
+      return res.status(400).json({ success: false, error: 'Please enter a valid email address.' });
+    }
+
+    let payment = await dbService.getPaymentById(paymentId);
+    let link: any = null;
+
+    if (!payment) {
+      payment = await dbService.getPaymentByRef(paymentId);
+    }
+
+    if (!payment) {
+      link = await dbService.getPaymentLinkById(paymentId);
+    }
+
+    const amount = Number(payment?.amount || link?.amount || 0);
+    const upiId = payment?.upi_id || link?.merchant_upi_id || 'merchant@fam';
+    const txnRef = payment?.id || link?.id || paymentId;
+    const utr = payment?.transaction_ref || 'Auto-Captured';
+    const merchantId = payment?.user_id || link?.user_id;
+    const merchant = merchantId ? await dbService.findUserById(merchantId) : null;
+    const merchantName = merchant?.checkout_settings?.brand_name || merchant?.name || 'FamGateway Merchant';
+
+    try {
+      const emailResult = await EmailService.sendPaymentReceiptEmail({
+        toEmail: email.trim(),
+        amount,
+        upiId,
+        transactionRef: txnRef,
+        utr,
+        note: payment?.note || link?.title || 'UPI Payment Order',
+        merchantName,
+      });
+
+      return res.status(200).json({
+        success: true,
+        message: `Official payment receipt successfully sent to ${email.trim()}!`,
+        receipt: {
+          to: email.trim(),
+          amount,
+          utr,
+          transactionRef: txnRef,
+          merchantName,
+        },
+      });
+    } catch (e: any) {
+      return res.status(500).json({
+        success: false,
+        error: 'Failed to send receipt: ' + (e?.message || 'Email delivery error'),
+      });
+    }
   }
 }

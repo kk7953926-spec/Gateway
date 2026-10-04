@@ -1,4 +1,4 @@
-import { dbService, UpiPaymentRecord } from '../database/db.ts';
+import { dbService, UpiPaymentRecord, PaymentLinkRecord } from '../database/db.ts';
 import { PaymentService } from './paymentService.ts';
 import { ImapService } from './imapService.ts';
 
@@ -90,10 +90,11 @@ export class PaymentSyncService {
   }
 
   /**
-   * Runs a single reconciliation cycle across all recent PENDING payments.
+   * Runs a single reconciliation cycle across all recent PENDING payments and ACTIVE payment links.
    */
   public static async runSyncCycle(): Promise<{ checked: number; confirmed: number }> {
     const allPayments = await dbService.getAllPayments();
+    const allLinks = await dbService.getAllPaymentLinks();
     const now = Date.now();
     const maxAgeMs = 25 * 60 * 1000; // Look back up to 25 minutes
 
@@ -103,15 +104,22 @@ export class PaymentSyncService {
       return now - createdAt < maxAgeMs;
     });
 
-    if (pendingPayments.length === 0) {
+    const activeLinks = allLinks.filter((l) => {
+      if (l.status !== 'ACTIVE') return false;
+      const createdAt = new Date(l.created_at).getTime();
+      return now - createdAt < maxAgeMs;
+    });
+
+    if (pendingPayments.length === 0 && activeLinks.length === 0) {
       return { checked: 0, confirmed: 0 };
     }
 
     let confirmedCount = 0;
 
+    // 1. Sync pending direct payments
     for (const payment of pendingPayments) {
       try {
-        const sinceTimestamp = new Date(payment.created_at).getTime() - 300000;
+        const sinceTimestamp = new Date(payment.created_at).getTime() - 4 * 3600 * 1000;
         const res = await PaymentService.autoDetectAndConfirm(payment.id, payment.amount, sinceTimestamp);
 
         if (res.status === 'CONFIRMED') {
@@ -119,11 +127,25 @@ export class PaymentSyncService {
           this.cancelScheduledSync(payment.id);
         }
       } catch {
-        // Continue to next payment
+        // Continue
       }
     }
 
-    return { checked: pendingPayments.length, confirmed: confirmedCount };
+    // 2. Sync active checkout payment links
+    for (const link of activeLinks) {
+      try {
+        const sinceTimestamp = new Date(link.created_at).getTime() - 4 * 3600 * 1000;
+        const res = await PaymentService.autoDetectAndConfirm(link.id, link.amount, sinceTimestamp);
+
+        if (res.status === 'CONFIRMED') {
+          confirmedCount++;
+        }
+      } catch {
+        // Continue
+      }
+    }
+
+    return { checked: pendingPayments.length + activeLinks.length, confirmed: confirmedCount };
   }
 
   /**

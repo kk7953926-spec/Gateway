@@ -10,6 +10,8 @@ import {
   RefreshCw,
   Server,
   Settings2,
+  Activity,
+  Copy,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { DebugView } from '../components/DebugView';
@@ -18,10 +20,23 @@ export const IntegrationsView: React.FC = () => {
   const { user, token, refreshProfile } = useAuth();
   const [fampayGmail, setFampayGmail] = useState(user?.fampay_gmail || user?.email || 'kalam172010@gmail.com');
   const [fampayUpiId, setFampayUpiId] = useState(user?.fampay_upi_id || '8056317218@fam');
+  const [backupUpiId, setBackupUpiId] = useState(user?.backup_upi_id || '');
+  const [savingUpi, setSavingUpi] = useState(false);
+  const [upiSuccessMsg, setUpiSuccessMsg] = useState<string | null>(null);
+  const [upiError, setUpiError] = useState<string | null>(null);
   const [appPassword, setAppPassword] = useState(user?.google_app_password || '');
   const [imapHost, setImapHost] = useState(user?.imap_host || 'imap.gmail.com');
   const [imapPort, setImapPort] = useState(user?.imap_port || 993);
   const [showAdvanced, setShowAdvanced] = useState(false);
+  const [copiedKeepAlive, setCopiedKeepAlive] = useState(false);
+
+  const healthUrl = `${window.location.origin}/health`;
+
+  const handleCopyHealth = () => {
+    navigator.clipboard.writeText(healthUrl);
+    setCopiedKeepAlive(true);
+    setTimeout(() => setCopiedKeepAlive(false), 2500);
+  };
 
   const [connecting, setConnecting] = useState(false);
   const [testingImap, setTestingImap] = useState(false);
@@ -130,18 +145,67 @@ export const IntegrationsView: React.FC = () => {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`,
         },
+        body: JSON.stringify({
+          email: fampayGmail.trim(),
+          appPassword: appPassword.replace(/\s+/g, ''),
+          host: imapHost.trim() || undefined,
+          port: Number(imapPort) || 993,
+        }),
       });
 
       const data = await res.json();
       if (res.ok && data.success) {
         setTestResult(`✓ ${data.message}`);
       } else {
-        setError(data.error || 'IMAP test failed. Please verify your App Password.');
+        setError(data.error || 'IMAP test failed. Please verify your App Password and ensure IMAP is enabled in Gmail.');
       }
     } catch {
       setError('Failed to reach server for IMAP test.');
     } finally {
       setTestingImap(false);
+    }
+  };
+
+  const handleSaveUpiOnly = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setUpiError(null);
+    setUpiSuccessMsg(null);
+
+    if (!fampayUpiId || !fampayUpiId.includes('@')) {
+      setUpiError('Please enter a valid Primary UPI ID (e.g. username@fam, merchant@upi).');
+      return;
+    }
+
+    if (backupUpiId.trim() && !backupUpiId.includes('@')) {
+      setUpiError('Backup UPI ID must be a valid UPI ID (e.g. username@okaxis, username@ybl).');
+      return;
+    }
+
+    setSavingUpi(true);
+    try {
+      const res = await fetch('/api/integrations/upi-settings', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          fampayUpiId: fampayUpiId.trim(),
+          backupUpiId: backupUpiId.trim() || undefined,
+        }),
+      });
+
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setUpiSuccessMsg('UPI routing updated successfully! All active checkout pages and QR codes have been refreshed with your updated UPI ID.');
+        refreshProfile();
+      } else {
+        setUpiError(data.error || 'Failed to update UPI ID.');
+      }
+    } catch {
+      setUpiError('Failed to connect to server.');
+    } finally {
+      setSavingUpi(false);
     }
   };
 
@@ -171,13 +235,161 @@ export const IntegrationsView: React.FC = () => {
       </div>
 
       {activeTab === 'Gmail & IMAP' ? (
-        <div className="p-6 rounded-3xl bg-white border border-slate-200 shadow-sm space-y-6">
-          <div className="flex items-center justify-between flex-wrap gap-3 border-b border-slate-100 pb-4">
-            <div>
-              <h2 className="text-base font-bold text-slate-900 flex items-center gap-2">
-                <Mail className="w-5 h-5 text-purple-600" />
-                <span>Automated Real-Time IMAP Verification</span>
-              </h2>
+        <div className="space-y-6">
+          {/* 24/7 Keep-Alive & Continuous IMAP Worker Banner */}
+          <div className="p-5 rounded-3xl bg-gradient-to-r from-purple-900 to-slate-900 text-white shadow-md border border-purple-800/40 space-y-3">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-emerald-500/20 border border-emerald-400/30 flex items-center justify-center shrink-0">
+                  <Activity className="w-5 h-5 text-emerald-400 animate-pulse" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-sm font-bold text-white">24/7 Auto-Confirmation Worker Active</h3>
+                    <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 text-[10px] font-bold border border-emerald-500/30">
+                      RUNNING 24×7
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-300 mt-0.5">
+                    Background listener cross-references incoming FamPay & UPI credit alerts every 5 seconds.
+                  </p>
+                </div>
+              </div>
+
+              {/* Keep-Alive Copy Button */}
+              <button
+                type="button"
+                onClick={handleCopyHealth}
+                className="px-3.5 py-2 rounded-xl bg-white/10 hover:bg-white/20 border border-white/20 text-xs font-semibold text-white flex items-center gap-2 transition-all cursor-pointer shrink-0"
+              >
+                {copiedKeepAlive ? (
+                  <>
+                    <Check className="w-3.5 h-3.5 text-emerald-400" />
+                    <span>Copied 24/7 Keep-Alive URL!</span>
+                  </>
+                ) : (
+                  <>
+                    <Copy className="w-3.5 h-3.5 text-purple-300" />
+                    <span>Copy 24/7 Keep-Alive Ping URL</span>
+                  </>
+                )}
+              </button>
+            </div>
+
+            <div className="pt-2 border-t border-white/10 flex flex-wrap items-center justify-between gap-2 text-[11px] text-slate-300">
+              <span>
+                💡 <strong>Free Host Sleep Prevention:</strong> Paste your Keep-Alive URL (<code className="font-mono text-purple-200">{healthUrl}</code>) into free monitors like <a href="https://uptimerobot.com" target="_blank" rel="noreferrer" className="text-purple-300 underline font-bold">UptimeRobot.com</a> or <a href="https://cron-job.org" target="_blank" rel="noreferrer" className="text-purple-300 underline font-bold">cron-job.org</a> (every 5 mins) to prevent Render/Cloud hosts from sleeping!
+              </span>
+            </div>
+          </div>
+
+          {/* UPI Routing & Transfer Limit Prevention Card */}
+          <div className="p-6 rounded-3xl bg-white border border-slate-200 shadow-sm space-y-5">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-4">
+              <div>
+                <h2 className="text-base font-bold text-slate-900 flex items-center gap-2">
+                  <Server className="w-5 h-5 text-purple-600" />
+                  <span>UPI ID Routing & Daily Limit Protection</span>
+                </h2>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Set your Primary & Backup UPI IDs. Update anytime without re-entering your email password.
+                </p>
+              </div>
+
+              <div className="px-3 py-1 bg-purple-50 rounded-full border border-purple-200 text-purple-700 text-xs font-bold w-fit">
+                Instant QR Sync
+              </div>
+            </div>
+
+            {/* Daily Limit Info Banner */}
+            <div className="p-3.5 rounded-2xl bg-amber-50/80 border border-amber-200 text-amber-900 text-xs flex items-start gap-2.5">
+              <AlertCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+              <div>
+                <p className="font-bold text-amber-950">
+                  Fix for "Daily Transfer Limit Reached" in UPI Apps
+                </p>
+                <p className="text-[11px] text-amber-800 mt-0.5 leading-relaxed">
+                  FamPay and personal wallet accounts have daily NPCI transfer limits (e.g. ₹10,000–₹25,000/day or max count of daily transactions). When your primary UPI ID reaches its daily receiving limit, you can switch to your Bank UPI ID (e.g. <code>@okaxis</code>, <code>@oksbi</code>, <code>@ybl</code>, <code>@paytm</code>) or set a <strong>Backup UPI ID</strong> below so customers can complete payments without errors.
+                </p>
+              </div>
+            </div>
+
+            {upiSuccessMsg && (
+              <div className="p-4 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs flex items-center gap-2.5 animate-in fade-in">
+                <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-600" />
+                <span>{upiSuccessMsg}</span>
+              </div>
+            )}
+
+            {upiError && (
+              <div className="p-4 rounded-2xl bg-rose-50 border border-rose-200 text-rose-700 text-xs flex items-center gap-2.5 animate-in fade-in">
+                <AlertCircle className="w-4 h-4 shrink-0 text-rose-500" />
+                <span>{upiError}</span>
+              </div>
+            )}
+
+            <form onSubmit={handleSaveUpiOnly} className="space-y-4 max-w-xl">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                    Primary UPI ID (VPA) <span className="text-rose-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={fampayUpiId}
+                    onChange={(e) => setFampayUpiId(e.target.value)}
+                    placeholder="e.g. 8056317218@fam"
+                    className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs font-mono text-slate-900 focus:outline-none focus:border-purple-600 font-bold"
+                  />
+                  <span className="text-[10px] text-slate-400 mt-0.5 block">Main account for receiving payments</span>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                    Backup / Alternate UPI ID <span className="text-slate-400 font-normal">(Optional)</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={backupUpiId}
+                    onChange={(e) => setBackupUpiId(e.target.value)}
+                    placeholder="e.g. username@okaxis or @ybl"
+                    className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs font-mono text-slate-900 focus:outline-none focus:border-purple-600 font-semibold"
+                  />
+                  <span className="text-[10px] text-slate-400 mt-0.5 block">Fallback when primary hits daily limit</span>
+                </div>
+              </div>
+
+              <div className="pt-1">
+                <button
+                  type="submit"
+                  disabled={savingUpi}
+                  className="px-5 py-2.5 rounded-2xl bg-purple-600 hover:bg-purple-700 text-white font-extrabold text-xs flex items-center gap-2 shadow-md shadow-purple-600/20 transition-all disabled:opacity-50 cursor-pointer"
+                >
+                  {savingUpi ? (
+                    <>
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      <span>Updating Dynamic QR Routing...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Check className="w-3.5 h-3.5" />
+                      <span>Update UPI Routing & Refresh QR Codes</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </form>
+          </div>
+
+          {/* Email IMAP Automated Listener Connection Card */}
+          <div className="p-6 rounded-3xl bg-white border border-slate-200 shadow-sm space-y-6">
+            <div className="flex items-center justify-between flex-wrap gap-3 border-b border-slate-100 pb-4">
+              <div>
+                <h2 className="text-base font-bold text-slate-900 flex items-center gap-2">
+                  <Mail className="w-5 h-5 text-purple-600" />
+                  <span>Automated Real-Time IMAP Verification</span>
+                </h2>
               <p className="text-xs text-slate-500 mt-0.5">
                 Connects to your mail server via SSL to inspect incoming FamPay / UPI payment alerts
               </p>
@@ -365,6 +577,7 @@ export const IntegrationsView: React.FC = () => {
             </div>
           </form>
         </div>
+      </div>
       ) : (
         <div className="p-6 rounded-3xl bg-white border border-slate-200 shadow-sm space-y-6 text-xs text-slate-700">
           <h2 className="text-base font-bold text-slate-900">

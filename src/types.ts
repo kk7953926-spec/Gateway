@@ -28,6 +28,7 @@ export interface User {
   
   fampay_gmail?: string;
   fampay_upi_id?: string;
+  backup_upi_id?: string;
   google_app_password?: string;
   imap_host?: string;
   imap_port?: number;

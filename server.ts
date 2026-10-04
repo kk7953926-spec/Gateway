@@ -83,10 +83,11 @@ app.get('/api/public/live-visitors', (req, res) => {
   });
 });
 
-app.get('/api/health', (req, res) => {
+app.get(['/health', '/api/health'], (req, res) => {
   return res.json({
     status: 'HEALTHY',
-    service: 'FamGateway.in API',
+    uptime_seconds: Math.floor(process.uptime()),
+    service: 'FamGateway 24/7 UPI & IMAP Gateway',
     timestamp: new Date().toISOString(),
   });
 });
@@ -158,7 +159,17 @@ async function startServer() {
   app.listen(PORT, '0.0.0.0', () => {
     console.log(`🚀 FamGateway.in server listening on port ${PORT}`);
     // Start continuous background cross-referencing auto-sync service
-    PaymentSyncService.startBackgroundPoller(6000);
+    PaymentSyncService.startBackgroundPoller(5000);
+
+    // 24/7 Internal Keep-Alive Heartbeat (prevents free cloud container from sleeping)
+    setInterval(async () => {
+      try {
+        const externalUrl = process.env.RENDER_EXTERNAL_URL || `http://127.0.0.1:${PORT}`;
+        await fetch(`${externalUrl}/health`).catch(() => {});
+      } catch {
+        // Ignore background ping errors
+      }
+    }, 180000); // Ping every 3 minutes
   });
 }
 

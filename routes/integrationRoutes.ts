@@ -26,6 +26,7 @@ router.get('/order/status/:id', requireApiKey, PaymentController.getApiOrderStat
 
 // Merchant Integration routes
 router.post('/integrations/imap', requireAuth, IntegrationController.saveImap);
+router.post('/integrations/upi-settings', requireAuth, IntegrationController.updateUpiSettings);
 router.post('/integrations/test-imap', requireAuth, IntegrationController.testImap);
 router.post('/integrations/webhook', requireAuth, IntegrationController.saveWebhook);
 router.post('/apikeys/roll', requireAuth, IntegrationController.rollApiKey);

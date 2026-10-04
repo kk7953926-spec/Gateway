@@ -1,19 +1,75 @@
-import React, { useState, useEffect } from 'react';
-import { Search, CreditCard, RefreshCw, Zap, Download, ShieldCheck, CheckCircle2 } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import {
+  Search,
+  CreditCard,
+  RefreshCw,
+  Zap,
+  Download,
+  ShieldCheck,
+  CheckCircle2,
+  Activity,
+  AlertCircle,
+  Terminal,
+  ChevronDown,
+  ChevronUp,
+  Clock,
+  Check,
+} from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { OrderTransactionRecord } from '../types';
 import { collection, query, where, onSnapshot } from 'firebase/firestore';
 import { db } from '../firebase/config';
 import { generateTransactionPdfReport } from '../utils/pdfGenerator';
 
+interface DiagnosticLogItem {
+  id: string;
+  time: string;
+  type: 'SYNC' | 'CONFIRM' | 'PENDING' | 'ERROR' | 'HEARTBEAT';
+  message: string;
+  details?: string;
+}
+
 export const TransactionsView: React.FC = () => {
   const { user, token } = useAuth();
   const [activeTab, setActiveTab] = useState<'All' | 'Created' | 'Captured' | 'Expired' | 'Failed'>('All');
   const [searchTerm, setSearchTerm] = useState('');
   const [transactions, setTransactions] = useState<OrderTransactionRecord[]>([]);
+  const transactionsRef = useRef<OrderTransactionRecord[]>([]);
   const [reconciling, setReconciling] = useState(false);
   const [verifyingTxnId, setVerifyingTxnId] = useState<string | null>(null);
   const [syncMsg, setSyncMsg] = useState<string | null>(null);
+
+  // Heartbeat & Diagnostics State
+  const [heartbeatActive, setHeartbeatActive] = useState(true);
+  const [lastHeartbeat, setLastHeartbeat] = useState<Date>(new Date());
+  const [heartbeatCount, setHeartbeatCount] = useState(0);
+  const [showDiagnostics, setShowDiagnostics] = useState(false);
+  const [diagnosticLogs, setDiagnosticLogs] = useState<DiagnosticLogItem[]>([
+    {
+      id: 'init',
+      time: new Date().toLocaleTimeString(),
+      type: 'HEARTBEAT',
+      message: 'Gateway Engine initialized. Background IMAP & Firestore listener active.',
+    },
+  ]);
+
+  // Keep ref synchronized with state
+  useEffect(() => {
+    transactionsRef.current = transactions;
+  }, [transactions]);
+
+  const addDiagnosticLog = (type: DiagnosticLogItem['type'], message: string, details?: string) => {
+    setDiagnosticLogs((prev) => [
+      {
+        id: Math.random().toString(36).substring(2, 9),
+        time: new Date().toLocaleTimeString(),
+        type,
+        message,
+        details,
+      },
+      ...prev.slice(0, 49), // Keep latest 50 logs
+    ]);
+  };
 
   // 1. Fetch transactions via REST API
   const fetchTransactions = async () => {
@@ -24,10 +80,13 @@ export const TransactionsView: React.FC = () => {
       });
       if (res.ok) {
         const data = await res.json();
-        if (data.transactions) setTransactions(data.transactions);
+        if (data.transactions) {
+          setTransactions(data.transactions);
+          setLastHeartbeat(new Date());
+        }
       }
-    } catch {
-      // Ignore
+    } catch (err: any) {
+      addDiagnosticLog('ERROR', 'Failed to fetch transactions from server', err.message);
     }
   };
 
@@ -57,6 +116,13 @@ export const TransactionsView: React.FC = () => {
               return prev.map((item) => {
                 const fsData = fsUpdates[item.id];
                 if (fsData) {
+                  if (fsData.status === 'CONFIRMED' && item.status !== 'CAPTURED') {
+                    addDiagnosticLog(
+                      'CONFIRM',
+                      `Order ${item.id} confirmed via Firestore live sync!`,
+                      `UTR: ${fsData.transaction_ref || 'Captured'}`
+                    );
+                  }
                   return {
                     ...item,
                     status: fsData.status || item.status,
@@ -67,6 +133,7 @@ export const TransactionsView: React.FC = () => {
                 return item;
               });
             });
+            setLastHeartbeat(new Date());
           }
         },
         (err) => {
@@ -80,16 +147,23 @@ export const TransactionsView: React.FC = () => {
     }
   }, [user?.id, token]);
 
-  // 3. Active Background Gateway Engine Verification for Pending API Transactions
+  // 3. Resilient Background Gateway Engine Heartbeat & Auto-Sync Poller
   useEffect(() => {
-    if (!token || transactions.length === 0) return;
-
-    const pendingItems = transactions.filter(
-      (t) => t.status === 'CREATED' || t.status === 'PENDING'
-    );
-    if (pendingItems.length === 0) return;
+    if (!token) return;
 
     const poller = setInterval(async () => {
+      const currentList = transactionsRef.current;
+      const pendingItems = currentList.filter(
+        (t) => t.status === 'CREATED' || t.status === 'PENDING'
+      );
+
+      setLastHeartbeat(new Date());
+      setHeartbeatCount((c) => c + 1);
+
+      if (pendingItems.length === 0) {
+        return;
+      }
+
       for (const t of pendingItems.slice(0, 3)) {
         try {
           const res = await fetch(`/api/payment/sync/${t.id}`, {
@@ -100,6 +174,12 @@ export const TransactionsView: React.FC = () => {
           if (res.ok) {
             const data = await res.json();
             if (data.status === 'CONFIRMED' || data.status === 'CAPTURED') {
+              addDiagnosticLog(
+                'CONFIRM',
+                `Order ${t.id} (₹${t.amount}) auto-confirmed via IMAP Engine!`,
+                `UTR: ${data.payment?.transaction_ref || 'Confirmed'}`
+              );
+
               setTransactions((prev) =>
                 prev.map((item) =>
                   item.id === t.id
@@ -107,26 +187,34 @@ export const TransactionsView: React.FC = () => {
                         ...item,
                         status: 'CAPTURED',
                         confirmed_at: data.payment?.confirmed_at || new Date().toISOString(),
+                        transaction_ref: data.payment?.transaction_ref || (item as any).transaction_ref,
                       }
                     : item
                 )
               );
+            } else {
+              addDiagnosticLog(
+                'PENDING',
+                `Scanned INBOX for Order ${t.id} (₹${t.amount})`,
+                `Status: PENDING • ${data.message || 'No matching credit email received yet'}`
+              );
             }
           }
-        } catch {
-          // Ignore
+        } catch (err: any) {
+          addDiagnosticLog('ERROR', `Auto-sync error on Order ${t.id}`, err.message);
         }
       }
-    }, 8000);
+    }, 6000);
 
     return () => clearInterval(poller);
-  }, [token, transactions]);
+  }, [token]);
 
   // 4. Manual Single Transaction Verification Against Gateway Engine
   const handleVerifySingle = async (txnId: string) => {
     if (!token) return;
     setVerifyingTxnId(txnId);
-    setSyncMsg(`Verifying ${txnId} against Gateway Engine...`);
+    setSyncMsg(`Scanning Gmail IMAP for ${txnId}...`);
+    addDiagnosticLog('SYNC', `Manual IMAP check initiated for ${txnId}`);
 
     try {
       const res = await fetch(`/api/payment/sync/${txnId}`, {
@@ -137,19 +225,24 @@ export const TransactionsView: React.FC = () => {
       if (res.ok) {
         const data = await res.json();
         if (data.status === 'CONFIRMED' || data.status === 'CAPTURED') {
-          setSyncMsg(`✓ Transaction ${txnId} verified & confirmed! Bank Ref: ${data.payment?.transaction_ref || 'Confirmed'}`);
+          const utr = data.payment?.transaction_ref || 'Confirmed';
+          setSyncMsg(`✓ Transaction ${txnId} verified & confirmed! Bank Ref: ${utr}`);
+          addDiagnosticLog('CONFIRM', `Transaction ${txnId} successfully verified!`, `Bank Ref: ${utr}`);
           fetchTransactions();
         } else {
-          setSyncMsg(`ℹ Gateway Engine Status for ${txnId}: PENDING (No matching payment credit alert found in Gmail).`);
+          setSyncMsg(`ℹ Status for ${txnId}: PENDING (${data.message || 'No matching payment credit alert found in Gmail inbox'}).`);
+          addDiagnosticLog('PENDING', `IMAP Check Result for ${txnId}`, data.message || 'No matching email in INBOX');
         }
       } else {
         setSyncMsg(`Failed to query gateway for ${txnId}.`);
+        addDiagnosticLog('ERROR', `Failed to query gateway for ${txnId}`);
       }
-    } catch {
+    } catch (err: any) {
       setSyncMsg(`Error verifying transaction ${txnId}.`);
+      addDiagnosticLog('ERROR', `Error verifying ${txnId}`, err.message);
     } finally {
       setVerifyingTxnId(null);
-      setTimeout(() => setSyncMsg(null), 5000);
+      setTimeout(() => setSyncMsg(null), 6000);
     }
   };
 
@@ -158,6 +251,8 @@ export const TransactionsView: React.FC = () => {
     if (!token) return;
     setReconciling(true);
     setSyncMsg('Running Gateway Engine cross-referencing auto-sync...');
+    addDiagnosticLog('SYNC', 'Bulk reconciliation triggered across all pending orders');
+
     try {
       const res = await fetch('/api/payment/reconcile', {
         method: 'POST',
@@ -166,19 +261,31 @@ export const TransactionsView: React.FC = () => {
       if (res.ok) {
         const data = await res.json();
         setSyncMsg(data.message || 'Reconciliation complete.');
+        addDiagnosticLog(
+          'SYNC',
+          `Reconciliation completed: checked ${data.checked} orders, confirmed ${data.confirmed}`,
+          data.message
+        );
         fetchTransactions();
       }
-    } catch {
+    } catch (err: any) {
       setSyncMsg('Reconciliation failed.');
+      addDiagnosticLog('ERROR', 'Bulk reconciliation failed', err.message);
     } finally {
       setReconciling(false);
-      setTimeout(() => setSyncMsg(null), 4000);
+      setTimeout(() => setSyncMsg(null), 5000);
     }
   };
 
   const handleDownloadSalesReport = () => {
     generateTransactionPdfReport(filtered, activeTab, user?.name || 'FamGateway Merchant');
   };
+
+  const pendingCount = transactions.filter(
+    (t) => t.status === 'CREATED' || t.status === 'PENDING'
+  ).length;
+
+  const capturedCount = transactions.filter((t) => t.status === 'CAPTURED').length;
 
   const filtered = transactions.filter((t) => {
     if (activeTab === 'Created') if (t.status !== 'CREATED' && t.status !== 'PENDING') return false;
@@ -209,6 +316,83 @@ export const TransactionsView: React.FC = () => {
             Real-time transaction stream with automated Gateway Engine verification.
           </p>
         </div>
+      </div>
+
+      {/* 24/7 Gateway Engine Heartbeat & Live Diagnostics Banner */}
+      <div className="p-4 sm:p-5 rounded-2xl bg-[#0e1320] border border-slate-800 text-slate-100 shadow-md space-y-3">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <div className="relative w-9 h-9 rounded-xl bg-emerald-500/20 border border-emerald-500/30 flex items-center justify-center shrink-0">
+              <Activity className="w-4 h-4 text-emerald-400 animate-pulse" />
+              <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-emerald-500 rounded-full animate-ping" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-bold text-white font-mono">Gateway Poller: Healthy & Live</span>
+                <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 text-[9px] font-bold border border-emerald-500/30 font-mono">
+                  HEARTBEAT ACTIVE (6s)
+                </span>
+              </div>
+              <div className="text-[11px] text-slate-400 mt-0.5 font-mono flex items-center gap-3">
+                <span>Last Sync: <strong className="text-slate-200">{lastHeartbeat.toLocaleTimeString()}</strong></span>
+                <span>•</span>
+                <span>Pending Orders Monitored: <strong className="text-amber-400">{pendingCount}</strong></span>
+                <span>•</span>
+                <span>Captured: <strong className="text-emerald-400">{capturedCount}</strong></span>
+              </div>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setShowDiagnostics(!showDiagnostics)}
+              className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-xs font-mono text-slate-200 flex items-center gap-1.5 transition-all cursor-pointer"
+            >
+              <Terminal className="w-3.5 h-3.5 text-purple-400" />
+              <span>{showDiagnostics ? 'Hide Live Logs' : 'View Verification Logs'}</span>
+              {showDiagnostics ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+            </button>
+          </div>
+        </div>
+
+        {/* Expandable Live Diagnostics Console */}
+        {showDiagnostics && (
+          <div className="pt-3 border-t border-slate-800/80 space-y-2 animate-in fade-in">
+            <div className="flex items-center justify-between text-[11px] font-mono text-slate-400">
+              <div className="flex items-center gap-2">
+                <Terminal className="w-3 h-3 text-purple-400" />
+                <span className="font-bold text-slate-300">Live Engine Diagnostics & IMAP Inspection Events</span>
+              </div>
+              <span>Total Events: {diagnosticLogs.length}</span>
+            </div>
+
+            <div className="max-h-56 overflow-y-auto rounded-xl bg-[#090d16] border border-slate-800/90 p-3 space-y-1.5 font-mono text-[11px]">
+              {diagnosticLogs.map((log) => {
+                let badgeColor = 'bg-slate-800 text-slate-300 border-slate-700';
+                if (log.type === 'CONFIRM') badgeColor = 'bg-emerald-950 text-emerald-300 border-emerald-700/60';
+                if (log.type === 'ERROR') badgeColor = 'bg-rose-950 text-rose-300 border-rose-700/60';
+                if (log.type === 'PENDING') badgeColor = 'bg-amber-950 text-amber-300 border-amber-700/60';
+                if (log.type === 'SYNC') badgeColor = 'bg-indigo-950 text-indigo-300 border-indigo-700/60';
+
+                return (
+                  <div key={log.id} className="flex items-start gap-2 border-b border-slate-800/40 pb-1.5 last:border-0 last:pb-0">
+                    <span className="text-[10px] text-slate-500 shrink-0 mt-0.5">{log.time}</span>
+                    <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold border shrink-0 ${badgeColor}`}>
+                      {log.type}
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <span className="text-slate-200 font-semibold">{log.message}</span>
+                      {log.details && (
+                        <div className="text-[10px] text-slate-400 truncate">{log.details}</div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Content Card */}
@@ -263,7 +447,7 @@ export const TransactionsView: React.FC = () => {
             </button>
             <button
               onClick={fetchTransactions}
-              className="p-2 rounded-xl bg-slate-100 border border-slate-200 hover:bg-slate-200 text-slate-700"
+              className="p-2 rounded-xl bg-slate-100 border border-slate-200 hover:bg-slate-200 text-slate-700 cursor-pointer"
             >
               <RefreshCw className="w-3.5 h-3.5" />
             </button>

@@ -38,6 +38,7 @@ export interface UserRecord {
   // FamPay IMAP Integration fields
   fampay_gmail?: string;
   fampay_upi_id?: string; // e.g. username@fam or username@yesfam
+  backup_upi_id?: string; // Secondary/Alternate UPI ID (PhonePe/GPay/Bank) when daily limit reached
   google_app_password?: string; // 16-digit Google App Password
   imap_host?: string; // Defaults to imap.gmail.com
   imap_port?: number; // Defaults to 993
@@ -592,6 +593,38 @@ class DatabaseService {
     }
   }
 
+  public async updateUserUpiSettings(id: string, upiId: string, backupUpiId?: string): Promise<void> {
+    const u = await this.findUserById(id);
+    if (u) {
+      u.fampay_upi_id = upiId.trim();
+      u.backup_upi_id = backupUpiId ? backupUpiId.trim() : undefined;
+      u.updated_at = new Date().toISOString();
+      this.usersMap.set(u.id, u);
+
+      // Sync all payment links for this merchant
+      for (const link of this.paymentLinksMap.values()) {
+        if (link.user_id === u.id) {
+          const merchantName = (u.checkout_settings?.brand_name || u.name || 'Merchant').replace(/[^a-zA-Z0-9 ]/g, '').trim().substring(0, 25);
+          link.deep_link = `upi://pay?pa=${u.fampay_upi_id}&pn=${encodeURIComponent(merchantName)}&am=${Number(link.amount).toFixed(2)}&cu=INR&tn=${encodeURIComponent((link.title || 'Payment').replace(/[^a-zA-Z0-9_-]/g, '').substring(0, 30))}`;
+        }
+      }
+
+      // Sync all pending payment records for this merchant
+      for (const payment of this.upiPaymentsMap.values()) {
+        if (payment.user_id === u.id) {
+          payment.upi_id = u.fampay_upi_id;
+        }
+      }
+
+      this.persist();
+      try {
+        await setDoc(doc(db, 'users', u.id), { fampay_upi_id: u.fampay_upi_id, backup_upi_id: u.backup_upi_id || null, updated_at: u.updated_at }, { merge: true });
+      } catch {
+        // Fallback
+      }
+    }
+  }
+
   public async updateUserUpiId(id: string, upiId: string): Promise<void> {
     const u = await this.findUserById(id);
     if (u) {
@@ -990,6 +1023,10 @@ class DatabaseService {
       if (l.user_id === userId && l.source !== 'API_ONLY') list.push(l);
     }
     return list;
+  }
+
+  public async getAllPaymentLinks(): Promise<PaymentLinkRecord[]> {
+    return Array.from(this.paymentLinksMap.values());
   }
 
   // --- Verification Operations ---

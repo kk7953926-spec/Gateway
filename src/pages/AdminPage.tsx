@@ -24,14 +24,18 @@ import {
   ToggleRight,
   Image as ImageIcon,
   HelpCircle,
+  Server,
+  Wifi,
+  Zap,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { User, VerificationLog, SmtpConfig, SystemLog, UpiPaymentRecord, LiveVisitor } from '../types';
 import { useFirestoreRealtime } from '../hooks/useFirestoreRealtime';
+import { MailServerDebugger } from '../components/MailServerDebugger';
 
 export const AdminPage: React.FC = () => {
   const { user, token } = useAuth();
-  const [activeTab, setActiveTab] = useState<'users' | 'verifications' | 'payments' | 'smtp' | 'logs' | 'subscriptions' | 'customization' | 'activity'>('users');
+  const [activeTab, setActiveTab] = useState<'users' | 'verifications' | 'payments' | 'smtp' | 'logs' | 'subscriptions' | 'customization' | 'activity' | 'imap_inspector'>('users');
 
   const [users, setUsers] = useState<User[]>([]);
   const [verifications, setVerifications] = useState<VerificationLog[]>([]);
@@ -46,6 +50,17 @@ export const AdminPage: React.FC = () => {
   const [logs, setLogs] = useState<SystemLog[]>([]);
   const [plans, setPlans] = useState<any[]>([]);
   const [visitors, setVisitors] = useState<LiveVisitor[]>([]);
+
+  // IMAP Live Inspector state
+  const [merchantsImap, setMerchantsImap] = useState<any[]>([]);
+  const [testingMerchantId, setTestingMerchantId] = useState<string | null>(null);
+  const [merchantTestResults, setMerchantTestResults] = useState<Record<string, { success: boolean; message: string; latencyMs?: number; totalEmails?: number }>>({});
+  const [customImapEmail, setCustomImapEmail] = useState('kalam172010@gmail.com');
+  const [customImapPass, setCustomImapPass] = useState('');
+  const [customImapHost, setCustomImapHost] = useState('imap.gmail.com');
+  const [customImapPort, setCustomImapPort] = useState('993');
+  const [testingCustomImap, setTestingCustomImap] = useState(false);
+  const [customImapResult, setCustomImapResult] = useState<{ success: boolean; message: string; totalEmails?: number; latencyMs?: number } | null>(null);
   
   const [siteSettings, setSiteSettings] = useState({
     site_name: 'FAMGATEWAY',
@@ -168,10 +183,109 @@ export const AdminPage: React.FC = () => {
         const sData = await siteRes.json();
         if (sData.settings) setSiteSettings(sData.settings);
       }
+
+      // Fetch IMAP Inspector status
+      const imapRes = await fetch('/api/admin/imap-status', {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (imapRes.ok) {
+        const imapData = await imapRes.json();
+        if (imapData.merchants) setMerchantsImap(imapData.merchants);
+      }
     } catch {
       // Ignore
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchImapStatus = async () => {
+    if (!token) return;
+    try {
+      const res = await fetch('/api/admin/imap-status', {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.merchants) setMerchantsImap(data.merchants);
+      }
+    } catch {
+      // Ignore
+    }
+  };
+
+  const handleTestMerchantImap = async (merchantId: string) => {
+    if (!token) return;
+    setTestingMerchantId(merchantId);
+    try {
+      const res = await fetch('/api/admin/test-merchant-imap', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ userId: merchantId }),
+      });
+
+      const data = await res.json();
+      setMerchantTestResults((prev) => ({
+        ...prev,
+        [merchantId]: {
+          success: res.ok && data.success,
+          message: data.message || data.error || 'Connection failed',
+          latencyMs: data.latencyMs,
+          totalEmails: data.totalEmails,
+        },
+      }));
+      fetchImapStatus();
+    } catch (err: any) {
+      setMerchantTestResults((prev) => ({
+        ...prev,
+        [merchantId]: {
+          success: false,
+          message: err.message || 'Network error testing IMAP',
+        },
+      }));
+    } finally {
+      setTestingMerchantId(null);
+    }
+  };
+
+  const handleCustomImapTest = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!token) return;
+    setTestingCustomImap(true);
+    setCustomImapResult(null);
+
+    try {
+      const res = await fetch('/api/admin/test-merchant-imap', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          email: customImapEmail.trim(),
+          appPassword: customImapPass.replace(/\s+/g, ''),
+          host: customImapHost.trim() || undefined,
+          port: Number(customImapPort) || 993,
+        }),
+      });
+
+      const data = await res.json();
+      setCustomImapResult({
+        success: res.ok && data.success,
+        message: data.message || data.error || 'Connection failed',
+        totalEmails: data.totalEmails,
+        latencyMs: data.latencyMs,
+      });
+    } catch (err: any) {
+      setCustomImapResult({
+        success: false,
+        message: err.message || 'Network error connecting to IMAP server',
+      });
+    } finally {
+      setTestingCustomImap(false);
     }
   };
 
@@ -485,6 +599,21 @@ export const AdminPage: React.FC = () => {
         >
           <QrCode className="w-4 h-4" />
           <span>UPI Payments ({payments.length})</span>
+        </button>
+
+        <button
+          onClick={() => {
+            setActiveTab('imap_inspector');
+            fetchImapStatus();
+          }}
+          className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 shrink-0 ${
+            activeTab === 'imap_inspector'
+              ? 'bg-indigo-600 text-white shadow-md'
+              : 'text-slate-600 hover:text-slate-900 bg-slate-100'
+          }`}
+        >
+          <Server className="w-4 h-4" />
+          <span>IMAP Live Inspector ({merchantsImap.length})</span>
         </button>
 
         <button
@@ -1329,6 +1458,289 @@ export const AdminPage: React.FC = () => {
               </div>
             </div>
           </form>
+        </div>
+      )}
+
+      {/* Tab 9: IMAP Live Health Inspector & Mail Server Debugger */}
+      {activeTab === 'imap_inspector' && (
+        <div className="space-y-6">
+          {/* Real-time MailServerDebugger Component */}
+          <MailServerDebugger />
+
+          {/* Header & Live Status Metrics */}
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div className="p-5 rounded-[2rem] bg-white border border-slate-200 shadow-sm">
+              <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Total Merchants</div>
+              <div className="text-3xl font-black text-slate-900 mt-1">{merchantsImap.length}</div>
+              <div className="text-[10px] font-bold text-slate-500 mt-1">Monitored Accounts</div>
+            </div>
+
+            <div className="p-5 rounded-[2rem] bg-white border border-slate-200 shadow-sm">
+              <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Configured IMAP</div>
+              <div className="text-3xl font-black text-emerald-600 mt-1">
+                {merchantsImap.filter((m) => m.has_app_password).length}
+              </div>
+              <div className="text-[10px] font-bold text-emerald-600 mt-1 flex items-center gap-1">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                <span>App Passwords Active</span>
+              </div>
+            </div>
+
+            <div className="p-5 rounded-[2rem] bg-white border border-slate-200 shadow-sm">
+              <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest">24/7 Poller Status</div>
+              <div className="text-xl font-black text-indigo-600 mt-2 flex items-center gap-2">
+                <Activity className="w-5 h-5 text-indigo-600 animate-pulse" />
+                <span>ONLINE 24/7</span>
+              </div>
+              <div className="text-[10px] font-bold text-slate-400 mt-1">Heartbeat Every 5s</div>
+            </div>
+
+            <div className="p-5 rounded-[2rem] bg-white border border-slate-200 shadow-sm">
+              <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest">IMAP Socket Port</div>
+              <div className="text-2xl font-black text-purple-600 mt-1">993 (SSL/TLS)</div>
+              <div className="text-[10px] font-bold text-purple-500 mt-1">imap.gmail.com</div>
+            </div>
+          </div>
+
+          {/* Merchants Live IMAP Table */}
+          <div className="p-6 rounded-3xl bg-white border border-slate-200 shadow-sm space-y-4">
+            <div className="flex items-center justify-between flex-wrap gap-4 border-b border-slate-100 pb-4">
+              <div>
+                <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
+                  <Server className="w-5 h-5 text-indigo-600" />
+                  <span>Merchant IMAP Live Connectivity Status</span>
+                </h3>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Real-time status of merchant email listeners. Click "Test Connection" to perform an instant live socket test.
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={fetchImapStatus}
+                className="px-3.5 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-xs font-bold text-slate-700 flex items-center gap-2 transition-all cursor-pointer"
+              >
+                <RefreshCw className="w-3.5 h-3.5" />
+                <span>Refresh Status</span>
+              </button>
+            </div>
+
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs font-mono">
+                <thead>
+                  <tr className="text-slate-500 border-b border-slate-200">
+                    <th className="pb-3">Merchant</th>
+                    <th className="pb-3">FamPay / Gmail Account</th>
+                    <th className="pb-3">UPI ID</th>
+                    <th className="pb-3">Server & Port</th>
+                    <th className="pb-3">App Password</th>
+                    <th className="pb-3">Live Status</th>
+                    <th className="pb-3">Live Socket Test</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {merchantsImap.length > 0 ? (
+                    merchantsImap.map((m) => {
+                      const testRes = merchantTestResults[m.id];
+                      const isTesting = testingMerchantId === m.id;
+
+                      return (
+                        <tr key={m.id} className="hover:bg-slate-50 transition-colors">
+                          <td className="py-3">
+                            <div className="font-bold text-slate-900">{m.name || 'Merchant'}</div>
+                            <div className="text-[10px] text-slate-400">{m.id}</div>
+                          </td>
+                          <td className="py-3 text-indigo-700 font-semibold">{m.fampay_gmail || m.email}</td>
+                          <td className="py-3 text-slate-700 font-bold">{m.fampay_upi_id}</td>
+                          <td className="py-3 text-slate-500 text-[11px]">{m.imap_host}:{m.imap_port}</td>
+                          <td className="py-3">
+                            {m.has_app_password ? (
+                              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200 flex items-center gap-1 w-fit">
+                                <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                                <span>Configured</span>
+                              </span>
+                            ) : (
+                              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-100 text-rose-800 border border-rose-200 flex items-center gap-1 w-fit">
+                                <AlertCircle className="w-3 h-3 text-rose-500" />
+                                <span>Missing Pass</span>
+                              </span>
+                            )}
+                          </td>
+                          <td className="py-3">
+                            {testRes ? (
+                              testRes.success ? (
+                                <div className="space-y-0.5">
+                                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300 inline-flex items-center gap-1">
+                                    <Wifi className="w-3 h-3 text-emerald-600" />
+                                    <span>ONLINE ({testRes.latencyMs}ms)</span>
+                                  </span>
+                                  <div className="text-[9px] text-slate-500">INBOX: {testRes.totalEmails || 0} msgs</div>
+                                </div>
+                              ) : (
+                                <div className="space-y-0.5">
+                                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-100 text-rose-800 border border-rose-300 inline-flex items-center gap-1">
+                                    <AlertCircle className="w-3 h-3 text-rose-600" />
+                                    <span>FAILED</span>
+                                  </span>
+                                  <div className="text-[9px] text-rose-600 max-w-xs truncate" title={testRes.message}>
+                                    {testRes.message}
+                                  </div>
+                                </div>
+                              )
+                            ) : m.has_app_password ? (
+                              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-700 border border-slate-300 inline-flex items-center gap-1">
+                                <Activity className="w-3 h-3 text-indigo-600" />
+                                <span>Ready / Listening</span>
+                              </span>
+                            ) : (
+                              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-300">
+                                Unconfigured
+                              </span>
+                            )}
+                          </td>
+                          <td className="py-3">
+                            <button
+                              type="button"
+                              onClick={() => handleTestMerchantImap(m.id)}
+                              disabled={isTesting || !m.has_app_password}
+                              className="px-3 py-1.5 rounded-xl bg-indigo-50 border border-indigo-200 text-indigo-700 hover:bg-indigo-100 text-[11px] font-bold flex items-center gap-1.5 transition-all cursor-pointer disabled:opacity-40"
+                            >
+                              <Zap className={`w-3.5 h-3.5 text-indigo-600 ${isTesting ? 'animate-spin' : ''}`} />
+                              <span>{isTesting ? 'Testing Socket...' : 'Test Connection'}</span>
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })
+                  ) : (
+                    <tr>
+                      <td colSpan={7} className="py-8 text-center text-slate-400">
+                        No merchants found in database.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          {/* Quick On-Demand IMAP Diagnostic Testing Console */}
+          <div className="p-6 rounded-3xl bg-slate-900 text-white shadow-lg border border-slate-800 space-y-5">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-4">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-xl bg-purple-500/20 border border-purple-500/30 flex items-center justify-center">
+                  <Zap className="w-5 h-5 text-purple-400" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-white">Live On-Demand IMAP Socket Tester</h3>
+                  <p className="text-xs text-slate-400 mt-0.5">
+                    Test direct Google Mail IMAP authentication and INBOX message retrieval in real-time.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <form onSubmit={handleCustomImapTest} className="space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                <div>
+                  <label className="block text-xs font-bold text-slate-300 mb-1">Gmail Address</label>
+                  <input
+                    type="email"
+                    required
+                    value={customImapEmail}
+                    onChange={(e) => setCustomImapEmail(e.target.value)}
+                    placeholder="e.g. yourname@gmail.com"
+                    className="w-full px-3.5 py-2 bg-slate-800 border border-slate-700 rounded-xl text-xs font-mono text-white focus:outline-none focus:border-purple-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-300 mb-1">16-Digit Google App Password</label>
+                  <input
+                    type="password"
+                    required
+                    value={customImapPass}
+                    onChange={(e) => setCustomImapPass(e.target.value)}
+                    placeholder="e.g. abcd efgh ijkl mnop"
+                    className="w-full px-3.5 py-2 bg-slate-800 border border-slate-700 rounded-xl text-xs font-mono text-white focus:outline-none focus:border-purple-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-300 mb-1">IMAP Host</label>
+                  <input
+                    type="text"
+                    value={customImapHost}
+                    onChange={(e) => setCustomImapHost(e.target.value)}
+                    placeholder="imap.gmail.com"
+                    className="w-full px-3.5 py-2 bg-slate-800 border border-slate-700 rounded-xl text-xs font-mono text-white focus:outline-none focus:border-purple-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-300 mb-1">IMAP Port (SSL)</label>
+                  <input
+                    type="number"
+                    value={customImapPort}
+                    onChange={(e) => setCustomImapPort(e.target.value)}
+                    placeholder="993"
+                    className="w-full px-3.5 py-2 bg-slate-800 border border-slate-700 rounded-xl text-xs font-mono text-white focus:outline-none focus:border-purple-500"
+                  />
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between pt-2">
+                <button
+                  type="submit"
+                  disabled={testingCustomImap}
+                  className="px-5 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-500 text-white font-bold text-xs flex items-center gap-2 transition-all cursor-pointer shadow-md disabled:opacity-50"
+                >
+                  <RefreshCw className={`w-4 h-4 ${testingCustomImap ? 'animate-spin' : ''}`} />
+                  <span>{testingCustomImap ? 'Connecting to Mail Server...' : 'Run Live Diagnostic Test'}</span>
+                </button>
+              </div>
+            </form>
+
+            {/* Test Result Box */}
+            {customImapResult && (
+              <div
+                className={`p-4 rounded-2xl border text-xs font-mono space-y-1.5 animate-in fade-in ${
+                  customImapResult.success
+                    ? 'bg-emerald-950/60 border-emerald-500/50 text-emerald-200'
+                    : 'bg-rose-950/60 border-rose-500/50 text-rose-200'
+                }`}
+              >
+                <div className="flex items-center gap-2 font-bold text-sm">
+                  {customImapResult.success ? (
+                    <>
+                      <CheckCircle2 className="w-5 h-5 text-emerald-400" />
+                      <span>IMAP Connection SUCCESSFUL! ✓</span>
+                    </>
+                  ) : (
+                    <>
+                      <AlertCircle className="w-5 h-5 text-rose-400" />
+                      <span>IMAP Connection FAILED ✕</span>
+                    </>
+                  )}
+                </div>
+                <div>{customImapResult.message}</div>
+                {customImapResult.success && (
+                  <div className="text-[11px] text-emerald-300 flex items-center gap-4 pt-1">
+                    <span>INBOX Total Messages: <strong>{customImapResult.totalEmails}</strong></span>
+                    <span>•</span>
+                    <span>Response Latency: <strong>{customImapResult.latencyMs}ms</strong></span>
+                    <span>•</span>
+                    <span>Real-Time Alert Sniffer: <strong>ACTIVE</strong></span>
+                  </div>
+                )}
+                {!customImapResult.success && (
+                  <div className="text-[11px] text-rose-300 pt-1 leading-relaxed">
+                    💡 <strong>Fix:</strong> Ensure you are using a 16-letter App Password from <a href="https://myaccount.google.com/apppasswords" target="_blank" rel="noreferrer" className="underline font-bold text-white">myaccount.google.com/apppasswords</a> and that IMAP is enabled in your Gmail settings.
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
         </div>
       )}
 

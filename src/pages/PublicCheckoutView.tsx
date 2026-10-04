@@ -20,6 +20,7 @@ import {
   ArrowLeft,
   Mail,
   ExternalLink,
+  Copy,
 } from 'lucide-react';
 import QRCode from 'qrcode';
 import { listenToPaymentStatus } from '../hooks/usePaymentListener';
@@ -46,6 +47,8 @@ export const PublicCheckoutView: React.FC<PublicCheckoutViewProps> = ({ linkId }
   // UTR manual entry
   const [utrInput, setUtrInput] = useState('');
   const [customerEmail, setCustomerEmail] = useState('');
+  const [selectedUpi, setSelectedUpi] = useState<string>('');
+  const [copiedUpi, setCopiedUpi] = useState(false);
 
   // Countdown timer in seconds (default 8 minutes = 480 seconds)
   const [timeLeft, setTimeLeft] = useState<number>(480);
@@ -100,13 +103,13 @@ export const PublicCheckoutView: React.FC<PublicCheckoutViewProps> = ({ linkId }
         if (linkObj) {
           setDetails(linkObj);
 
-          const merchantUpi = linkObj.merchant_upi_id || '8056317218@fam';
-          const merchantName = linkObj.merchant_name || 'FAMGATEWAY';
+          const primaryUpi = (linkObj.merchant_upi_id || '8056317218@fam').trim();
+          setSelectedUpi(primaryUpi);
+          const merchantName = (linkObj.merchant_name || 'FAMGATEWAY').replace(/[^a-zA-Z0-9 ]/g, '').trim().substring(0, 25) || 'Merchant';
           const amountFormatted = Number(linkObj.amount || 0).toFixed(2);
-          const noteParam = linkObj.transaction_ref || linkObj.title || linkId;
+          const noteParam = (linkObj.transaction_ref || linkObj.title || linkId).replace(/[^a-zA-Z0-9_-]/g, '').substring(0, 30) || 'Payment';
 
-          const cleanMerchantUpi = (linkObj.merchant_upi_id || '8056317218@fam').trim();
-          const upiString = `upi://pay?pa=${cleanMerchantUpi}&pn=${encodeURIComponent(
+          const upiString = `upi://pay?pa=${primaryUpi}&pn=${encodeURIComponent(
             merchantName
           )}&am=${amountFormatted}&cu=INR&tn=${encodeURIComponent(noteParam)}`;
 
@@ -255,15 +258,92 @@ export const PublicCheckoutView: React.FC<PublicCheckoutViewProps> = ({ linkId }
     fetchLinkDetails();
   };
 
-  // Download QR code image to gallery
+  // Download high-contrast QR code card image to gallery
   const handleSaveQrToGallery = () => {
     if (!qrDataUrl) return;
-    const a = document.createElement('a');
-    a.href = qrDataUrl;
-    a.download = `UPI-QR-${linkId}.png`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
+
+    try {
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d');
+      if (!ctx) {
+        const a = document.createElement('a');
+        a.href = qrDataUrl;
+        a.download = `UPI-QR-${linkId}.png`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        return;
+      }
+
+      const img = new Image();
+      img.crossOrigin = 'anonymous';
+      img.onload = () => {
+        canvas.width = 600;
+        canvas.height = 760;
+
+        // Clean white background
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, 600, 760);
+
+        // Header
+        ctx.fillStyle = '#581c87';
+        ctx.fillRect(0, 0, 600, 110);
+
+        ctx.fillStyle = '#ffffff';
+        ctx.font = 'bold 24px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText((brandName || 'FAMGATEWAY STORE').toUpperCase(), 300, 50);
+
+        ctx.font = '13px sans-serif';
+        ctx.fillStyle = '#e9d5ff';
+        ctx.fillText('SECURE UPI PAYMENT • ZERO TRANSACTION FEE', 300, 80);
+
+        // High contrast QR Image centered with border
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(90, 130, 420, 420);
+        ctx.strokeStyle = '#e2e8f0';
+        ctx.lineWidth = 2;
+        ctx.strokeRect(90, 130, 420, 420);
+
+        ctx.drawImage(img, 100, 140, 400, 400);
+
+        // Amount Box
+        ctx.fillStyle = '#f8fafc';
+        ctx.fillRect(50, 570, 500, 95);
+        ctx.strokeStyle = '#cbd5e1';
+        ctx.lineWidth = 1.5;
+        ctx.strokeRect(50, 570, 500, 95);
+
+        ctx.fillStyle = '#0f172a';
+        ctx.font = 'bold 30px sans-serif';
+        ctx.fillText(`₹${amountFormatted}`, 300, 612);
+
+        ctx.fillStyle = '#475569';
+        ctx.font = 'bold 14px monospace';
+        ctx.fillText(`UPI ID: ${currentUpi}`, 300, 642);
+
+        // Footer
+        ctx.fillStyle = '#64748b';
+        ctx.font = '12px sans-serif';
+        ctx.fillText('Scan with GPay, PhonePe, Paytm, FamPay, or BHIM', 300, 715);
+
+        const downloadUrl = canvas.toDataURL('image/png');
+        const a = document.createElement('a');
+        a.href = downloadUrl;
+        a.download = `UPI-Payment-${linkId}.png`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+      };
+      img.src = qrDataUrl;
+    } catch {
+      const a = document.createElement('a');
+      a.href = qrDataUrl;
+      a.download = `UPI-QR-${linkId}.png`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+    }
   };
 
   const handleDownloadPdfReceipt = () => {
@@ -390,13 +470,29 @@ export const PublicCheckoutView: React.FC<PublicCheckoutViewProps> = ({ linkId }
   const customMessage = custom.custom_message || '';
   const contactUrl = custom.contact_url || '';
 
-  const merchantUpi = details?.merchant_upi_id || '8056317218@fam';
+  const primaryUpi = (details?.merchant_upi_id || '8056317218@fam').trim();
+  const backupUpi = details?.backup_upi_id ? details.backup_upi_id.trim() : null;
+  const currentUpi = (selectedUpi || primaryUpi).trim();
+
   const amountFormatted = Number(details?.amount || 0).toFixed(2);
-  const noteParam = details?.transaction_ref || details?.title || linkId;
-  const cleanMerchantUpi = merchantUpi.trim();
-  const upiUri = `upi://pay?pa=${cleanMerchantUpi}&pn=${encodeURIComponent(
-    brandName
+  const noteParam = (details?.transaction_ref || details?.title || linkId).replace(/[^a-zA-Z0-9_-]/g, '').substring(0, 30) || 'Payment';
+  const cleanPn = (brandName || 'FAMGATEWAY').replace(/[^a-zA-Z0-9 ]/g, '').trim().substring(0, 25) || 'Merchant';
+  const upiUri = `upi://pay?pa=${currentUpi}&pn=${encodeURIComponent(
+    cleanPn
   )}&am=${amountFormatted}&cu=INR&tn=${encodeURIComponent(noteParam)}`;
+
+  const handleSwitchUpi = async (targetVpa: string) => {
+    const cleanVpa = targetVpa.trim();
+    setSelectedUpi(cleanVpa);
+    const newUri = `upi://pay?pa=${cleanVpa}&pn=${encodeURIComponent(cleanPn)}&am=${amountFormatted}&cu=INR&tn=${encodeURIComponent(noteParam)}`;
+    await generateAndSetQr(newUri);
+  };
+
+  const handleCopyUpi = () => {
+    navigator.clipboard.writeText(currentUpi);
+    setCopiedUpi(true);
+    setTimeout(() => setCopiedUpi(false), 2500);
+  };
 
   const timerPercentage = totalDurationRef.current > 0 ? (timeLeft / totalDurationRef.current) * 100 : 0;
 
@@ -659,15 +755,66 @@ export const PublicCheckoutView: React.FC<PublicCheckoutViewProps> = ({ linkId }
                   </div>
                 )}
 
-                {/* Amount Display */}
-                <div className="pt-1 space-y-1">
+                {/* Amount & VPA Display with 1-Click Copy */}
+                <div className="pt-1 space-y-2">
                   <div className="text-4xl font-black text-white tracking-tight flex items-baseline justify-center gap-1">
                     <span className="text-2xl font-bold text-slate-300">₹</span>
                     <span>{amountFormatted}</span>
                   </div>
-                  <div className="text-[11px] font-mono text-slate-400 tracking-wide">
-                    VPA: <span className="text-purple-300 font-bold">{merchantUpi}</span>
+
+                  <div className="flex flex-wrap items-center justify-center gap-2 pt-1">
+                    <span className="text-[11px] font-mono text-slate-400">VPA:</span>
+                    <span className="text-xs font-mono font-bold text-purple-300 bg-purple-950/70 px-2.5 py-1 rounded-xl border border-purple-800/60 select-all">
+                      {currentUpi}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={handleCopyUpi}
+                      className="px-3 py-1 rounded-xl bg-purple-600/40 hover:bg-purple-600/70 text-purple-200 hover:text-white border border-purple-500/50 text-[11px] font-bold flex items-center gap-1.5 transition-all cursor-pointer shadow-xs active:scale-95"
+                      title="Copy UPI ID to clipboard"
+                    >
+                      {copiedUpi ? (
+                        <>
+                          <Check className="w-3.5 h-3.5 text-emerald-400" />
+                          <span className="text-emerald-300 font-extrabold">Copied! ✓</span>
+                        </>
+                      ) : (
+                        <>
+                          <Copy className="w-3.5 h-3.5 text-purple-300" />
+                          <span>Copy UPI ID</span>
+                        </>
+                      )}
+                    </button>
                   </div>
+
+                  {/* Backup / Alternate UPI Router Toggle (if configured by merchant) */}
+                  {backupUpi && (
+                    <div className="pt-1.5 flex items-center justify-center gap-1.5 text-[11px]">
+                      <span className="text-slate-400 font-mono text-[10px]">Route:</span>
+                      <button
+                        type="button"
+                        onClick={() => handleSwitchUpi(primaryUpi)}
+                        className={`px-2.5 py-1 rounded-lg text-[10px] font-bold transition-all cursor-pointer ${
+                          currentUpi === primaryUpi
+                            ? 'bg-purple-600 text-white shadow-xs'
+                            : 'bg-slate-900 text-slate-400 hover:text-white border border-slate-800'
+                        }`}
+                      >
+                        Primary ({primaryUpi.split('@')[1] || 'fam'})
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleSwitchUpi(backupUpi)}
+                        className={`px-2.5 py-1 rounded-lg text-[10px] font-bold transition-all cursor-pointer ${
+                          currentUpi === backupUpi
+                            ? 'bg-purple-600 text-white shadow-xs'
+                            : 'bg-slate-900 text-slate-400 hover:text-white border border-slate-800'
+                        }`}
+                      >
+                        Backup ({backupUpi.split('@')[1] || 'bank'})
+                      </button>
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -746,6 +893,17 @@ export const PublicCheckoutView: React.FC<PublicCheckoutViewProps> = ({ linkId }
                         <div className="text-[10px] text-slate-400">Tap to pay</div>
                       </div>
                     </a>
+                  </div>
+
+                  {/* Daily Transfer Limit Troubleshooter Help Tip */}
+                  <div className="p-3 rounded-xl bg-purple-950/40 border border-purple-500/30 text-[11px] text-purple-200 space-y-1 mt-2">
+                    <div className="flex items-center gap-1.5 font-bold text-purple-300">
+                      <Info className="w-3.5 h-3.5 text-purple-400 shrink-0" />
+                      <span>UPI App says "Daily Limit Reached" or error?</span>
+                    </div>
+                    <p className="text-[10px] text-slate-300 leading-relaxed">
+                      Tap <strong className="text-purple-300 cursor-pointer underline font-bold" onClick={handleCopyUpi}>Copy UPI ID</strong> above ➔ Open GPay / PhonePe / Paytm / BHIM ➔ Select <strong>"Pay to UPI ID"</strong> ➔ Paste <span className="font-mono text-white font-bold">{currentUpi}</span> and pay ₹{amountFormatted}. Real-time verification detects and confirms instantly!
+                    </p>
                   </div>
                 </div>
               )}

@@ -92,26 +92,78 @@ export class IntegrationController {
   }
 
   /**
+   * POST /api/integrations/upi-settings
+   * Quickly update Primary and Backup UPI IDs without re-entering App Password
+   */
+  public static async updateUpiSettings(req: AuthenticatedRequest, res: Response) {
+    if (!req.user) {
+      return res.status(401).json({ success: false, error: 'Unauthorized' });
+    }
+
+    const { fampayUpiId, backupUpiId } = req.body || {};
+
+    if (!fampayUpiId || !fampayUpiId.includes('@')) {
+      return res.status(400).json({
+        success: false,
+        error: 'Please enter a valid Primary UPI ID (e.g. username@fam, merchant@upi).',
+      });
+    }
+
+    if (backupUpiId && !backupUpiId.includes('@')) {
+      return res.status(400).json({
+        success: false,
+        error: 'Backup UPI ID must be a valid UPI ID (e.g. yourname@okaxis, yourname@ybl).',
+      });
+    }
+
+    const cleanPrimary = fampayUpiId.trim();
+    const cleanBackup = backupUpiId ? backupUpiId.trim() : undefined;
+
+    await dbService.updateUserUpiSettings(req.user.id, cleanPrimary, cleanBackup);
+    const updatedUser = await dbService.findUserById(req.user.id);
+
+    const clientIp = (req.headers['x-forwarded-for'] as string) || req.socket.remoteAddress || '127.0.0.1';
+    await dbService.addLog({
+      user_id: req.user.id,
+      user_email: req.user.email,
+      action: 'UPDATE_UPI_SETTINGS',
+      ip: clientIp,
+      status: 'SUCCESS',
+      details: `Updated UPI routing: Primary=${cleanPrimary}, Backup=${cleanBackup || 'None'}. All active checkout links & QR codes refreshed.`,
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: 'UPI settings and dynamic QR routing updated successfully! All active checkout pages now use your new UPI ID.',
+      user: updatedUser,
+    });
+  }
+
+  /**
    * POST /api/integrations/test-imap
    */
   public static async testImap(req: AuthenticatedRequest, res: Response) {
     if (!req.user) return res.status(401).json({ success: false, error: 'Unauthorized' });
 
     const user = await dbService.findUserById(req.user.id);
-    const targetEmail = user?.fampay_gmail || user?.email;
-    if (!user || !targetEmail || !user.google_app_password) {
+    const { email, appPassword, host, port } = req.body || {};
+
+    const targetEmail = (email && email.trim()) || user?.fampay_gmail || user?.email;
+    const targetPassword = (appPassword && appPassword.trim()) || user?.google_app_password;
+
+    if (!targetEmail || !targetPassword) {
       return res.status(400).json({
         success: false,
-        error: 'No IMAP credentials configured. Please configure your Email & App Password.',
+        error: 'No IMAP credentials provided. Please enter your Gmail address and 16-character Google App Password.',
       });
     }
 
-    const resolvedHost = user.imap_host || ImapService.resolveHost(targetEmail);
-    const resolvedPort = user.imap_port || 993;
+    const resolvedHost = (host && host.trim()) || user?.imap_host || ImapService.resolveHost(targetEmail);
+    const resolvedPort = Number(port) || user?.imap_port || 993;
 
     const result = await ImapService.testConnection(
       targetEmail,
-      user.google_app_password,
+      targetPassword,
       resolvedHost,
       resolvedPort
     );
