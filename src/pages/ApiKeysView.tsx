@@ -87,14 +87,14 @@ export const ApiKeysView: React.FC<ApiKeysViewProps> = ({ onNavigate }) => {
   return (
     <div className="space-y-6 max-w-5xl mx-auto pb-16 animate-in fade-in duration-300">
       {/* Header Section */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-6 rounded-3xl border border-slate-200/80 shadow-xs">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-6 rounded-2xl border border-slate-200/80 shadow-xs">
         <div>
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-purple-50 border border-purple-200 text-purple-700 text-xs font-mono font-bold mb-2">
+          <div className="flex items-center gap-2 text-xs font-mono text-indigo-600 font-medium mb-1">
             <Key className="w-3.5 h-3.5" />
             <span>Developer Credentials</span>
           </div>
-          <h1 className="text-2xl font-black text-slate-900 tracking-tight">API Keys & Authentication</h1>
-          <p className="text-xs text-slate-500 mt-1">
+          <h1 className="text-xl font-bold text-slate-900 tracking-tight">API Keys & Authentication</h1>
+          <p className="text-xs text-slate-500 mt-0.5">
             Production API keys for server-to-server payments and automated FamPay UPI order generation.
           </p>
         </div>
@@ -102,9 +102,9 @@ export const ApiKeysView: React.FC<ApiKeysViewProps> = ({ onNavigate }) => {
         <div className="flex items-center gap-2.5">
           <button
             onClick={() => onNavigate('documentation')}
-            className="px-4 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs flex items-center gap-2 transition-all shadow-xs cursor-pointer"
+            className="px-4 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-semibold text-xs flex items-center gap-2 transition-all shadow-xs cursor-pointer"
           >
-            <BookOpen className="w-4 h-4 text-purple-400" />
+            <BookOpen className="w-4 h-4 text-indigo-400" />
             <span>Full API Docs</span>
           </button>
         </div>
@@ -112,14 +112,14 @@ export const ApiKeysView: React.FC<ApiKeysViewProps> = ({ onNavigate }) => {
 
       {/* Action Required Banner if IMAP not connected */}
       {!isImapConfigured && (
-        <div className="p-4 rounded-2xl bg-amber-50 border border-amber-200 text-amber-900 text-xs flex items-center justify-between flex-wrap gap-3">
+        <div className="p-4 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-xs flex items-center justify-between flex-wrap gap-3">
           <div className="flex items-center gap-2 font-medium">
             <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
             <span>Connect your FamPay Gmail IMAP in Integrations for automatic 0-fee payment verification.</span>
           </div>
           <button
             onClick={() => onNavigate('integrations')}
-            className="px-3 py-1.5 rounded-lg bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs transition-colors cursor-pointer"
+            className="px-3 py-1.5 rounded-lg bg-amber-600 hover:bg-amber-700 text-white font-semibold text-xs transition-colors cursor-pointer"
           >
             Configure IMAP
           </button>
@@ -127,26 +127,25 @@ export const ApiKeysView: React.FC<ApiKeysViewProps> = ({ onNavigate }) => {
       )}
 
       {/* Main Modern API Key Card */}
-      <div className="p-6 sm:p-8 rounded-3xl bg-slate-950 text-white border border-slate-800 shadow-xl relative overflow-hidden space-y-6">
+      <div className="p-6 sm:p-7 rounded-2xl bg-[#0a0f1d] text-white border border-slate-800 shadow-xl relative overflow-hidden space-y-6">
         {/* Subtle background glow */}
-        <div className="absolute top-0 right-0 w-80 h-80 bg-purple-600/15 rounded-full blur-3xl pointer-events-none -mr-20 -mt-20" />
-        <div className="absolute bottom-0 left-0 w-64 h-64 bg-indigo-600/10 rounded-full blur-2xl pointer-events-none -ml-20 -mb-20" />
+        <div className="absolute top-0 right-0 w-80 h-80 bg-indigo-600/10 rounded-full blur-3xl pointer-events-none -mr-20 -mt-20" />
 
         <div className="relative z-10 flex items-center justify-between flex-wrap gap-4">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-2xl bg-purple-600/20 border border-purple-500/30 flex items-center justify-center text-purple-400">
+            <div className="w-10 h-10 rounded-xl bg-indigo-600/20 border border-indigo-500/30 flex items-center justify-center text-indigo-400">
               <Zap className="w-5 h-5" />
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h2 className="text-base font-extrabold text-white">Live Production Key</h2>
-                <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 font-mono text-[10px] font-bold">
+                <h2 className="text-base font-bold text-white">Live Production Key</h2>
+                <span className="inline-flex items-center gap-1.5 text-emerald-400 font-mono text-xs font-medium">
                   <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
                   Active
                 </span>
               </div>
               <p className="text-[11px] text-slate-400 font-mono mt-0.5">
-                Prefix: <span className="text-purple-300 font-bold">fam_</span> • 256-bit Secure
+                Prefix: <span className="text-indigo-300 font-semibold">fam_</span> · 256-bit Secure
               </p>
             </div>
           </div>
@@ -158,12 +157,12 @@ export const ApiKeysView: React.FC<ApiKeysViewProps> = ({ onNavigate }) => {
         </div>
 
         {/* API Key Display Box */}
-        <div className="relative z-10 p-3.5 sm:p-4 bg-slate-900/90 border border-slate-800 rounded-2xl flex flex-col md:flex-row md:items-center justify-between gap-3 shadow-inner">
+        <div className="relative z-10 p-3.5 sm:p-4 bg-slate-900/90 border border-slate-800 rounded-xl flex flex-col md:flex-row md:items-center justify-between gap-3 shadow-inner">
           <div className="flex items-center gap-3 overflow-hidden">
-            <div className="p-2 rounded-xl bg-slate-800 text-purple-400 shrink-0">
+            <div className="p-2 rounded-lg bg-slate-800 text-indigo-400 shrink-0">
               <Key className="w-4 h-4" />
             </div>
-            <span className="font-mono text-xs sm:text-sm font-bold tracking-wider text-purple-200 select-all break-all">
+            <span className="font-mono text-xs sm:text-sm font-semibold tracking-wider text-indigo-200 select-all break-all">
               {showKey ? apiKey : maskKey(apiKey)}
             </span>
           </div>
@@ -171,7 +170,7 @@ export const ApiKeysView: React.FC<ApiKeysViewProps> = ({ onNavigate }) => {
           <div className="flex items-center gap-2 shrink-0 self-end md:self-auto">
             <button
               onClick={() => setShowKey(!showKey)}
-              className="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 hover:text-white transition-colors cursor-pointer"
+              className="p-2 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 hover:text-white transition-colors cursor-pointer"
               title={showKey ? 'Hide Key' : 'Reveal Key'}
             >
               {showKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
@@ -179,7 +178,7 @@ export const ApiKeysView: React.FC<ApiKeysViewProps> = ({ onNavigate }) => {
 
             <button
               onClick={handleCopy}
-              className="px-3.5 py-2 rounded-xl bg-purple-600 hover:bg-purple-500 text-white font-bold flex items-center gap-1.5 text-xs transition-all shadow-md cursor-pointer"
+              className="px-3.5 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-semibold flex items-center gap-1.5 text-xs transition-all shadow-xs cursor-pointer"
             >
               {copied ? <Check className="w-4 h-4 text-emerald-300" /> : <Copy className="w-4 h-4" />}
               <span>{copied ? 'Copied!' : 'Copy Key'}</span>
@@ -188,7 +187,7 @@ export const ApiKeysView: React.FC<ApiKeysViewProps> = ({ onNavigate }) => {
             <button
               onClick={() => setShowConfirmRoll(true)}
               disabled={rolling}
-              className="px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-rose-950/60 border border-slate-700 hover:border-rose-800/60 text-slate-300 hover:text-rose-300 font-bold flex items-center gap-1.5 text-xs transition-all cursor-pointer"
+              className="px-3.5 py-2 rounded-lg bg-slate-800 hover:bg-rose-950/60 border border-slate-700 hover:border-rose-800/60 text-slate-300 hover:text-rose-300 font-semibold flex items-center gap-1.5 text-xs transition-all cursor-pointer"
               title="Regenerate API Key"
             >
               <RefreshCw className={`w-4 h-4 ${rolling ? 'animate-spin' : ''}`} />
@@ -198,12 +197,12 @@ export const ApiKeysView: React.FC<ApiKeysViewProps> = ({ onNavigate }) => {
         </div>
 
         {/* Authentication Instructions Banner */}
-        <div className="relative z-10 p-4 rounded-2xl bg-purple-950/40 border border-purple-900/50 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs text-purple-200">
+        <div className="relative z-10 p-3.5 rounded-xl bg-slate-900 border border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs text-slate-300">
           <div className="flex items-center gap-2.5">
-            <Code2 className="w-4 h-4 text-purple-400 shrink-0" />
-            <span>Pass in header: <code className="px-2 py-0.5 rounded-lg bg-purple-900/60 font-mono font-bold text-purple-300 border border-purple-800/80">X-Api-Key: {apiKey.substring(0, 12)}...</code></span>
+            <Code2 className="w-4 h-4 text-indigo-400 shrink-0" />
+            <span>Pass in header: <code className="px-2 py-0.5 rounded-md bg-slate-800 font-mono font-medium text-indigo-300 border border-slate-700">X-Api-Key: {apiKey.substring(0, 12)}...</code></span>
           </div>
-          <span className="text-[11px] font-mono text-purple-400 font-medium">Or as query param: <code className="text-purple-300 font-bold">?api_key=...</code></span>
+          <span className="text-[11px] font-mono text-slate-400">Or query param: <code className="text-indigo-300 font-medium">?api_key=...</code></span>
         </div>
       </div>
 

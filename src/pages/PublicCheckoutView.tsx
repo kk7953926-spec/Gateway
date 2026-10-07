@@ -210,39 +210,6 @@ export const PublicCheckoutView: React.FC<PublicCheckoutViewProps> = ({ linkId }
     }
   };
 
-  const handleSimulatePayment = async () => {
-    setVerifying(true);
-    setErrorMessage(null);
-    try {
-      const fakeUtr = utrInput.trim() || `SIM-${Math.floor(100000000000 + Math.random() * 900000000000)}`;
-      const res = await fetch('/api/payment/public-verify-email', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          paymentId: linkId,
-          utr: fakeUtr,
-          amount: details?.amount || 100,
-          customer_email: customerEmail.trim() || undefined,
-        }),
-      });
-
-      const data = await res.json();
-
-      if (data.success) {
-        setStatus('CONFIRMED');
-        setStatusMessage(data.message || 'Payment Simulated & Confirmed successfully! ✓');
-        setConfirmedUtr(data.payment?.transaction_ref || fakeUtr);
-        setConfirmedTxnId(data.payment?.id || linkId);
-      } else {
-        setErrorMessage(data.error || 'Verification failed');
-      }
-    } catch {
-      setErrorMessage('Failed to connect to verification service.');
-    } finally {
-      setVerifying(false);
-    }
-  };
-
   const handleCancelPayment = () => {
     setShowCancelModal(false);
     setStatus('CANCELLED');
@@ -508,59 +475,63 @@ export const PublicCheckoutView: React.FC<PublicCheckoutViewProps> = ({ linkId }
   }
 
   return (
-    <div className="min-h-screen bg-[#060911] text-slate-100 flex flex-col items-center justify-center p-3 sm:p-4 font-sans selection:bg-purple-600 selection:text-white relative">
-      {/* Background radial highlights */}
-      <div className="fixed inset-0 pointer-events-none bg-[radial-gradient(circle_at_top,_var(--tw-gradient-stops))] from-purple-950/20 via-slate-950 to-[#060911]" />
+    <div className="min-h-screen bg-[#070b14] text-slate-100 flex flex-col items-center justify-center p-3 sm:p-6 font-sans selection:bg-indigo-600 selection:text-white relative">
+      {/* Subtle ambient lighting */}
+      <div className="fixed inset-0 pointer-events-none bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-indigo-950/20 via-slate-950/80 to-[#070b14]" />
 
       {/* Main Checkout Container */}
       <div className="w-full max-w-md relative z-10 space-y-4 my-4">
         {bannerUrl && (
-          <div className="w-full h-28 rounded-3xl overflow-hidden border border-purple-500/30 shadow-xl relative">
+          <div className="w-full h-28 rounded-2xl overflow-hidden border border-slate-800 shadow-xl relative">
             <img src={bannerUrl} alt="Store Banner" className="w-full h-full object-cover" />
-            <div className="absolute inset-0 bg-gradient-to-t from-[#060911] via-transparent to-transparent" />
+            <div className="absolute inset-0 bg-gradient-to-t from-[#070b14] via-transparent to-transparent" />
           </div>
         )}
 
         {customMessage && (
-          <div className="p-3.5 rounded-2xl bg-purple-950/70 border border-purple-500/40 text-purple-200 text-xs font-semibold text-center shadow-lg backdrop-blur-md">
+          <div className="p-3 rounded-xl bg-slate-900 border border-indigo-500/30 text-indigo-200 text-xs font-medium text-center shadow-sm">
             {customMessage}
           </div>
         )}
 
         {/* Top Header Card */}
-        <div className="rounded-3xl bg-gradient-to-r from-purple-900/90 via-indigo-900/90 to-purple-900/90 p-4 sm:p-5 border border-purple-500/30 shadow-2xl backdrop-blur-md relative overflow-hidden">
-          <div className="absolute top-0 right-0 w-32 h-32 bg-white/5 rounded-full -mr-10 -mt-10 blur-xl pointer-events-none" />
-
-          <div className="flex items-center justify-between relative z-10">
+        <div className="rounded-2xl bg-slate-900/90 border border-slate-800 p-4 sm:p-5 shadow-xl backdrop-blur-md relative overflow-hidden">
+          <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
               {/* Return / Back Button */}
               <button
                 type="button"
                 onClick={handleReturnToPreviousPage}
-                className="p-2 rounded-xl bg-white/10 hover:bg-white/20 text-white transition-colors cursor-pointer shrink-0"
+                className="p-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white transition-colors cursor-pointer shrink-0"
                 title="Return to Previous Page"
               >
                 <ArrowLeft className="w-4 h-4" />
               </button>
 
               {/* Merchant Avatar / Logo */}
-              <div className="w-10 h-10 rounded-full border-2 border-white/40 overflow-hidden bg-slate-900 shrink-0 shadow-md">
-                <img
-                  src={avatarUrl}
-                  alt="Merchant Avatar"
-                  className="w-full h-full object-cover"
-                  onError={(e) => {
-                    (e.target as HTMLElement).style.display = 'none';
-                  }}
-                />
+              <div className="w-10 h-10 rounded-xl border border-slate-700 overflow-hidden bg-slate-950 shrink-0 shadow-sm flex items-center justify-center">
+                {avatarUrl ? (
+                  <img
+                    src={avatarUrl}
+                    alt="Merchant Avatar"
+                    className="w-full h-full object-cover"
+                    onError={(e) => {
+                      (e.target as HTMLElement).style.display = 'none';
+                    }}
+                  />
+                ) : (
+                  <span className="font-bold text-sm text-indigo-400">
+                    {brandName.charAt(0).toUpperCase()}
+                  </span>
+                )}
               </div>
 
               <div>
-                <div className="font-extrabold text-white text-sm tracking-tight leading-tight">
+                <div className="font-bold text-white text-sm tracking-tight leading-tight">
                   {brandName}
                 </div>
-                <div className="flex items-center gap-1 text-[9px] font-extrabold text-emerald-300 tracking-wider uppercase mt-0.5">
-                  <ShieldCheck className="w-3.5 h-3.5 text-emerald-300 fill-emerald-300/20" />
+                <div className="flex items-center gap-1.5 text-[11px] text-slate-400 font-medium mt-0.5">
+                  <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
                   <span>{subtitle}</span>
                 </div>
               </div>
@@ -571,11 +542,10 @@ export const PublicCheckoutView: React.FC<PublicCheckoutViewProps> = ({ linkId }
               <button
                 type="button"
                 onClick={() => setShowCancelModal(true)}
-                className="px-2.5 py-1 rounded-full bg-black/25 hover:bg-black/40 text-rose-200 hover:text-white text-[11px] font-bold border border-rose-300/30 flex items-center gap-1 transition-colors cursor-pointer"
+                className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-rose-300 text-xs font-medium border border-slate-700 transition-colors cursor-pointer"
                 title="Cancel Payment"
               >
-                <XCircle className="w-3.5 h-3.5 text-rose-300" />
-                <span>Cancel</span>
+                Cancel
               </button>
             )}
           </div>
@@ -585,54 +555,54 @@ export const PublicCheckoutView: React.FC<PublicCheckoutViewProps> = ({ linkId }
         <div className="space-y-4">
           {status === 'CONFIRMED' ? (
             /* SUCCESS VIEW */
-            <div className="rounded-3xl bg-[#0f1422] border border-slate-800 p-8 shadow-2xl text-center space-y-6 animate-in fade-in zoom-in duration-300">
-              <div className="w-20 h-20 mx-auto rounded-full bg-emerald-500/20 border-2 border-emerald-500 flex items-center justify-center text-emerald-400 shadow-xl shadow-emerald-500/20">
-                <CheckCircle2 className="w-12 h-12" />
+            <div className="rounded-2xl bg-slate-900 border border-slate-800 p-8 shadow-xl text-center space-y-6 animate-in fade-in duration-300">
+              <div className="w-16 h-16 mx-auto rounded-full bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center text-emerald-400 shadow-md">
+                <CheckCircle2 className="w-10 h-10" />
               </div>
 
-              <div>
-                <h2 className="text-2xl font-black text-white tracking-tight">Payment Successful!</h2>
-                <p className="text-xs text-emerald-400 font-bold mt-1 font-mono">
-                  {statusMessage || 'Payment Received & Verified via FamPay Engine'}
+              <div className="space-y-1">
+                <h2 className="text-2xl font-bold text-white tracking-tight">Payment Confirmed</h2>
+                <p className="text-xs text-emerald-400 font-medium font-mono">
+                  {statusMessage || 'Payment received and verified in real time.'}
                 </p>
               </div>
 
-              <div className="p-4 rounded-2xl bg-[#080c16] border border-slate-800 space-y-2.5 text-xs font-mono text-left">
+              <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-2.5 text-xs font-mono text-left">
                 <div className="flex justify-between text-slate-400">
-                  <span>Merchant:</span>
-                  <span className="text-white font-bold">{brandName}</span>
+                  <span>Merchant</span>
+                  <span className="text-white font-semibold">{brandName}</span>
                 </div>
                 <div className="flex justify-between text-slate-400">
-                  <span>Amount Paid:</span>
-                  <span className="text-emerald-400 font-extrabold text-sm">
+                  <span>Amount Paid</span>
+                  <span className="text-emerald-400 font-bold text-sm tabular-nums">
                     ₹{amountFormatted}
                   </span>
                 </div>
                 <div className="flex justify-between text-slate-400">
-                  <span>Order Ref:</span>
+                  <span>Order Reference</span>
                   <span className="text-slate-300">{linkId}</span>
                 </div>
                 {confirmedUtr && (
                   <div className="flex justify-between text-slate-400">
-                    <span>Payer Bank UTR:</span>
-                    <span className="text-purple-400 font-extrabold">{confirmedUtr}</span>
+                    <span>Bank UTR</span>
+                    <span className="text-indigo-400 font-bold select-all">{confirmedUtr}</span>
                   </div>
                 )}
                 {confirmedTxnId && (
                   <div className="flex justify-between text-slate-400">
-                    <span>Transaction ID:</span>
-                    <span className="text-indigo-400 font-bold select-all">{confirmedTxnId}</span>
+                    <span>Transaction ID</span>
+                    <span className="text-slate-300 select-all">{confirmedTxnId}</span>
                   </div>
                 )}
                 <div className="flex justify-between text-slate-400">
-                  <span>Status:</span>
-                  <span className="text-emerald-400 font-bold">CONFIRMED ✓</span>
+                  <span>Status</span>
+                  <span className="text-emerald-400 font-semibold">CAPTURED ✓</span>
                 </div>
               </div>
 
               {/* Redirect Countdown if redirect_url is present */}
               {redirectCountdown !== null && (
-                <div className="p-3 rounded-2xl bg-indigo-950/50 border border-indigo-500/30 text-xs text-indigo-200">
+                <div className="p-3 rounded-xl bg-indigo-950/40 border border-indigo-500/30 text-xs text-indigo-200">
                   Redirecting back to store in <strong className="text-white font-bold">{redirectCountdown}s</strong>...
                 </div>
               )}
@@ -641,16 +611,16 @@ export const PublicCheckoutView: React.FC<PublicCheckoutViewProps> = ({ linkId }
                 <button
                   type="button"
                   onClick={handleReturnToPreviousPage}
-                  className="w-full py-3.5 rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-extrabold text-xs transition-all flex items-center justify-center gap-2 shadow-lg shadow-emerald-600/30 cursor-pointer"
+                  className="w-full py-3 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-xs transition-colors flex items-center justify-center gap-2 shadow-md cursor-pointer"
                 >
                   <ArrowLeft className="w-4 h-4" />
-                  <span>Return to Store / Previous Page</span>
+                  <span>Return to Store</span>
                 </button>
 
                 <button
                   type="button"
                   onClick={handleDownloadPdfReceipt}
-                  className="w-full py-2.5 rounded-2xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white font-bold text-xs transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+                  className="w-full py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white font-semibold text-xs transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
                 >
                   <Download className="w-4 h-4" />
                   <span>Download PDF Receipt</span>
@@ -659,53 +629,36 @@ export const PublicCheckoutView: React.FC<PublicCheckoutViewProps> = ({ linkId }
             </div>
           ) : (status === 'CANCELLED' || status === 'FAILED') ? (
             /* CANCELLED OR EXPIRED VIEW */
-            <div className="rounded-3xl bg-[#0f1422] border border-slate-800 p-7 shadow-2xl text-center space-y-5 animate-in fade-in duration-200">
-              <div className="w-16 h-16 mx-auto rounded-full bg-rose-500/10 border-2 border-rose-500/40 flex items-center justify-center text-rose-400 shadow-lg">
-                <XCircle className="w-10 h-10" />
+            <div className="rounded-2xl bg-slate-900 border border-slate-800 p-7 shadow-xl text-center space-y-5 animate-in fade-in duration-200">
+              <div className="w-14 h-14 mx-auto rounded-full bg-rose-500/10 border border-rose-500/30 flex items-center justify-center text-rose-400">
+                <XCircle className="w-8 h-8" />
               </div>
 
               <div className="space-y-1">
-                <h2 className="text-xl font-black text-white tracking-tight">
+                <h2 className="text-xl font-bold text-white tracking-tight">
                   {status === 'FAILED' ? 'Payment Session Expired' : 'Payment Cancelled'}
                 </h2>
-                <p className="text-xs text-slate-400 font-medium">
+                <p className="text-xs text-slate-400">
                   {status === 'FAILED' 
-                    ? 'The session expired because no payment was captured. Please retry.' 
-                    : 'This transaction has been cancelled. No funds were debited.'}
+                    ? 'The session timed out before payment was detected. Please retry.' 
+                    : 'This transaction was cancelled. No funds were debited.'}
                 </p>
-              </div>
-
-              <div className="p-4 rounded-2xl bg-[#080c16] border border-slate-800 space-y-2 text-xs font-mono text-left">
-                <div className="flex justify-between text-slate-400">
-                  <span>Order ID:</span>
-                  <span className="text-slate-300">{linkId}</span>
-                </div>
-                <div className="flex justify-between text-slate-400">
-                  <span>Amount:</span>
-                  <span className="text-slate-300">₹{amountFormatted}</span>
-                </div>
-                <div className="flex justify-between text-slate-400">
-                  <span>Status:</span>
-                  <span className="text-rose-400 font-bold">
-                    {status === 'FAILED' ? 'EXPIRED (NOT PAID)' : 'CANCELLED'}
-                  </span>
-                </div>
               </div>
 
               <div className="space-y-2.5 pt-2">
                 <button
                   type="button"
                   onClick={handleRestartPayment}
-                  className="w-full py-3 rounded-2xl bg-purple-600 hover:bg-purple-500 text-white font-extrabold text-xs flex items-center justify-center gap-2 shadow-lg shadow-purple-600/30 transition-all cursor-pointer"
+                  className="w-full py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-xs flex items-center justify-center gap-2 transition-colors cursor-pointer"
                 >
                   <RotateCcw className="w-4 h-4" />
-                  <span>Retry & Pay Again</span>
+                  <span>Retry Payment</span>
                 </button>
 
                 <button
                   type="button"
                   onClick={handleReturnToPreviousPage}
-                  className="w-full py-2.5 rounded-2xl bg-slate-800/80 hover:bg-slate-800 text-slate-300 hover:text-white font-bold text-xs flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+                  className="w-full py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white font-semibold text-xs flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
                 >
                   <ArrowLeft className="w-3.5 h-3.5" />
                   <span>Return to Previous Page</span>
@@ -715,340 +668,274 @@ export const PublicCheckoutView: React.FC<PublicCheckoutViewProps> = ({ linkId }
           ) : (
             /* PENDING CHECKOUT VIEW */
             <>
-              {/* Real-Time Auto-Detection Status Indicator */}
-              <div className="rounded-2xl bg-indigo-950/40 border border-indigo-500/30 p-3 flex items-center justify-between text-xs font-mono shadow-lg animate-pulse">
-                <div className="flex items-center gap-2">
-                  <div className="w-2.5 h-2.5 rounded-full bg-emerald-400 shadow-sm shadow-emerald-400" />
-                  <span className="text-emerald-300 font-bold tracking-tight">Real-Time IMAP Auto-Detect: ACTIVE</span>
-                </div>
-                <span className="text-indigo-300 text-[10px] hidden sm:inline">Auto-Confirm On</span>
-              </div>
-
               {/* Card 1: High-Contrast Scannable QR Code Card */}
-              <div className="rounded-3xl bg-[#0e1320] border border-slate-800/80 p-5 sm:p-6 shadow-2xl text-center space-y-4">
-                {/* Clean Pure White Container with Rounded Corners for Easy Scanning */}
-                <div className="p-4 rounded-3xl bg-white text-slate-900 border-4 border-purple-500/80 shadow-2xl inline-block mx-auto">
+              <div className="rounded-2xl bg-slate-900 border border-slate-800 p-5 sm:p-6 shadow-xl text-center space-y-4">
+                {/* Amount & Order Ref */}
+                <div className="space-y-1">
+                  <div className="text-xs font-mono text-slate-400">
+                    Order Ref: <span className="text-slate-300 font-semibold">{linkId}</span>
+                  </div>
+                  <div className="text-4xl font-extrabold text-white tracking-tight font-mono tabular-nums">
+                    ₹{amountFormatted}
+                  </div>
+                </div>
+
+                {/* Clean Scannable QR Container */}
+                <div className="relative p-4 rounded-2xl bg-white border border-slate-200/90 shadow-lg inline-block mx-auto group">
                   {qrDataUrl ? (
-                    <img
-                      src={qrDataUrl}
-                      alt="UPI QR Code"
-                      className="w-56 h-56 sm:w-60 sm:h-60 mx-auto rounded-lg object-contain block"
-                    />
+                    <div className="relative">
+                      <img
+                        src={qrDataUrl}
+                        alt="UPI QR Code"
+                        className="w-56 h-56 mx-auto rounded-xl object-contain block"
+                      />
+                      {/* Subtle corner accent guides */}
+                      <div className="absolute top-0 left-0 w-3.5 h-3.5 border-t-2 border-l-2 border-indigo-600 rounded-tl-sm pointer-events-none" />
+                      <div className="absolute top-0 right-0 w-3.5 h-3.5 border-t-2 border-r-2 border-indigo-600 rounded-tr-sm pointer-events-none" />
+                      <div className="absolute bottom-0 left-0 w-3.5 h-3.5 border-b-2 border-l-2 border-indigo-600 rounded-bl-sm pointer-events-none" />
+                      <div className="absolute bottom-0 right-0 w-3.5 h-3.5 border-b-2 border-r-2 border-indigo-600 rounded-br-sm pointer-events-none" />
+                    </div>
                   ) : (
-                    <div className="w-56 h-56 flex items-center justify-center bg-slate-100 rounded-lg">
-                      <QrCode className="w-14 h-14 text-slate-400 animate-pulse" />
+                    <div className="w-56 h-56 flex items-center justify-center bg-slate-100 rounded-xl">
+                      <QrCode className="w-12 h-12 text-slate-400 animate-pulse" />
                     </div>
                   )}
                 </div>
 
-                {/* Save QR to Gallery Button */}
-                {custom.enable_save_qr !== false && (
-                  <div>
-                    <button
-                      type="button"
-                      onClick={handleSaveQrToGallery}
-                      className="px-6 py-2.5 rounded-full bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-600 hover:from-purple-500 hover:to-indigo-500 text-white font-extrabold text-xs flex items-center justify-center gap-2 mx-auto shadow-lg shadow-purple-600/30 transition-all cursor-pointer"
-                    >
-                      <Download className="w-4 h-4" />
-                      <span>Save QR to Gallery</span>
-                    </button>
-                  </div>
-                )}
+                <div className="text-xs text-slate-400 font-medium flex items-center justify-center gap-1.5">
+                  <QrCode className="w-3.5 h-3.5 text-indigo-400" />
+                  <span>Scan with any UPI app to pay</span>
+                </div>
 
-                {/* Amount & VPA Display with 1-Click Copy */}
-                <div className="pt-1 space-y-2">
-                  <div className="text-4xl font-black text-white tracking-tight flex items-baseline justify-center gap-1">
-                    <span className="text-2xl font-bold text-slate-300">₹</span>
-                    <span>{amountFormatted}</span>
-                  </div>
-
-                  <div className="flex flex-wrap items-center justify-center gap-2 pt-1">
-                    <span className="text-[11px] font-mono text-slate-400">VPA:</span>
-                    <span className="text-xs font-mono font-bold text-purple-300 bg-purple-950/70 px-2.5 py-1 rounded-xl border border-purple-800/60 select-all">
-                      {currentUpi}
-                    </span>
-                    <button
-                      type="button"
-                      onClick={handleCopyUpi}
-                      className="px-3 py-1 rounded-xl bg-purple-600/40 hover:bg-purple-600/70 text-purple-200 hover:text-white border border-purple-500/50 text-[11px] font-bold flex items-center gap-1.5 transition-all cursor-pointer shadow-xs active:scale-95"
-                      title="Copy UPI ID to clipboard"
-                    >
-                      {copiedUpi ? (
-                        <>
-                          <Check className="w-3.5 h-3.5 text-emerald-400" />
-                          <span className="text-emerald-300 font-extrabold">Copied! ✓</span>
-                        </>
-                      ) : (
-                        <>
-                          <Copy className="w-3.5 h-3.5 text-purple-300" />
-                          <span>Copy UPI ID</span>
-                        </>
-                      )}
-                    </button>
-                  </div>
-
-                  {/* Backup / Alternate UPI Router Toggle (if configured by merchant) */}
-                  {backupUpi && (
-                    <div className="pt-1.5 flex items-center justify-center gap-1.5 text-[11px]">
-                      <span className="text-slate-400 font-mono text-[10px]">Route:</span>
-                      <button
-                        type="button"
-                        onClick={() => handleSwitchUpi(primaryUpi)}
-                        className={`px-2.5 py-1 rounded-lg text-[10px] font-bold transition-all cursor-pointer ${
-                          currentUpi === primaryUpi
-                            ? 'bg-purple-600 text-white shadow-xs'
-                            : 'bg-slate-900 text-slate-400 hover:text-white border border-slate-800'
-                        }`}
-                      >
-                        Primary ({primaryUpi.split('@')[1] || 'fam'})
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleSwitchUpi(backupUpi)}
-                        className={`px-2.5 py-1 rounded-lg text-[10px] font-bold transition-all cursor-pointer ${
-                          currentUpi === backupUpi
-                            ? 'bg-purple-600 text-white shadow-xs'
-                            : 'bg-slate-900 text-slate-400 hover:text-white border border-slate-800'
-                        }`}
-                      >
-                        Backup ({backupUpi.split('@')[1] || 'bank'})
-                      </button>
-                    </div>
-                  )}
+                {/* UPI VPA Copy Bar */}
+                <div className="flex items-center justify-center gap-2 pt-1">
+                  <span className="text-xs font-mono text-slate-300 bg-slate-950 px-3.5 py-2 rounded-xl border border-slate-800 select-all font-medium">
+                    {currentUpi}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={handleCopyUpi}
+                    className="px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold border border-slate-700 flex items-center gap-1.5 transition-colors cursor-pointer"
+                  >
+                    {copiedUpi ? (
+                      <>
+                        <Check className="w-3.5 h-3.5 text-emerald-400" />
+                        <span className="text-emerald-400">Copied</span>
+                      </>
+                    ) : (
+                      <>
+                        <Copy className="w-3.5 h-3.5 text-slate-400" />
+                        <span>Copy VPA</span>
+                      </>
+                    )}
+                  </button>
                 </div>
               </div>
 
-              {/* Error Banner */}
+              {/* Error Banner if any */}
               {errorMessage && (
-                <div className="p-3.5 rounded-2xl bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs flex items-start gap-2.5 animate-in fade-in">
+                <div className="p-3.5 rounded-xl bg-rose-950/60 border border-rose-800/60 text-rose-300 text-xs flex items-start gap-2.5 animate-in fade-in">
                   <AlertCircle className="w-4 h-4 text-rose-400 shrink-0 mt-0.5" />
                   <span>{errorMessage}</span>
                 </div>
               )}
 
-              {/* Card 2: PAY BY APPS Section */}
+              {/* Card 2: 1-Click Pay by 6 Major UPI Apps */}
               {custom.show_apps !== false && (
-                <div className="rounded-2xl bg-[#0e1320] border border-slate-800/80 p-4 space-y-3">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-1.5 text-[11px] font-extrabold text-teal-400 uppercase tracking-wider">
-                      <Smartphone className="w-4 h-4 text-teal-400" />
-                      <span>PAY BY APPS (1-CLICK TAP)</span>
-                    </div>
-                    <span className="text-[10px] text-slate-500 font-mono">Instant redirect</span>
+                <div className="rounded-2xl bg-slate-900 border border-slate-800 p-4 space-y-3">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="font-semibold text-slate-200 flex items-center gap-1.5">
+                      <Smartphone className="w-4 h-4 text-indigo-400" />
+                      <span>Instant UPI App Launch</span>
+                    </span>
+                    <span className="text-[11px] text-slate-400 font-mono">Mobile 1-Tap</span>
                   </div>
 
-                  <div className="grid grid-cols-2 gap-2.5">
-                    {/* Generic UPI / All Apps */}
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                    {/* Google Pay */}
                     <a
-                      href={upiUri}
-                      className="p-3 rounded-xl bg-[#141a29] border border-slate-800/90 hover:border-purple-500/50 hover:bg-[#182033] flex items-center gap-3 transition-all text-left group cursor-pointer"
+                      href={`gpay://upi/pay?pa=${currentUpi}&pn=${encodeURIComponent(cleanPn)}&am=${amountFormatted}&cu=INR&tn=${encodeURIComponent(noteParam)}`}
+                      onClick={() => {
+                        setTimeout(() => { window.location.href = upiUri; }, 300);
+                      }}
+                      className="p-2.5 rounded-xl bg-slate-950 hover:bg-slate-800/80 border border-slate-800 hover:border-slate-700 flex items-center gap-2.5 transition-all cursor-pointer group"
                     >
-                      <div className="w-8 h-8 rounded-lg bg-purple-500/20 border border-purple-500/30 flex items-center justify-center font-bold text-purple-400 text-xs shrink-0">
-                        UPI
+                      <div className="w-7 h-7 rounded-lg bg-blue-500/10 text-blue-400 font-black text-xs flex items-center justify-center shrink-0 border border-blue-500/20">
+                        G
                       </div>
-                      <div>
-                        <div className="text-xs font-bold text-white group-hover:text-purple-300">Any UPI App</div>
-                        <div className="text-[10px] text-slate-400">Default app</div>
+                      <div className="truncate text-left">
+                        <div className="text-xs font-semibold text-white group-hover:text-blue-300 transition-colors">Google Pay</div>
+                        <div className="text-[10px] text-slate-400">GPay UPI</div>
                       </div>
                     </a>
 
-                    {/* FamPay Button */}
+                    {/* PhonePe */}
                     <a
-                      href={upiUri}
-                      className="p-3 rounded-xl bg-[#141a29] border border-slate-800/90 hover:border-amber-500/50 hover:bg-[#182033] flex items-center gap-3 transition-all text-left group cursor-pointer"
+                      href={`phonepe://pay?pa=${currentUpi}&pn=${encodeURIComponent(cleanPn)}&am=${amountFormatted}&cu=INR&tn=${encodeURIComponent(noteParam)}`}
+                      onClick={() => {
+                        setTimeout(() => { window.location.href = upiUri; }, 300);
+                      }}
+                      className="p-2.5 rounded-xl bg-slate-950 hover:bg-slate-800/80 border border-slate-800 hover:border-slate-700 flex items-center gap-2.5 transition-all cursor-pointer group"
                     >
-                      <div className="w-8 h-8 rounded-lg bg-amber-500/20 border border-amber-500/30 flex items-center justify-center font-black text-amber-400 text-xs shrink-0">
-                        Fam
-                      </div>
-                      <div>
-                        <div className="text-xs font-bold text-white group-hover:text-amber-300">FamPay</div>
-                        <div className="text-[10px] text-slate-400">Tap to pay</div>
-                      </div>
-                    </a>
-
-                    {/* Google Pay Button */}
-                    <a
-                      href={upiUri}
-                      className="p-3 rounded-xl bg-[#141a29] border border-slate-800/90 hover:border-blue-500/50 hover:bg-[#182033] flex items-center gap-3 transition-all text-left group cursor-pointer"
-                    >
-                      <div className="w-8 h-8 rounded-lg bg-blue-500/20 border border-blue-500/30 flex items-center justify-center font-bold text-blue-400 text-xs shrink-0">
-                        GPay
-                      </div>
-                      <div>
-                        <div className="text-xs font-bold text-white group-hover:text-blue-300">Google Pay</div>
-                        <div className="text-[10px] text-slate-400">Tap to pay</div>
-                      </div>
-                    </a>
-
-                    {/* PhonePe Button */}
-                    <a
-                      href={upiUri}
-                      className="p-3 rounded-xl bg-[#141a29] border border-slate-800/90 hover:border-purple-500/50 hover:bg-[#182033] flex items-center gap-3 transition-all text-left group cursor-pointer"
-                    >
-                      <div className="w-8 h-8 rounded-lg bg-purple-500/20 border border-purple-500/30 flex items-center justify-center font-bold text-purple-400 text-xs shrink-0">
+                      <div className="w-7 h-7 rounded-lg bg-purple-500/10 text-purple-400 font-black text-xs flex items-center justify-center shrink-0 border border-purple-500/20">
                         Pe
                       </div>
-                      <div>
-                        <div className="text-xs font-bold text-white group-hover:text-purple-300">PhonePe</div>
-                        <div className="text-[10px] text-slate-400">Tap to pay</div>
+                      <div className="truncate text-left">
+                        <div className="text-xs font-semibold text-white group-hover:text-purple-300 transition-colors">PhonePe</div>
+                        <div className="text-[10px] text-slate-400">Instant pay</div>
                       </div>
                     </a>
-                  </div>
 
-                  {/* Daily Transfer Limit Troubleshooter Help Tip */}
-                  <div className="p-3 rounded-xl bg-purple-950/40 border border-purple-500/30 text-[11px] text-purple-200 space-y-1 mt-2">
-                    <div className="flex items-center gap-1.5 font-bold text-purple-300">
-                      <Info className="w-3.5 h-3.5 text-purple-400 shrink-0" />
-                      <span>UPI App says "Daily Limit Reached" or error?</span>
-                    </div>
-                    <p className="text-[10px] text-slate-300 leading-relaxed">
-                      Tap <strong className="text-purple-300 cursor-pointer underline font-bold" onClick={handleCopyUpi}>Copy UPI ID</strong> above ➔ Open GPay / PhonePe / Paytm / BHIM ➔ Select <strong>"Pay to UPI ID"</strong> ➔ Paste <span className="font-mono text-white font-bold">{currentUpi}</span> and pay ₹{amountFormatted}. Real-time verification detects and confirms instantly!
-                    </p>
+                    {/* Paytm */}
+                    <a
+                      href={`paytmmp://pay?pa=${currentUpi}&pn=${encodeURIComponent(cleanPn)}&am=${amountFormatted}&cu=INR&tn=${encodeURIComponent(noteParam)}`}
+                      onClick={() => {
+                        setTimeout(() => { window.location.href = upiUri; }, 300);
+                      }}
+                      className="p-2.5 rounded-xl bg-slate-950 hover:bg-slate-800/80 border border-slate-800 hover:border-slate-700 flex items-center gap-2.5 transition-all cursor-pointer group"
+                    >
+                      <div className="w-7 h-7 rounded-lg bg-sky-500/10 text-sky-400 font-black text-xs flex items-center justify-center shrink-0 border border-sky-500/20">
+                        Py
+                      </div>
+                      <div className="truncate text-left">
+                        <div className="text-xs font-semibold text-white group-hover:text-sky-300 transition-colors">Paytm</div>
+                        <div className="text-[10px] text-slate-400">Wallet/UPI</div>
+                      </div>
+                    </a>
+
+                    {/* FamPay */}
+                    <a
+                      href={upiUri}
+                      className="p-2.5 rounded-xl bg-slate-950 hover:bg-slate-800/80 border border-slate-800 hover:border-slate-700 flex items-center gap-2.5 transition-all cursor-pointer group"
+                    >
+                      <div className="w-7 h-7 rounded-lg bg-amber-500/10 text-amber-400 font-black text-xs flex items-center justify-center shrink-0 border border-amber-500/20">
+                        Fam
+                      </div>
+                      <div className="truncate text-left">
+                        <div className="text-xs font-semibold text-white group-hover:text-amber-300 transition-colors">FamPay</div>
+                        <div className="text-[10px] text-slate-400">FamApp UPI</div>
+                      </div>
+                    </a>
+
+                    {/* BHIM UPI */}
+                    <a
+                      href={upiUri}
+                      className="p-2.5 rounded-xl bg-slate-950 hover:bg-slate-800/80 border border-slate-800 hover:border-slate-700 flex items-center gap-2.5 transition-all cursor-pointer group"
+                    >
+                      <div className="w-7 h-7 rounded-lg bg-emerald-500/10 text-emerald-400 font-black text-xs flex items-center justify-center shrink-0 border border-emerald-500/20">
+                        BH
+                      </div>
+                      <div className="truncate text-left">
+                        <div className="text-xs font-semibold text-white group-hover:text-emerald-300 transition-colors">BHIM UPI</div>
+                        <div className="text-[10px] text-slate-400">Govt NPCI</div>
+                      </div>
+                    </a>
+
+                    {/* Default UPI System Picker */}
+                    <a
+                      href={upiUri}
+                      className="p-2.5 rounded-xl bg-slate-950 hover:bg-slate-800/80 border border-slate-800 hover:border-slate-700 flex items-center gap-2.5 transition-all cursor-pointer group"
+                    >
+                      <div className="w-7 h-7 rounded-lg bg-indigo-500/10 text-indigo-400 font-black text-xs flex items-center justify-center shrink-0 border border-indigo-500/20">
+                        UPI
+                      </div>
+                      <div className="truncate text-left">
+                        <div className="text-xs font-semibold text-white group-hover:text-indigo-300 transition-colors">Other App</div>
+                        <div className="text-[10px] text-slate-400">System picker</div>
+                      </div>
+                    </a>
                   </div>
                 </div>
               )}
 
-              {/* Card 3: Circular Countdown Timer */}
-              <div className="rounded-2xl bg-[#0e1320] border border-slate-800/80 p-4 flex items-center gap-4">
-                {/* Circular SVG Ring */}
-                <div className="relative w-16 h-16 shrink-0 flex items-center justify-center">
-                  <svg className="w-16 h-16 transform -rotate-90" viewBox="0 0 64 64">
-                    <circle
-                      cx="32"
-                      cy="32"
-                      r="26"
-                      stroke="#1e293b"
-                      strokeWidth="5"
-                      fill="transparent"
-                    />
-                    <circle
-                      cx="32"
-                      cy="32"
-                      r="26"
-                      stroke="#2dd4bf"
-                      strokeWidth="5"
-                      fill="transparent"
-                      strokeDasharray={163.36}
-                      strokeDashoffset={163.36 - (163.36 * timerPercentage) / 100}
-                      strokeLinecap="round"
-                      className="transition-all duration-1000 ease-linear"
-                    />
-                  </svg>
-                  <div className="absolute font-mono font-extrabold text-xs text-white">
-                    {formatTimer(timeLeft)}
-                  </div>
-                </div>
-
-                <div>
-                  <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider font-mono">
-                    SESSION EXPIRES IN
-                  </div>
-                  <div className="text-xs text-slate-300 font-medium mt-0.5">
-                    Scan & pay before timer reaches 00:00
-                  </div>
-                </div>
-              </div>
-
-              {/* Auto-Confirm Live Indicator */}
-              <div className="flex items-center justify-center gap-2.5 p-3 rounded-2xl bg-purple-950/40 border border-purple-800/50 text-xs text-purple-200 font-bold shadow-inner">
-                <span className="relative flex h-2.5 w-2.5 shrink-0">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                  <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
-                </span>
-                <span>Auto-Confirm Active: Confirms instantly upon payment alert!</span>
-              </div>
-
-              {/* Card 3.5: Customer Receipt Email */}
-              <div className="rounded-2xl bg-[#0e1320] border border-slate-800/80 p-4 space-y-2.5">
+              {/* Card 3: Session Countdown & Live Status Radar */}
+              <div className="rounded-2xl bg-slate-900 border border-slate-800 p-4 space-y-3">
                 <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-1.5 text-[11px] font-extrabold text-teal-400 uppercase tracking-wider font-mono">
-                    <Mail className="w-3.5 h-3.5 text-teal-400" />
-                    <span>Receipt Email Address (Optional)</span>
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse" />
+                    <div>
+                      <div className="text-xs font-semibold text-white">Live IMAP Verification Active</div>
+                      <div className="text-[11px] text-slate-400">Auto-confirms within 2 seconds of payment</div>
+                    </div>
                   </div>
-                  <span className="text-[10px] text-slate-400 font-mono">Instant notification</span>
+
+                  <div className="text-right">
+                    <div className="text-xs font-mono font-bold text-indigo-300 tabular-nums">
+                      {formatTimer(timeLeft)}
+                    </div>
+                    <div className="text-[10px] text-slate-500 uppercase font-mono">Remaining</div>
+                  </div>
                 </div>
+
+                {/* Countdown Progress Bar */}
+                <div className="w-full h-1.5 rounded-full bg-slate-950 overflow-hidden border border-slate-800">
+                  <div
+                    className="h-full bg-indigo-500 rounded-full transition-all duration-1000 ease-linear"
+                    style={{ width: `${Math.min(100, Math.max(0, timerPercentage))}%` }}
+                  />
+                </div>
+              </div>
+
+              {/* Card 4: Customer Receipt Email (Optional) */}
+              <div className="rounded-2xl bg-slate-900 border border-slate-800 p-4 space-y-2">
+                <label className="block text-xs font-medium text-slate-300 flex items-center gap-1.5">
+                  <Mail className="w-3.5 h-3.5 text-indigo-400" />
+                  <span>Send Confirmation Receipt to (Optional)</span>
+                </label>
                 <input
                   type="email"
                   value={customerEmail}
                   onChange={(e) => setCustomerEmail(e.target.value)}
-                  placeholder="yourname@gmail.com to receive receipt"
-                  className="w-full px-3.5 py-2.5 rounded-xl bg-[#070b14] border border-slate-700/80 text-xs font-mono text-white placeholder-slate-500 focus:outline-none focus:border-purple-500 transition-colors"
+                  placeholder="yourname@gmail.com"
+                  className="w-full px-3 py-2 rounded-lg bg-slate-950 border border-slate-800 text-xs font-mono text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500 transition-colors"
                 />
               </div>
 
-              {/* Card 4: MANUAL UTR ENTRY (FALLBACK) */}
+              {/* Card 5: Manual UTR Verification Drawer */}
               {custom.enable_utr_submission !== false && (
-                <div className="rounded-2xl bg-[#0e1320] border border-slate-800/80 p-4 space-y-3">
+                <div className="rounded-2xl bg-slate-900 border border-slate-800 p-4 space-y-3">
                   <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-1.5 text-[11px] font-extrabold text-teal-400 uppercase tracking-wider">
-                      <CreditCard className="w-4 h-4 text-teal-400" />
-                      <span>MANUAL UTR CONFIRMATION (OPTIONAL)</span>
-                    </div>
-                    <span className="text-[9px] text-slate-500 font-mono font-bold px-1.5 py-0.5 rounded bg-slate-900 border border-slate-800">FALLBACK</span>
+                    <span className="text-xs font-semibold text-slate-300 flex items-center gap-1.5">
+                      <CreditCard className="w-3.5 h-3.5 text-indigo-400" />
+                      <span>Already paid? Enter 12-Digit Bank UTR</span>
+                    </span>
+                    <span className="text-[10px] text-slate-500 font-mono">Optional</span>
                   </div>
-
-                  <p className="text-[11px] text-slate-400">
-                    If not automatically confirmed within seconds of paying, enter your 12-digit UTR:
-                  </p>
 
                   <div className="flex gap-2">
                     <input
                       type="text"
+                      maxLength={16}
                       value={utrInput}
-                      onChange={(e) => setUtrInput(e.target.value)}
-                      placeholder="e.g. 427618294012"
-                      className="flex-1 px-3.5 py-2.5 rounded-xl bg-[#070b14] border border-slate-700/80 text-xs font-mono text-white placeholder-slate-500 focus:outline-none focus:border-purple-500 transition-colors"
+                      onChange={(e) => setUtrInput(e.target.value.replace(/[^a-zA-Z0-9]/g, '').toUpperCase())}
+                      placeholder="e.g. 427618294012 (12-digit UTR)"
+                      className="flex-1 px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-xs font-mono text-white placeholder-slate-500 focus:outline-hidden focus:ring-1 focus:ring-indigo-500 transition-all"
                     />
                     <button
                       type="button"
                       onClick={handleVerifyPayment}
-                      disabled={verifying}
-                      className="px-5 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-500 text-white font-bold text-xs flex items-center gap-1.5 shadow-md shadow-purple-600/30 transition-all disabled:opacity-50 shrink-0 cursor-pointer"
+                      disabled={verifying || !utrInput.trim()}
+                      className="px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-xs flex items-center gap-1.5 transition-all disabled:opacity-50 shrink-0 cursor-pointer shadow-sm"
                     >
                       {verifying ? (
                         <>
                           <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                          <span>Confirming...</span>
+                          <span>Checking...</span>
                         </>
                       ) : (
                         <>
                           <Check className="w-3.5 h-3.5" />
-                          <span>Confirm</span>
+                          <span>Submit UTR</span>
                         </>
                       )}
                     </button>
                   </div>
 
-                  <div className="flex items-center justify-between pt-1">
-                    <div className="flex items-center gap-1.5 text-[10px] text-slate-400 font-medium">
-                      <Info className="w-3.5 h-3.5 text-slate-500 shrink-0" />
-                      <span>Find UTR in your bank app history</span>
-                    </div>
-
-                    <button
-                      type="button"
-                      onClick={handleSimulatePayment}
-                      disabled={verifying}
-                      className="px-3 py-1.5 rounded-lg bg-emerald-950/40 border border-emerald-500/40 text-emerald-300 hover:bg-emerald-900/60 hover:text-emerald-100 text-[10px] font-bold flex items-center gap-1 transition-all cursor-pointer"
-                    >
-                      <Sparkles className="w-3 h-3 text-emerald-400" />
-                      <span>Simulate / Test Verify</span>
-                    </button>
+                  <div className="text-[11px] text-slate-400 pt-0.5">
+                    <span>Found in your bank, FamApp, GPay or PhonePe payment receipt</span>
                   </div>
                 </div>
               )}
-
-              {/* Card 5: Prominent Cancel Option */}
-              <div className="pt-1">
-                <button
-                  type="button"
-                  onClick={() => setShowCancelModal(true)}
-                  className="w-full py-3 rounded-2xl bg-rose-950/30 hover:bg-rose-900/50 border border-rose-800/40 text-rose-300 hover:text-rose-100 font-extrabold text-xs flex items-center justify-center gap-2 transition-all cursor-pointer shadow-sm"
-                >
-                  <XCircle className="w-4 h-4 text-rose-400" />
-                  <span>Cancel Payment & Return to Store</span>
-                </button>
-              </div>
             </>
           )}
 

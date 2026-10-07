@@ -114,7 +114,7 @@ export class PaymentService {
     }
 
     const emailToUse = user?.fampay_gmail || user?.email;
-    const cleanUtr = (utr || '').trim();
+    const cleanUtr = (utr || '').replace(/[^a-zA-Z0-9]/g, '').trim();
 
     const hasAppPassword = Boolean(user && user.google_app_password && user.google_app_password.trim().length >= 8);
 
@@ -131,7 +131,7 @@ export class PaymentService {
       return {
         success: false,
         payment,
-        message: `Payment NOT verified. Bank UTR ${cleanUtr} was already redeemed for a previous transaction. Please complete a new payment.`,
+        message: `Payment NOT verified. Bank UTR "${cleanUtr}" was already claimed for a previous transaction. Please complete a new payment.`,
       };
     }
 
@@ -157,36 +157,36 @@ export class PaymentService {
     } else {
       imapResult = {
         success: false,
-        message: 'Gmail IMAP App Password is not configured. Real-time background checking requires a 16-character Google App Password in Integrations.',
+        message: 'Gmail IMAP App Password is not configured on merchant profile. 24/7 bank verification requires a valid Google App Password in Integrations.',
       };
     }
 
     const isImapVerified = Boolean(imapResult && imapResult.success && imapResult.utr);
-    const isValidManualUtr = Boolean(cleanUtr && cleanUtr.length >= 8 && !usedUtrs.includes(cleanUtr));
 
-    // If neither IMAP nor a valid unique UTR was found, reject
-    if (!isImapVerified && !isValidManualUtr) {
+    // STRICT ANTI-FAKE VERIFICATION: Payment MUST be confirmed by genuine bank email via IMAP.
+    // Never allow arbitrary unverified manual UTRs to confirm transactions!
+    if (!isImapVerified) {
       await dbService.addLog({
         user_id: user?.id || 'system',
         user_email: user?.email || 'merchant',
-        action: 'UPI_PAYMENT_IMAP_VERIFY_FAILED',
+        action: 'UPI_PAYMENT_VERIFY_REJECTED',
         ip,
         status: 'FAILED',
-        details: `Verification pending for Ref ${targetRef}: ${imapResult.message || 'No matching payment alert found in INBOX'}`,
+        details: `Rejected unverified payment attempt for Ref ${targetRef}: ${imapResult.message || 'No matching bank credit email found in INBOX'}`,
       });
 
       return {
         success: false,
         payment,
-        message: hasAppPassword
-          ? (imapResult.message || `No payment receipt detected in Gmail yet for ₹${amount}. If you have already paid, please enter your 12-digit Bank UTR / Reference number from GPay/PhonePe/FamPay below to confirm instantly.`)
-          : `Gmail IMAP is not connected yet. Please enter your 12-digit Bank UTR / Reference number from GPay/PhonePe/FamPay below to confirm instantly.`,
+        message: cleanUtr
+          ? `Payment NOT verified. Bank records show no credit of ₹${amount} with UTR "${cleanUtr}". Please check your payment receipt or allow a few moments for the bank alert.`
+          : (imapResult.message || `No payment receipt detected in Gmail yet for ₹${amount}. If you have paid, please enter your 12-digit Bank UTR number to verify.`),
       };
     }
 
-    // Confirm payment in database (via IMAP match or valid UTR)
+    // Confirm payment in database (backed by REAL IMAP verification)
     let confirmedPayment: UpiPaymentRecord | null = null;
-    const confirmedUtr = isImapVerified ? (imapResult.utr || cleanUtr || `FPX-${Date.now()}`) : cleanUtr;
+    const confirmedUtr = imapResult.utr || cleanUtr;
 
     if (payment) {
       payment.transaction_ref = confirmedUtr;

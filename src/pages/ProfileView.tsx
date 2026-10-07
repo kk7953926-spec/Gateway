@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import {
   User as UserIcon,
-  Mail,
   Shield,
   Upload,
   Image as ImageIcon,
@@ -14,6 +13,7 @@ import {
   Camera,
   RefreshCw,
   LogOut,
+  Settings
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
@@ -23,43 +23,43 @@ const AVATAR_ALBUM = [
     id: 'preset-1',
     name: 'Modern Merchant',
     url: 'https://images.unsplash.com/photo-1566492031773-4f4e44671857?w=300&auto=format&fit=crop&q=80',
-    tag: 'Executive',
+    tag: 'Business',
   },
   {
     id: 'preset-2',
     name: 'Tech Founder',
     url: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=300&auto=format&fit=crop&q=80',
-    tag: 'Founder',
+    tag: 'Professional',
   },
   {
     id: 'preset-3',
-    name: 'E-Store Brand',
-    url: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=300&auto=format&fit=crop&q=80',
-    tag: 'Store',
+    name: 'Minimalist Store',
+    url: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=300&auto=format&fit=crop&q=80',
+    tag: 'Modern',
   },
   {
     id: 'preset-4',
-    name: 'Creative Studio',
-    url: 'https://images.unsplash.com/photo-1570295999919-56ceb5ecca61?w=300&auto=format&fit=crop&q=80',
-    tag: 'Creator',
+    name: 'Creative Agency',
+    url: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?w=300&auto=format&fit=crop&q=80',
+    tag: 'Creative',
   },
   {
     id: 'preset-5',
-    name: 'Digital Payments',
-    url: 'https://images.unsplash.com/photo-1580489944761-15a19d654956?w=300&auto=format&fit=crop&q=80',
+    name: 'UPI FinTech Lead',
+    url: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=300&auto=format&fit=crop&q=80',
     tag: 'FinTech',
   },
   {
     id: 'preset-6',
-    name: 'Cyber Security',
-    url: 'https://images.unsplash.com/photo-1628157582853-a796fa650a6a?w=300&auto=format&fit=crop&q=80',
-    tag: 'Security',
+    name: 'Digital Creator',
+    url: 'https://images.unsplash.com/photo-1522075469751-3a6694fb2f61?w=300&auto=format&fit=crop&q=80',
+    tag: 'Creative',
   },
   {
     id: 'preset-7',
-    name: 'Minimalist 3D',
-    url: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=300&auto=format&fit=crop&q=80',
-    tag: '3D Art',
+    name: 'Executive Merchant',
+    url: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=300&auto=format&fit=crop&q=80',
+    tag: 'Executive',
   },
   {
     id: 'preset-8',
@@ -69,13 +69,25 @@ const AVATAR_ALBUM = [
   },
 ];
 
-export const ProfileView: React.FC = () => {
-  const { user, token, updateUser, refreshProfile, logout } = useAuth();
-  const [activeTab, setActiveTab] = useState<'Profile Photo & Album' | 'Account Details' | 'Security'>('Profile Photo & Album');
+type SettingsTab =
+  | 'Profile Photo & Album'
+  | 'Account Details'
+  | 'Security';
+
+export const ProfileView: React.FC<{
+  onNavigate?: (nav: string) => void;
+  initialTab?: SettingsTab;
+}> = ({ onNavigate, initialTab }) => {
+  const { user, token, updateUser, logout } = useAuth();
+  const [activeTab, setActiveTab] = useState<SettingsTab>(
+    initialTab || 'Profile Photo & Album'
+  );
 
   const [name, setName] = useState<string>(user?.name || '');
   const [phone, setPhone] = useState<string>(user?.phone || '');
-  const [selectedPhoto, setSelectedPhoto] = useState<string>(user?.avatar_url || AVATAR_ALBUM[0].url);
+  const [selectedPhoto, setSelectedPhoto] = useState<string>(
+    user?.avatar_url || AVATAR_ALBUM[0].url
+  );
   const [customUrl, setCustomUrl] = useState<string>('');
   const [saving, setSaving] = useState<boolean>(false);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
@@ -91,19 +103,19 @@ export const ProfileView: React.FC = () => {
       const img = new Image();
       img.onload = () => {
         const canvas = document.createElement('canvas');
-        const MAX_SIZE = 512;
+        const MAX_DIM = 400;
         let width = img.width;
         let height = img.height;
 
         if (width > height) {
-          if (width > MAX_SIZE) {
-            height = Math.round((height * MAX_SIZE) / width);
-            width = MAX_SIZE;
+          if (width > MAX_DIM) {
+            height *= MAX_DIM / width;
+            width = MAX_DIM;
           }
         } else {
-          if (height > MAX_SIZE) {
-            width = Math.round((width * MAX_SIZE) / height);
-            height = MAX_SIZE;
+          if (height > MAX_DIM) {
+            width *= MAX_DIM / height;
+            height = MAX_DIM;
           }
         }
 
@@ -114,7 +126,9 @@ export const ProfileView: React.FC = () => {
           ctx.drawImage(img, 0, 0, width, height);
           const compressedDataUrl = canvas.toDataURL('image/jpeg', 0.85);
           setSelectedPhoto(compressedDataUrl);
-          setErrorMsg(null);
+          setCustomUrl('');
+          setSuccessMsg('Photo uploaded successfully! Click "Save Changes" to apply.');
+          setTimeout(() => setSuccessMsg(null), 4000);
         }
       };
       img.src = event.target?.result as string;
@@ -124,64 +138,65 @@ export const ProfileView: React.FC = () => {
 
   const handleSaveProfile = async () => {
     setSaving(true);
-    setSuccessMsg(null);
     setErrorMsg(null);
+    setSuccessMsg(null);
 
     try {
-      const avatarToSave = customUrl.trim() || selectedPhoto;
-
       const res = await fetch('/api/user/profile', {
-        method: 'PUT',
+        method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
-          name: name.trim() || user?.name,
+          name: name.trim(),
           phone: phone.trim(),
-          avatar_url: avatarToSave,
+          avatar_url: selectedPhoto,
         }),
       });
 
       const data = await res.json();
-
       if (!res.ok || !data.success) {
-        throw new Error(data.error || 'Failed to update profile');
+        throw new Error(data.error || 'Failed to update profile.');
       }
 
-      updateUser({
-        name: name.trim() || user?.name,
-        phone: phone.trim(),
-        avatar_url: avatarToSave,
-      });
+      if (user) {
+        updateUser({
+          ...user,
+          name: name.trim(),
+          phone: phone.trim(),
+          avatar_url: selectedPhoto,
+        });
+      }
 
-      setSuccessMsg('Profile photo and details saved successfully! Updated across your dashboard and checkout.');
-      setTimeout(() => setSuccessMsg(null), 5000);
+      setSuccessMsg('Merchant profile updated successfully!');
+      setTimeout(() => setSuccessMsg(null), 4000);
     } catch (err: any) {
-      setErrorMsg(err.message || 'An error occurred while saving profile.');
+      setErrorMsg(err.message || 'Error updating profile.');
+      setTimeout(() => setErrorMsg(null), 5000);
     } finally {
       setSaving(false);
     }
   };
 
   return (
-    <div className="space-y-6 max-w-5xl mx-auto">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+    <div className="space-y-6 max-w-5xl mx-auto animate-in fade-in duration-300">
+      {/* Header Section */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-extrabold text-slate-900 tracking-tight flex items-center gap-2">
-            <UserIcon className="w-6 h-6 text-purple-600" />
-            <span>Profile & Photo Album</span>
+          <h1 className="text-2xl font-extrabold text-slate-900 tracking-tight flex items-center gap-2.5">
+            <Settings className="w-6 h-6 text-indigo-600" />
+            <span>Settings & Merchant Profile</span>
           </h1>
           <p className="text-xs text-slate-500 mt-1">
-            Choose your merchant profile photo from the curated album, upload from device, and manage account details.
+            Configure gateway settings, merchant branding, and account security.
           </p>
         </div>
 
         <button
           onClick={handleSaveProfile}
           disabled={saving}
-          className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white text-xs font-bold shadow-md shadow-purple-600/20 flex items-center gap-2 disabled:opacity-50 transition-all cursor-pointer shrink-0"
+          className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white text-xs font-bold shadow-md shadow-indigo-600/20 flex items-center gap-2 disabled:opacity-50 transition-all cursor-pointer shrink-0"
         >
           {saving ? (
             <>
@@ -212,21 +227,30 @@ export const ProfileView: React.FC = () => {
         </div>
       )}
 
-      {/* Tabs */}
-      <div className="flex items-center gap-1 border-b border-slate-200 pb-2">
-        {['Profile Photo & Album', 'Account Details', 'Security'].map((tab) => (
-          <button
-            key={tab}
-            onClick={() => setActiveTab(tab as any)}
-            className={`px-4 py-2 rounded-xl text-xs font-bold transition-all ${
-              activeTab === tab
-                ? 'bg-purple-600 text-white shadow-sm'
-                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
-            }`}
-          >
-            {tab}
-          </button>
-        ))}
+      {/* Settings Navigation Tabs */}
+      <div className="flex items-center gap-1.5 border-b border-slate-200 pb-2.5 flex-wrap">
+        {(
+          [
+            'Profile Photo & Album',
+            'Account Details',
+            'Security',
+          ] as SettingsTab[]
+        ).map((tab) => {
+          const isActive = activeTab === tab;
+          return (
+            <button
+              key={tab}
+              onClick={() => setActiveTab(tab)}
+              className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-2 ${
+                isActive
+                  ? 'bg-indigo-600 text-white shadow-sm'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+              }`}
+            >
+              <span>{tab}</span>
+            </button>
+          );
+        })}
       </div>
 
       {/* TAB 1: Profile Photo & Album */}

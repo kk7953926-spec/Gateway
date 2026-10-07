@@ -311,47 +311,43 @@ export const PaymentLinksView: React.FC<PaymentLinksViewProps> = ({ onNavigate }
           </p>
         </div>
 
-        {/* Subscription Status Badge */}
+        {/* Subscription Status Indicator */}
         {isSubscriptionActive ? (
-          <div className="px-3.5 py-1.5 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-bold flex items-center gap-2 font-mono">
+          <div className="flex items-center gap-2 text-xs font-mono text-emerald-700">
             <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-            <span>Active Plan ({daysLeft} Days Remaining)</span>
+            <span className="font-semibold">Active Plan ({daysLeft} Days Remaining)</span>
           </div>
         ) : (
-          <div className="px-3.5 py-1.5 rounded-full bg-rose-50 border border-rose-200 text-rose-800 text-xs font-bold flex items-center gap-2 font-mono">
+          <div className="flex items-center gap-2 text-xs font-mono text-rose-700">
             <span className="w-2 h-2 rounded-full bg-rose-500" />
-            <span>Subscription Expired</span>
+            <span className="font-semibold">Subscription Expired</span>
           </div>
         )}
       </div>
 
       {/* Subscription Expired Paywall Banner */}
       {!isSubscriptionActive && (
-        <div className="p-5 rounded-3xl bg-gradient-to-r from-purple-900 via-indigo-900 to-slate-900 text-white shadow-xl border border-purple-500/30 space-y-3">
-          <div className="flex items-center gap-2 text-amber-400 font-extrabold text-sm">
-            <AlertTriangle className="w-5 h-5 text-amber-400" />
+        <div className="p-5 rounded-2xl bg-[#090d16] text-white shadow-md border border-slate-800 space-y-3">
+          <div className="flex items-center gap-2 text-amber-400 font-bold text-sm">
+            <AlertTriangle className="w-4 h-4 text-amber-400" />
             <span>5-Day Free Trial / Subscription Expired</span>
           </div>
-          <p className="text-xs text-purple-200">
+          <p className="text-xs text-slate-300">
             Your 5-day trial period or subscription has ended. Access to generating payment links and processing payments is paused until subscription activation.
           </p>
           <div className="pt-1">
-            <a
-              href="#subscription"
-              onClick={(e) => {
-                e.preventDefault();
-                window.location.hash = 'subscription';
-              }}
-              className="px-5 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-500 text-white font-extrabold text-xs inline-flex items-center gap-2 transition-all shadow-md"
+            <button
+              onClick={() => onNavigate('subscriptions')}
+              className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-xs inline-flex items-center gap-2 transition-colors shadow-xs cursor-pointer"
             >
-              <span>⚡ Subscribe & Activate Now via QR Code</span>
-            </a>
+              <span>Subscribe & Activate Now via QR Code</span>
+            </button>
           </div>
         </div>
       )}
 
       {/* Generate Payment Link Card */}
-      <div className="p-6 rounded-3xl bg-white border border-slate-200 shadow-sm space-y-4">
+      <div className="p-6 rounded-2xl bg-white border border-slate-200/80 shadow-xs space-y-4">
         <div className="flex items-center gap-2 border-b border-slate-100 pb-3">
           <Link2 className="w-5 h-5 text-indigo-600" />
           <h2 className="text-sm font-bold text-slate-900">Generate Payment Link</h2>
@@ -572,36 +568,39 @@ export const PaymentLinksView: React.FC<PaymentLinksViewProps> = ({ onNavigate }
               return (
                 <div
                   key={`${link.id || 'lnk'}-${idx}`}
-                  className="p-4 rounded-2xl bg-slate-50 border border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs"
+                  className="p-4 rounded-xl bg-slate-50/70 border border-slate-200/80 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs hover:border-slate-300 transition-colors"
                 >
                   <div>
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className="font-bold text-slate-900 text-sm">{link.title}</span>
+                    <div className="flex items-center gap-2.5 flex-wrap">
+                      <span className="font-semibold text-slate-900 text-sm">{link.title}</span>
                       {link.status === 'CAPTURED' ? (
-                        <span className="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-[10px] font-bold border border-emerald-300">
-                          CAPTURED ✓
-                        </span>
+                        <div className="flex items-center gap-1 text-[11px] font-mono text-emerald-700 font-semibold">
+                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                          <span>CAPTURED</span>
+                        </div>
                       ) : isLinkExpired ? (
-                        <span className="px-2 py-0.5 rounded-full bg-rose-100 text-rose-800 text-[10px] font-bold border border-rose-300 flex items-center gap-1">
-                          <Clock className="w-3 h-3 text-rose-500" /> EXPIRED
-                        </span>
+                        <div className="flex items-center gap-1 text-[11px] font-mono text-rose-700 font-semibold">
+                          <span className="w-1.5 h-1.5 rounded-full bg-rose-500" />
+                          <span>EXPIRED</span>
+                        </div>
                       ) : (
-                        <span className="px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700 text-[10px] font-bold border border-indigo-200 flex items-center gap-1">
-                          <Timer className="w-3 h-3 text-indigo-500" /> {remainingMins}m left
-                        </span>
+                        <div className="flex items-center gap-1 text-[11px] font-mono text-indigo-700 font-semibold">
+                          <span className="w-1.5 h-1.5 rounded-full bg-indigo-500 animate-pulse" />
+                          <span>{remainingMins}m left</span>
+                        </div>
                       )}
                     </div>
                     <div className="text-slate-500 font-mono text-[11px] mt-0.5 break-all">{getFullCheckoutUrl(link.checkout_url)}</div>
                     {(link.success_url || link.cancel_url) && (
-                      <div className="flex gap-3 mt-1.5 opacity-70">
+                      <div className="flex gap-2.5 mt-1.5 text-[10px] font-mono text-slate-400">
                         {link.success_url && (
-                          <div className="flex items-center gap-1 text-[9px] font-bold text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-100">
-                            <Check className="w-2.5 h-2.5" /> S: {new URL(link.success_url).hostname}
+                          <div className="flex items-center gap-1 text-emerald-600">
+                            <Check className="w-2.5 h-2.5" /> <span>{new URL(link.success_url).hostname}</span>
                           </div>
                         )}
                         {link.cancel_url && (
-                          <div className="flex items-center gap-1 text-[9px] font-bold text-rose-600 bg-rose-50 px-1.5 py-0.5 rounded border border-rose-100">
-                            <X className="w-2.5 h-2.5" /> C: {new URL(link.cancel_url).hostname}
+                          <div className="flex items-center gap-1 text-rose-500">
+                            <X className="w-2.5 h-2.5" /> <span>{new URL(link.cancel_url).hostname}</span>
                           </div>
                         )}
                       </div>
@@ -609,7 +608,7 @@ export const PaymentLinksView: React.FC<PaymentLinksViewProps> = ({ onNavigate }
                   </div>
 
                   <div className="flex items-center gap-2 flex-wrap">
-                    <span className="font-mono font-extrabold text-emerald-600 text-sm mr-2">
+                    <span className="font-mono font-bold text-slate-900 text-sm mr-2 tabular-nums">
                       ₹{(Number(link?.amount) || 0).toFixed(2)}
                     </span>
 
@@ -618,7 +617,7 @@ export const PaymentLinksView: React.FC<PaymentLinksViewProps> = ({ onNavigate }
                       href={getFullCheckoutUrl(link.checkout_url)}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="px-3 py-2 rounded-xl bg-purple-50 border border-purple-200 hover:bg-purple-100 text-purple-700 font-bold flex items-center gap-1.5 transition-colors cursor-pointer"
+                      className="px-3 py-1.5 rounded-lg bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium text-xs flex items-center gap-1.5 transition-colors cursor-pointer"
                       title="Open payment link in new tab"
                     >
                       <ExternalLink className="w-3.5 h-3.5" />
@@ -628,20 +627,20 @@ export const PaymentLinksView: React.FC<PaymentLinksViewProps> = ({ onNavigate }
                     {/* Test Payment Link Button */}
                     <button
                       onClick={() => handleOpenTestModal(link)}
-                      className="px-3 py-2 rounded-xl bg-indigo-50 border border-indigo-200 hover:bg-indigo-100 text-indigo-700 font-bold flex items-center gap-1.5 transition-colors cursor-pointer"
+                      className="px-3 py-1.5 rounded-lg bg-indigo-50 border border-indigo-200/80 hover:bg-indigo-100 text-indigo-700 font-semibold text-xs flex items-center gap-1.5 transition-colors cursor-pointer"
                     >
-                      <span>Test Checkout</span>
+                      <span>Test Modal</span>
                     </button>
 
                     {/* Copy Link Button */}
                     <button
                       onClick={() => handleCopyLink(link.checkout_url, link.id)}
-                      className="px-3 py-2 rounded-xl bg-white border border-slate-200 hover:bg-slate-100 text-slate-700 font-mono font-bold flex items-center gap-1.5 transition-colors cursor-pointer"
+                      className="px-3 py-1.5 rounded-lg bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-mono font-medium text-xs flex items-center gap-1.5 transition-colors cursor-pointer"
                     >
                       {copiedId === link.id ? (
                         <Check className="w-3.5 h-3.5 text-emerald-600" />
                       ) : (
-                        <Copy className="w-3.5 h-3.5 text-slate-500" />
+                        <Copy className="w-3.5 h-3.5 text-slate-400" />
                       )}
                       <span>{copiedId === link.id ? 'Copied' : 'Copy'}</span>
                     </button>
@@ -649,10 +648,10 @@ export const PaymentLinksView: React.FC<PaymentLinksViewProps> = ({ onNavigate }
                     {/* Delete Link Button */}
                     <button
                       onClick={() => handleDeleteLink(link)}
-                      className="p-2 rounded-xl bg-rose-50 border border-rose-100 hover:bg-rose-100 text-rose-600 transition-colors cursor-pointer"
+                      className="p-1.5 rounded-lg bg-rose-50 border border-rose-100 hover:bg-rose-100 text-rose-600 transition-colors cursor-pointer"
                       title="Delete Link"
                     >
-                      <Trash2 className="w-4 h-4" />
+                      <Trash2 className="w-3.5 h-3.5" />
                     </button>
                   </div>
                 </div>

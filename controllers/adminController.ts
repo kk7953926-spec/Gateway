@@ -337,6 +337,7 @@ export class AdminController {
 
     return res.status(200).json({
       success: true,
+      daemon: ImapService.daemon.getStatus(),
       merchants: merchantImapList,
       total: merchantImapList.length,
       configuredCount: merchantImapList.filter((m) => m.has_app_password).length,

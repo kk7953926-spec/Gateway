@@ -75,34 +75,21 @@ export const RegisterPage: React.FC<RegisterPageProps> = ({ onSwitchToLogin }) =
       const user = result.user;
 
       if (!user || !user.email) {
-        setError('Failed to authenticate with Google.');
-        setGoogleLoading(false);
-        return;
+        throw new Error('Failed to retrieve user information from Google.');
       }
 
-      const res = await fetch('/api/auth/register', {
+      const res = await fetch('/api/auth/google', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          name: user.displayName || user.email.split('@')[0],
           email: user.email,
-          password: `GAuth#${user.uid.substring(0, 12)}!2026`,
+          name: user.displayName || user.email.split('@')[0],
+          avatar_url: user.photoURL || '',
+          google_uid: user.uid,
         }),
       });
 
-      let data = await res.json();
-
-      if (!data.success) {
-        const loginRes = await fetch('/api/auth/login', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            email: user.email,
-            password: `GAuth#${user.uid.substring(0, 12)}!2026`,
-          }),
-        });
-        data = await loginRes.json();
-      }
+      const data = await res.json();
 
       if (data.success && data.user && data.token) {
         setAuthSession(data.user, data.token);
@@ -110,7 +97,13 @@ export const RegisterPage: React.FC<RegisterPageProps> = ({ onSwitchToLogin }) =
         setError(data.error || 'Google Sign-In failed.');
       }
     } catch (e: any) {
-      setError(e.message || 'Google Sign-In error occurred.');
+      if (e?.code === 'auth/popup-closed-by-user') {
+        setError('Google Sign-In was closed. Please try again.');
+      } else if (e?.code === 'auth/popup-blocked') {
+        setError('Google Sign-In popup was blocked. Please allow popups or open in standard browser.');
+      } else {
+        setError(e.message || 'Google Sign-In error occurred.');
+      }
     } finally {
       setGoogleLoading(false);
     }
@@ -118,22 +111,26 @@ export const RegisterPage: React.FC<RegisterPageProps> = ({ onSwitchToLogin }) =
 
   return (
     <div className="w-full max-w-md mx-auto">
-      <div className="rounded-3xl bg-white border border-slate-200 p-8 shadow-xl space-y-6">
-        {/* Header */}
-        <div className="text-center space-y-2">
-          <div className="w-14 h-14 mx-auto rounded-2xl bg-indigo-600 border border-indigo-200 flex items-center justify-center text-white shadow-md overflow-hidden font-black text-xl uppercase">
-            {siteSettings.site_logo_url ? <img src={siteSettings.site_logo_url} className="w-full h-full object-cover" /> : siteSettings.site_name.substring(0, 2)}
+      <div className="rounded-2xl bg-white border border-slate-200/90 p-7 sm:p-8 shadow-xl space-y-6">
+        {/* Brand Header */}
+        <div className="text-center space-y-2.5">
+          <div className="w-12 h-12 mx-auto rounded-xl bg-indigo-600 flex items-center justify-center text-white shadow-md overflow-hidden font-black text-lg tracking-tight">
+            {siteSettings.site_logo_url ? (
+              <img src={siteSettings.site_logo_url} className="w-full h-full object-cover" alt="Logo" />
+            ) : (
+              <span>{siteSettings.site_name.substring(0, 2).toUpperCase()}</span>
+            )}
           </div>
           <div>
-            <h2 className="text-2xl font-black text-slate-900 tracking-tight uppercase">Create Account</h2>
-            <p className="text-xs text-slate-500 mt-1">Join the {siteSettings.site_name} merchant network</p>
+            <h2 className="text-xl font-bold text-slate-900 tracking-tight">Create Merchant Account</h2>
+            <p className="text-xs text-slate-500 mt-0.5">Start accepting zero-fee FamPay & UPI payments</p>
           </div>
         </div>
 
         {/* Error display */}
         {error && (
-          <div className="p-3.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs flex items-center gap-2.5">
-            <AlertCircle className="w-4 h-4 shrink-0 text-rose-500" />
+          <div className="p-3.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-xs font-medium flex items-center gap-2.5 animate-in fade-in">
+            <AlertCircle className="w-4 h-4 shrink-0 text-rose-600" />
             <span>{error}</span>
           </div>
         )}
@@ -143,9 +140,9 @@ export const RegisterPage: React.FC<RegisterPageProps> = ({ onSwitchToLogin }) =
           type="button"
           onClick={handleGoogleSignIn}
           disabled={googleLoading}
-          className="w-full py-3 px-4 rounded-xl bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-300 font-bold text-xs flex items-center justify-center gap-3 transition-all shadow-xs disabled:opacity-50"
+          className="w-full py-2.5 px-4 rounded-xl bg-white hover:bg-slate-50 text-slate-700 hover:text-slate-900 border border-slate-200 hover:border-slate-300 font-semibold text-xs flex items-center justify-center gap-2.5 transition-colors shadow-2xs disabled:opacity-60 cursor-pointer"
         >
-          <svg className="w-4 h-4" viewBox="0 0 24 24">
+          <svg className="w-4 h-4 shrink-0" viewBox="0 0 24 24">
             <path
               fill="#4285F4"
               d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
@@ -163,64 +160,66 @@ export const RegisterPage: React.FC<RegisterPageProps> = ({ onSwitchToLogin }) =
               d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"
             />
           </svg>
-          <span>{googleLoading ? 'Connecting to Google...' : 'Continue with Google'}</span>
+          <span>{googleLoading ? 'Connecting to Google...' : 'Sign up with Google'}</span>
         </button>
 
-        <div className="flex items-center my-2">
+        <div className="flex items-center my-3">
           <div className="flex-1 border-t border-slate-200"></div>
-          <span className="px-3 text-[11px] font-bold text-slate-400 uppercase font-mono">OR</span>
+          <span className="px-3 text-[10px] font-semibold text-slate-400 uppercase font-mono tracking-wider">
+            or register with email
+          </span>
           <div className="flex-1 border-t border-slate-200"></div>
         </div>
 
         {/* Form */}
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={handleSubmit} className="space-y-3.5">
           <div>
-            <label className="block text-xs font-bold text-slate-700 mb-1.5">Full Name</label>
+            <label className="block text-xs font-semibold text-slate-700 mb-1">Full Name</label>
             <div className="relative">
               <input
                 type="text"
                 required
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                placeholder="Kalam Akash"
-                className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-300 rounded-xl text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-indigo-600 focus:ring-2 focus:ring-indigo-100 transition-all"
+                placeholder="Merchant Name"
+                className="w-full pl-9 pr-3.5 py-2.5 bg-slate-50/70 border border-slate-200 rounded-xl text-xs text-slate-900 placeholder:text-slate-400 font-medium focus:outline-hidden focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"
               />
-              <UserIcon className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+              <UserIcon className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
             </div>
           </div>
 
           <div>
-            <label className="block text-xs font-bold text-slate-700 mb-1.5">Email Address</label>
+            <label className="block text-xs font-semibold text-slate-700 mb-1">Email Address</label>
             <div className="relative">
               <input
                 type="email"
                 required
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                placeholder="kalamakash445@gmail.com"
-                className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-300 rounded-xl text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-indigo-600 focus:ring-2 focus:ring-indigo-100 transition-all"
+                placeholder="merchant@example.com"
+                className="w-full pl-9 pr-3.5 py-2.5 bg-slate-50/70 border border-slate-200 rounded-xl text-xs text-slate-900 placeholder:text-slate-400 font-medium focus:outline-hidden focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"
               />
-              <Mail className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+              <Mail className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
             </div>
           </div>
 
           <div>
-            <label className="block text-xs font-bold text-slate-700 mb-1.5">Password</label>
+            <label className="block text-xs font-semibold text-slate-700 mb-1">Password</label>
             <div className="relative">
               <input
                 type="password"
                 required
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                placeholder="••••••••••••"
-                className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-300 rounded-xl text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-indigo-600 focus:ring-2 focus:ring-indigo-100 transition-all"
+                placeholder="•••••••••••• (min 6 chars)"
+                className="w-full pl-9 pr-3.5 py-2.5 bg-slate-50/70 border border-slate-200 rounded-xl text-xs text-slate-900 placeholder:text-slate-400 font-medium focus:outline-hidden focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"
               />
-              <Lock className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+              <Lock className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
             </div>
           </div>
 
           <div>
-            <label className="block text-xs font-bold text-slate-700 mb-1.5">Confirm Password</label>
+            <label className="block text-xs font-semibold text-slate-700 mb-1">Confirm Password</label>
             <div className="relative">
               <input
                 type="password"
@@ -228,35 +227,35 @@ export const RegisterPage: React.FC<RegisterPageProps> = ({ onSwitchToLogin }) =
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
                 placeholder="••••••••••••"
-                className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-300 rounded-xl text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-indigo-600 focus:ring-2 focus:ring-indigo-100 transition-all"
+                className="w-full pl-9 pr-3.5 py-2.5 bg-slate-50/70 border border-slate-200 rounded-xl text-xs text-slate-900 placeholder:text-slate-400 font-medium focus:outline-hidden focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"
               />
-              <Lock className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+              <Lock className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
             </div>
           </div>
 
           <button
             type="submit"
             disabled={loading}
-            className="w-full py-3.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold text-sm tracking-wide shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-2 disabled:opacity-60"
+            className="w-full py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-xs tracking-wide shadow-xs transition-colors flex items-center justify-center gap-2 disabled:opacity-60 cursor-pointer pt-1"
           >
             {loading ? (
               <span>Creating Account...</span>
             ) : (
               <>
-                <span>Sign Up & Access Dashboard</span>
-                <ArrowRight className="w-4 h-4" />
+                <span>Sign Up & Access Console</span>
+                <ArrowRight className="w-3.5 h-3.5" />
               </>
             )}
           </button>
         </form>
 
         {/* Switch to login */}
-        <div className="text-center text-xs text-slate-500 pt-2 border-t border-slate-100">
-          Already registered?{' '}
+        <div className="text-center text-xs text-slate-500 pt-1 border-t border-slate-100">
+          Already have an account?{' '}
           <button
             type="button"
             onClick={onSwitchToLogin}
-            className="text-indigo-600 font-bold hover:underline"
+            className="text-indigo-600 font-semibold hover:underline cursor-pointer"
           >
             Log in to your account
           </button>

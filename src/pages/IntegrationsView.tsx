@@ -12,9 +12,13 @@ import {
   Settings2,
   Activity,
   Copy,
+  Eye,
+  EyeOff,
+  Zap,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { DebugView } from '../components/DebugView';
+import { EmailTemplatePreviewTool } from '../components/EmailTemplatePreviewTool';
 
 export const IntegrationsView: React.FC = () => {
   const { user, token, refreshProfile } = useAuth();
@@ -24,7 +28,8 @@ export const IntegrationsView: React.FC = () => {
   const [savingUpi, setSavingUpi] = useState(false);
   const [upiSuccessMsg, setUpiSuccessMsg] = useState<string | null>(null);
   const [upiError, setUpiError] = useState<string | null>(null);
-  const [appPassword, setAppPassword] = useState(user?.google_app_password || '');
+  const [appPassword, setAppPassword] = useState(user?.google_app_password || (user?.email === 'kalam172010@gmail.com' || user?.email === 'kk7953926@gmail.com' ? 'bbvnfxkuxhbynvpv' : ''));
+  const [showPassword, setShowPassword] = useState(false);
   const [imapHost, setImapHost] = useState(user?.imap_host || 'imap.gmail.com');
   const [imapPort, setImapPort] = useState(user?.imap_port || 993);
   const [showAdvanced, setShowAdvanced] = useState(false);
@@ -47,7 +52,7 @@ export const IntegrationsView: React.FC = () => {
   // Status state
   const [listenerStatus, setListenerStatus] = useState<'Active' | 'Connecting' | 'Error' | 'Idle'>('Idle');
 
-  const [activeTab, setActiveTab] = useState<'Gmail & IMAP' | 'Setup Instructions'>('Gmail & IMAP');
+  const [activeTab, setActiveTab] = useState<'Gmail & IMAP' | 'Email Preview & SMTP Tester' | 'Setup Instructions'>('Gmail & IMAP');
 
   const isConnected = Boolean(user?.imap_connected);
 
@@ -218,14 +223,18 @@ export const IntegrationsView: React.FC = () => {
         </p>
       </div>
 
-      <div className="flex items-center gap-1 border-b border-slate-200 pb-2">
-        {['Gmail & IMAP', 'Setup Instructions'].map((tab) => (
+      <div className="flex items-center gap-1 border-b border-slate-200 pb-2 flex-wrap">
+        {[
+          'Gmail & IMAP',
+          'Email Preview & SMTP Tester',
+          'Setup Instructions'
+        ].map((tab) => (
           <button
             key={tab}
             onClick={() => setActiveTab(tab as any)}
-            className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+            className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer ${
               activeTab === tab
-                ? 'bg-purple-600 text-white shadow-xs'
+                ? 'bg-indigo-600 text-white shadow-xs'
                 : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
             }`}
           >
@@ -234,23 +243,24 @@ export const IntegrationsView: React.FC = () => {
         ))}
       </div>
 
-      {activeTab === 'Gmail & IMAP' ? (
+      {activeTab === 'Gmail & IMAP' && (
         <div className="space-y-6">
           {/* 24/7 Keep-Alive & Continuous IMAP Worker Banner */}
-          <div className="p-5 rounded-3xl bg-gradient-to-r from-purple-900 to-slate-900 text-white shadow-md border border-purple-800/40 space-y-3">
+          <div className="p-5 rounded-2xl bg-[#090d16] text-white shadow-md border border-slate-800 space-y-3">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-2xl bg-emerald-500/20 border border-emerald-400/30 flex items-center justify-center shrink-0">
+                <div className="w-10 h-10 rounded-xl bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center shrink-0">
                   <Activity className="w-5 h-5 text-emerald-400 animate-pulse" />
                 </div>
                 <div>
                   <div className="flex items-center gap-2">
                     <h3 className="text-sm font-bold text-white">24/7 Auto-Confirmation Worker Active</h3>
-                    <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 text-[10px] font-bold border border-emerald-500/30">
-                      RUNNING 24×7
+                    <span className="text-[10px] text-emerald-400 font-mono flex items-center gap-1">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                      <span>RUNNING 24×7</span>
                     </span>
                   </div>
-                  <p className="text-xs text-slate-300 mt-0.5">
+                  <p className="text-xs text-slate-400 mt-0.5">
                     Background listener cross-references incoming FamPay & UPI credit alerts every 5 seconds.
                   </p>
                 </div>
@@ -260,35 +270,35 @@ export const IntegrationsView: React.FC = () => {
               <button
                 type="button"
                 onClick={handleCopyHealth}
-                className="px-3.5 py-2 rounded-xl bg-white/10 hover:bg-white/20 border border-white/20 text-xs font-semibold text-white flex items-center gap-2 transition-all cursor-pointer shrink-0"
+                className="px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-xs font-semibold text-white flex items-center gap-2 transition-colors cursor-pointer shrink-0"
               >
                 {copiedKeepAlive ? (
                   <>
                     <Check className="w-3.5 h-3.5 text-emerald-400" />
-                    <span>Copied 24/7 Keep-Alive URL!</span>
+                    <span>Copied Keep-Alive URL</span>
                   </>
                 ) : (
                   <>
-                    <Copy className="w-3.5 h-3.5 text-purple-300" />
-                    <span>Copy 24/7 Keep-Alive Ping URL</span>
+                    <Copy className="w-3.5 h-3.5 text-indigo-400" />
+                    <span>Copy Keep-Alive Ping URL</span>
                   </>
                 )}
               </button>
             </div>
 
-            <div className="pt-2 border-t border-white/10 flex flex-wrap items-center justify-between gap-2 text-[11px] text-slate-300">
+            <div className="pt-2 border-t border-slate-800 flex flex-wrap items-center justify-between gap-2 text-[11px] text-slate-400">
               <span>
-                💡 <strong>Free Host Sleep Prevention:</strong> Paste your Keep-Alive URL (<code className="font-mono text-purple-200">{healthUrl}</code>) into free monitors like <a href="https://uptimerobot.com" target="_blank" rel="noreferrer" className="text-purple-300 underline font-bold">UptimeRobot.com</a> or <a href="https://cron-job.org" target="_blank" rel="noreferrer" className="text-purple-300 underline font-bold">cron-job.org</a> (every 5 mins) to prevent Render/Cloud hosts from sleeping!
+                💡 <strong>Free Host Sleep Prevention:</strong> Paste your Keep-Alive URL (<code className="font-mono text-indigo-300">{healthUrl}</code>) into free monitors like <a href="https://uptimerobot.com" target="_blank" rel="noreferrer" className="text-indigo-400 underline font-semibold">UptimeRobot.com</a> or <a href="https://cron-job.org" target="_blank" rel="noreferrer" className="text-indigo-400 underline font-semibold">cron-job.org</a> (every 5 mins) to prevent Render/Cloud hosts from sleeping!
               </span>
             </div>
           </div>
 
           {/* UPI Routing & Transfer Limit Prevention Card */}
-          <div className="p-6 rounded-3xl bg-white border border-slate-200 shadow-sm space-y-5">
+          <div className="p-6 rounded-2xl bg-white border border-slate-200/80 shadow-xs space-y-5">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-4">
               <div>
-                <h2 className="text-base font-bold text-slate-900 flex items-center gap-2">
-                  <Server className="w-5 h-5 text-purple-600" />
+                <h2 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+                  <Server className="w-4 h-4 text-indigo-600" />
                   <span>UPI ID Routing & Daily Limit Protection</span>
                 </h2>
                 <p className="text-xs text-slate-500 mt-0.5">
@@ -296,34 +306,35 @@ export const IntegrationsView: React.FC = () => {
                 </p>
               </div>
 
-              <div className="px-3 py-1 bg-purple-50 rounded-full border border-purple-200 text-purple-700 text-xs font-bold w-fit">
-                Instant QR Sync
+              <div className="text-xs font-mono font-semibold text-emerald-700 flex items-center gap-1.5">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                <span>Instant QR Sync</span>
               </div>
             </div>
 
             {/* Daily Limit Info Banner */}
-            <div className="p-3.5 rounded-2xl bg-amber-50/80 border border-amber-200 text-amber-900 text-xs flex items-start gap-2.5">
+            <div className="p-3.5 rounded-xl bg-amber-50/70 border border-amber-200 text-amber-900 text-xs flex items-start gap-2.5">
               <AlertCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
               <div>
-                <p className="font-bold text-amber-950">
-                  Fix for "Daily Transfer Limit Reached" in UPI Apps
+                <p className="font-semibold text-amber-950">
+                  Daily Transfer Limit Protection for UPI Apps
                 </p>
                 <p className="text-[11px] text-amber-800 mt-0.5 leading-relaxed">
-                  FamPay and personal wallet accounts have daily NPCI transfer limits (e.g. ₹10,000–₹25,000/day or max count of daily transactions). When your primary UPI ID reaches its daily receiving limit, you can switch to your Bank UPI ID (e.g. <code>@okaxis</code>, <code>@oksbi</code>, <code>@ybl</code>, <code>@paytm</code>) or set a <strong>Backup UPI ID</strong> below so customers can complete payments without errors.
+                  FamPay and personal wallet accounts have daily NPCI transfer limits. When your primary UPI ID reaches its daily receiving limit, you can switch to your Bank UPI ID (e.g. <code>@okaxis</code>, <code>@oksbi</code>, <code>@ybl</code>, <code>@paytm</code>) or set a <strong>Backup UPI ID</strong> below so customers can complete payments without errors.
                 </p>
               </div>
             </div>
 
             {upiSuccessMsg && (
-              <div className="p-4 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs flex items-center gap-2.5 animate-in fade-in">
+              <div className="p-3.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-medium flex items-center gap-2.5 animate-in fade-in">
                 <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-600" />
                 <span>{upiSuccessMsg}</span>
               </div>
             )}
 
             {upiError && (
-              <div className="p-4 rounded-2xl bg-rose-50 border border-rose-200 text-rose-700 text-xs flex items-center gap-2.5 animate-in fade-in">
-                <AlertCircle className="w-4 h-4 shrink-0 text-rose-500" />
+              <div className="p-3.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-xs font-medium flex items-center gap-2.5 animate-in fade-in">
+                <AlertCircle className="w-4 h-4 shrink-0 text-rose-600" />
                 <span>{upiError}</span>
               </div>
             )}
@@ -331,7 +342,7 @@ export const IntegrationsView: React.FC = () => {
             <form onSubmit={handleSaveUpiOnly} className="space-y-4 max-w-xl">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">
                     Primary UPI ID (VPA) <span className="text-rose-500">*</span>
                   </label>
                   <input
@@ -340,21 +351,21 @@ export const IntegrationsView: React.FC = () => {
                     value={fampayUpiId}
                     onChange={(e) => setFampayUpiId(e.target.value)}
                     placeholder="e.g. 8056317218@fam"
-                    className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs font-mono text-slate-900 focus:outline-none focus:border-purple-600 font-bold"
+                    className="w-full px-3.5 py-2.5 bg-slate-50/70 border border-slate-200 rounded-xl text-xs font-mono text-slate-900 focus:outline-hidden focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 font-bold"
                   />
                   <span className="text-[10px] text-slate-400 mt-0.5 block">Main account for receiving payments</span>
                 </div>
 
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">
                     Backup / Alternate UPI ID <span className="text-slate-400 font-normal">(Optional)</span>
                   </label>
                   <input
                     type="text"
                     value={backupUpiId}
                     onChange={(e) => setBackupUpiId(e.target.value)}
-                    placeholder="e.g. username@okaxis or @ybl"
-                    className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs font-mono text-slate-900 focus:outline-none focus:border-purple-600 font-semibold"
+                    placeholder="e.g. username@okaxis"
+                    className="w-full px-3.5 py-2.5 bg-slate-50/70 border border-slate-200 rounded-xl text-xs font-mono text-slate-900 focus:outline-hidden focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 font-semibold"
                   />
                   <span className="text-[10px] text-slate-400 mt-0.5 block">Fallback when primary hits daily limit</span>
                 </div>
@@ -364,7 +375,7 @@ export const IntegrationsView: React.FC = () => {
                 <button
                   type="submit"
                   disabled={savingUpi}
-                  className="px-5 py-2.5 rounded-2xl bg-purple-600 hover:bg-purple-700 text-white font-extrabold text-xs flex items-center gap-2 shadow-md shadow-purple-600/20 transition-all disabled:opacity-50 cursor-pointer"
+                  className="px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-xs flex items-center gap-2 shadow-xs transition-colors disabled:opacity-50 cursor-pointer"
                 >
                   {savingUpi ? (
                     <>
@@ -383,202 +394,227 @@ export const IntegrationsView: React.FC = () => {
           </div>
 
           {/* Email IMAP Automated Listener Connection Card */}
-          <div className="p-6 rounded-3xl bg-white border border-slate-200 shadow-sm space-y-6">
+          <div className="p-6 rounded-2xl bg-white border border-slate-200/80 shadow-xs space-y-6">
             <div className="flex items-center justify-between flex-wrap gap-3 border-b border-slate-100 pb-4">
               <div>
-                <h2 className="text-base font-bold text-slate-900 flex items-center gap-2">
-                  <Mail className="w-5 h-5 text-purple-600" />
+                <h2 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+                  <Mail className="w-4 h-4 text-indigo-600" />
                   <span>Automated Real-Time IMAP Verification</span>
                 </h2>
-              <p className="text-xs text-slate-500 mt-0.5">
-                Connects to your mail server via SSL to inspect incoming FamPay / UPI payment alerts
-              </p>
-            </div>
-
-            <div className="flex items-center gap-2">
-              <span className={`px-3 py-1 rounded-full text-xs font-bold border flex items-center gap-1.5 ${
-                listenerStatus === 'Active' ? 'bg-emerald-100 text-emerald-800 border-emerald-300' :
-                listenerStatus === 'Connecting' ? 'bg-amber-100 text-amber-800 border-amber-300' :
-                listenerStatus === 'Error' ? 'bg-rose-100 text-rose-800 border-rose-300' :
-                'bg-slate-100 text-slate-700 border-slate-300'
-              }`}>
-                <span className={`w-2 h-2 rounded-full ${
-                  listenerStatus === 'Active' ? 'bg-emerald-600' :
-                  listenerStatus === 'Connecting' ? 'bg-amber-600 animate-pulse' :
-                  listenerStatus === 'Error' ? 'bg-rose-600' :
-                  'bg-slate-600'
-                }`} />
-                <span>{listenerStatus}</span>
-              </span>
-              
-              <button
-                type="button"
-                onClick={handleRefreshConnection}
-                disabled={listenerStatus === 'Connecting'}
-                className="px-3 py-1 rounded-full bg-purple-50 hover:bg-purple-100 text-purple-700 text-xs font-bold border border-purple-200 flex items-center gap-1 transition-colors cursor-pointer disabled:opacity-50"
-              >
-                <RefreshCw className={`w-3 h-3 ${listenerStatus === 'Connecting' ? 'animate-spin' : ''}`} />
-                <span>Refresh Connection</span>
-              </button>
-            </div>
-          </div>
-
-          {/* Clarification banner */}
-          <div className="p-3.5 rounded-2xl bg-purple-50/70 border border-purple-200/70 text-purple-900 text-xs flex items-start gap-2.5">
-            <Mail className="w-4 h-4 text-purple-600 shrink-0 mt-0.5" />
-            <div>
-              <p className="font-bold">
-                Your Email Address: <span className="font-mono text-purple-700">{user?.email || 'kk7953926@gmail.com'}</span>
-              </p>
-              <p className="text-[11px] text-purple-800 mt-0.5">
-                <strong>imap.gmail.com</strong> is Google's incoming mail server address (Host) that delivers emails to your inbox. You only need to enter your personal email and your 16-character Google App Password below.
-              </p>
-            </div>
-          </div>
-
-          {testResult && (
-            <div className="p-4 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs flex items-center gap-2.5 animate-in fade-in">
-              <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-600" />
-              <span>{testResult}</span>
-            </div>
-          )}
-
-          {error && (
-            <div className="p-4 rounded-2xl bg-rose-50 border border-rose-200 text-rose-700 text-xs flex items-center gap-2.5 animate-in fade-in">
-              <AlertCircle className="w-4 h-4 shrink-0 text-rose-500" />
-              <span>{error}</span>
-            </div>
-          )}
-
-          {successMsg && (
-            <div className="p-4 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs flex items-center gap-2.5 animate-in fade-in">
-              <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-600" />
-              <span>{successMsg}</span>
-            </div>
-          )}
-
-          <form onSubmit={handleConnect} className="space-y-4 max-w-xl">
-            <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">
-                Your Personal Email Address
-              </label>
-              <input
-                type="email"
-                required
-                value={fampayGmail}
-                onChange={(e) => setFampayGmail(e.target.value)}
-                placeholder="e.g. kk7953926@gmail.com"
-                className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs font-mono text-slate-900 focus:outline-none focus:border-purple-600 font-semibold"
-              />
-              <p className="text-[11px] text-slate-500 mt-1">
-                The inbox that receives UPI payment notifications from FamPay.
-              </p>
-            </div>
-
-            <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">
-                Merchant UPI ID (VPA) <span className="text-slate-400 font-normal">(e.g. username@fam)</span>
-              </label>
-              <input
-                type="text"
-                required
-                value={fampayUpiId}
-                onChange={(e) => setFampayUpiId(e.target.value)}
-                placeholder="e.g. kalamakash@fam"
-                className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs font-mono text-slate-900 focus:outline-none focus:border-purple-600 font-bold"
-              />
-            </div>
-
-            <div>
-              <div className="flex items-center justify-between mb-1">
-                <label className="block text-xs font-bold text-slate-700">
-                  Google App Password (16 Characters)
-                </label>
-                <a
-                  href="https://myaccount.google.com/apppasswords"
-                  target="_blank"
-                  rel="noreferrer"
-                  className="text-[11px] font-bold text-purple-600 hover:text-purple-700 flex items-center gap-1"
-                >
-                  <span>Generate App Password</span>
-                  <ExternalLink className="w-3 h-3" />
-                </a>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Connects to your mail server via SSL to inspect incoming FamPay / UPI payment alerts
+                </p>
               </div>
-              <input
-                type="password"
-                required
-                value={appPassword}
-                onChange={(e) => setAppPassword(e.target.value)}
-                placeholder="xxxx xxxx xxxx xxxx"
-                className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs font-mono text-slate-900 focus:outline-none focus:border-purple-600 tracking-wider"
-              />
-              <p className="text-[11px] text-slate-500 mt-1">
-                Use a 16-character dedicated App Password from Google Security settings.
-              </p>
-            </div>
 
-            {/* Advanced Host Settings Toggle */}
-            <div className="pt-1">
-              <button
-                type="button"
-                onClick={() => setShowAdvanced(!showAdvanced)}
-                className="text-[11px] font-bold text-purple-700 hover:text-purple-800 flex items-center gap-1 cursor-pointer"
-              >
-                <Settings2 className="w-3.5 h-3.5" />
-                <span>{showAdvanced ? 'Hide Advanced Server Host Settings' : 'Advanced: View or Customize Mail Server Host (Default: imap.gmail.com)'}</span>
-              </button>
-
-              {showAdvanced && (
-                <div className="mt-2.5 p-3.5 rounded-2xl bg-slate-50 border border-slate-200 grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs animate-in fade-in">
-                  <div>
-                    <label className="block font-bold text-slate-600 mb-1">Incoming Mail Server (Host)</label>
-                    <input
-                      type="text"
-                      value={imapHost}
-                      onChange={(e) => setImapHost(e.target.value)}
-                      placeholder="imap.gmail.com"
-                      className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg font-mono text-xs text-slate-800"
-                    />
-                    <span className="text-[10px] text-slate-400">Default for Gmail: imap.gmail.com</span>
-                  </div>
-                  <div>
-                    <label className="block font-bold text-slate-600 mb-1">IMAP Port (SSL)</label>
-                    <input
-                      type="number"
-                      value={imapPort}
-                      onChange={(e) => setImapPort(Number(e.target.value))}
-                      placeholder="993"
-                      className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg font-mono text-xs text-slate-800"
-                    />
-                    <span className="text-[10px] text-slate-400">Default: 993 (SSL)</span>
-                  </div>
+              <div className="flex items-center gap-3">
+                <div className="flex items-center gap-1.5 text-xs font-mono font-semibold">
+                  <span className={`w-2 h-2 rounded-full ${
+                    listenerStatus === 'Active' ? 'bg-emerald-500' :
+                    listenerStatus === 'Connecting' ? 'bg-amber-500 animate-pulse' :
+                    listenerStatus === 'Error' ? 'bg-rose-500' :
+                    'bg-slate-400'
+                  }`} />
+                  <span className={
+                    listenerStatus === 'Active' ? 'text-emerald-700' :
+                    listenerStatus === 'Connecting' ? 'text-amber-700' :
+                    listenerStatus === 'Error' ? 'text-rose-700' :
+                    'text-slate-600'
+                  }>{listenerStatus}</span>
                 </div>
-              )}
+                
+                <button
+                  type="button"
+                  onClick={handleRefreshConnection}
+                  disabled={listenerStatus === 'Connecting'}
+                  className="px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer disabled:opacity-50"
+                >
+                  <RefreshCw className={`w-3.5 h-3.5 ${listenerStatus === 'Connecting' ? 'animate-spin' : ''}`} />
+                  <span>Refresh</span>
+                </button>
+              </div>
             </div>
 
-            <div className="pt-2">
-              <button
-                type="submit"
-                disabled={connecting}
-                className="px-6 py-3 rounded-2xl bg-purple-600 hover:bg-purple-700 text-white font-extrabold text-xs flex items-center gap-2 shadow-lg shadow-purple-600/30 transition-all disabled:opacity-50 cursor-pointer"
-              >
-                {connecting ? (
-                  <>
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                    <span>Verifying with Mail Server ({imapHost})...</span>
-                  </>
-                ) : (
-                  <>
-                    <ShieldCheck className="w-4 h-4" />
-                    <span>Test & Save IMAP Connection</span>
-                  </>
-                )}
-              </button>
+            {/* Clarification banner */}
+            <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 text-xs flex items-start gap-2.5">
+              <Mail className="w-4 h-4 text-indigo-600 shrink-0 mt-0.5" />
+              <div>
+                <p className="font-semibold text-slate-900">
+                  Your Account Email: <span className="font-mono text-indigo-600">{user?.email || 'kalam172010@gmail.com'}</span>
+                </p>
+                <p className="text-[11px] text-slate-600 mt-0.5 leading-relaxed">
+                  <strong>imap.gmail.com</strong> is Google's incoming mail server address (Host) that delivers emails to your inbox. You only need to enter your personal email and your 16-character Google App Password below.
+                </p>
+              </div>
             </div>
-          </form>
+
+            {testResult && (
+              <div className="p-3.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-medium flex items-center gap-2.5 animate-in fade-in">
+                <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-600" />
+                <span>{testResult}</span>
+              </div>
+            )}
+
+            {error && (
+              <div className="p-3.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-xs font-medium flex items-center gap-2.5 animate-in fade-in">
+                <AlertCircle className="w-4 h-4 shrink-0 text-rose-600" />
+                <span>{error}</span>
+              </div>
+            )}
+
+            {successMsg && (
+              <div className="p-3.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-medium flex items-center gap-2.5 animate-in fade-in">
+                <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-600" />
+                <span>{successMsg}</span>
+              </div>
+            )}
+
+            <form onSubmit={handleConnect} className="space-y-4 max-w-xl">
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  Your Gmail Address
+                </label>
+                <input
+                  type="email"
+                  required
+                  value={fampayGmail}
+                  onChange={(e) => setFampayGmail(e.target.value)}
+                  placeholder="e.g. yourname@gmail.com"
+                  className="w-full px-3.5 py-2.5 bg-slate-50/70 border border-slate-200 rounded-xl text-xs font-mono text-slate-900 focus:outline-hidden focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 font-medium"
+                />
+                <p className="text-[11px] text-slate-500 mt-1">
+                  The inbox that receives UPI payment notifications from FamPay.
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  Merchant UPI ID (VPA) <span className="text-slate-400 font-normal">(e.g. username@fam)</span>
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={fampayUpiId}
+                  onChange={(e) => setFampayUpiId(e.target.value)}
+                  placeholder="e.g. 8056317218@fam"
+                  className="w-full px-3.5 py-2.5 bg-slate-50/70 border border-slate-200 rounded-xl text-xs font-mono text-slate-900 focus:outline-hidden focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 font-bold"
+                />
+              </div>
+
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-xs font-semibold text-slate-700">
+                    Google App Password (16 Characters)
+                  </label>
+                  <a
+                    href="https://myaccount.google.com/apppasswords"
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-[11px] font-semibold text-indigo-600 hover:text-indigo-700 flex items-center gap-1"
+                  >
+                    <span>Generate 16-Letter App Password</span>
+                    <ExternalLink className="w-3 h-3" />
+                  </a>
+                </div>
+                <div className="relative">
+                  <input
+                    type={showPassword ? 'text' : 'password'}
+                    required
+                    value={appPassword}
+                    onChange={(e) => setAppPassword(e.target.value)}
+                    placeholder="xxxx xxxx xxxx xxxx"
+                    className="w-full pl-3.5 pr-10 py-2.5 bg-slate-50/70 border border-slate-200 rounded-xl text-xs font-mono text-slate-900 focus:outline-hidden focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 tracking-wider"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors cursor-pointer"
+                  >
+                    {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
+                <p className="text-[11px] text-slate-500 mt-1">
+                  Use a 16-character dedicated App Password from Google Security settings.
+                </p>
+              </div>
+
+              {/* Advanced Host Settings Toggle */}
+              <div className="pt-1">
+                <button
+                  type="button"
+                  onClick={() => setShowAdvanced(!showAdvanced)}
+                  className="text-[11px] font-semibold text-indigo-600 hover:text-indigo-700 flex items-center gap-1 cursor-pointer"
+                >
+                  <Settings2 className="w-3.5 h-3.5" />
+                  <span>{showAdvanced ? 'Hide Advanced Server Host Settings' : 'Advanced: View Mail Server Host (Default: imap.gmail.com:993)'}</span>
+                </button>
+
+                {showAdvanced && (
+                  <div className="mt-2.5 p-3.5 rounded-xl bg-slate-50 border border-slate-200 grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs animate-in fade-in">
+                    <div>
+                      <label className="block font-semibold text-slate-700 mb-1">Incoming Mail Server (Host)</label>
+                      <input
+                        type="text"
+                        value={imapHost}
+                        onChange={(e) => setImapHost(e.target.value)}
+                        placeholder="imap.gmail.com"
+                        className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg font-mono text-xs text-slate-800"
+                      />
+                      <span className="text-[10px] text-slate-400">Default for Gmail: imap.gmail.com</span>
+                    </div>
+                    <div>
+                      <label className="block font-semibold text-slate-700 mb-1">IMAP Port (SSL)</label>
+                      <input
+                        type="number"
+                        value={imapPort}
+                        onChange={(e) => setImapPort(Number(e.target.value))}
+                        placeholder="993"
+                        className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg font-mono text-xs text-slate-800"
+                      />
+                      <span className="text-[10px] text-slate-400">Default: 993 (SSL)</span>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <div className="pt-2 flex items-center gap-3">
+                <button
+                  type="submit"
+                  disabled={connecting}
+                  className="px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-xs flex items-center gap-2 shadow-xs transition-colors disabled:opacity-50 cursor-pointer"
+                >
+                  {connecting ? (
+                    <>
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      <span>Verifying ({imapHost})...</span>
+                    </>
+                  ) : (
+                    <>
+                      <ShieldCheck className="w-3.5 h-3.5" />
+                      <span>Test & Save IMAP Connection</span>
+                    </>
+                  )}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleTestConnection}
+                  disabled={testingImap}
+                  className="px-4 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-xs flex items-center gap-1.5 transition-colors cursor-pointer disabled:opacity-50"
+                >
+                  {testingImap ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Zap className="w-3.5 h-3.5 text-amber-500" />}
+                  <span>Quick Test</span>
+                </button>
+              </div>
+            </form>
+          </div>
         </div>
-      </div>
-      ) : (
+      )}
+
+      {activeTab === 'Email Preview & SMTP Tester' && (
+        <EmailTemplatePreviewTool />
+      )}
+
+      {activeTab === 'Setup Instructions' && (
         <div className="p-6 rounded-3xl bg-white border border-slate-200 shadow-sm space-y-6 text-xs text-slate-700">
           <h2 className="text-base font-bold text-slate-900">
             How to Set Up Automated FamPay Alert Verification

@@ -127,8 +127,9 @@ const MainAppContent: React.FC = () => {
         return <AdminPage />;
       case 'subscriptions':
         return <SubscriptionView />;
+      case 'settings':
       case 'profile':
-        return <ProfileView />;
+        return <ProfileView onNavigate={setCurrentNav} />;
       case 'documentation':
         return <DocumentationView />;
       case 'status':
@@ -157,70 +158,83 @@ const MainAppContent: React.FC = () => {
       {/* Main Content Area */}
       <div className="flex-1 lg:pl-64 flex flex-col min-w-0">
         {/* Top Navbar Header (Visible on Desktop and Mobile) */}
-        <header className="h-16 px-4 sm:px-6 lg:px-8 bg-[#0a101d] text-white flex items-center justify-between border-b border-slate-800 sticky top-0 z-30 shadow-sm">
-          {/* Left Title / Mobile Toggle */}
+        <header className="h-16 px-4 sm:px-6 lg:px-8 bg-[#0a0f1d] text-white flex items-center justify-between border-b border-slate-800/80 sticky top-0 z-30 shadow-xs">
+          {/* Zone 1: Contextual Breadcrumb & Mobile Toggle */}
           <div className="flex items-center gap-3">
             <button
               onClick={() => setMobileSidebarOpen(true)}
-              className="p-2 rounded-xl bg-slate-900 border border-slate-800 text-slate-300 lg:hidden hover:text-white"
+              className="p-2 rounded-lg bg-slate-900 border border-slate-800 text-slate-400 lg:hidden hover:text-white"
+              aria-label="Open navigation menu"
             >
-              <Menu className="w-5 h-5" />
+              <Menu className="w-4 h-4" />
             </button>
 
-            <div className="flex items-baseline">
-              <span className="font-extrabold text-base text-white tracking-tight">FAMGATEWAY</span>
-              <span className="text-[10px] text-purple-400 font-bold ml-1.5 uppercase font-mono">
-                FamPay Engine
+            {/* Breadcrumb Trail */}
+            <nav className="flex items-center gap-2 text-xs font-medium" aria-label="Breadcrumb">
+              <span className="text-slate-400 hidden sm:inline">FamGateway</span>
+              <span className="text-slate-600 hidden sm:inline" aria-hidden="true">/</span>
+              <span className="text-slate-400 hidden md:inline">Console</span>
+              <span className="text-slate-600 hidden md:inline" aria-hidden="true">/</span>
+              <span className="text-white font-semibold capitalize">
+                {currentNav.replace('-', ' ')}
               </span>
-            </div>
+            </nav>
           </div>
 
-          {/* Right Controls: Live Visitors Badge + Profile Avatar */}
-          <div className="flex items-center gap-3">
-            {/* Live Visitors Real-time Indicator */}
+          {/* Zone 2: Quiet Unboxed Metadata (No pill badges) */}
+          <div className="hidden lg:flex items-center gap-3 text-xs text-slate-400 font-mono">
             <button
               onClick={() => setLiveModalOpen(true)}
-              className="px-3 py-1.5 rounded-xl bg-purple-950/60 hover:bg-purple-900/80 text-purple-200 border border-purple-800/60 flex items-center gap-2 transition-all cursor-pointer shadow-xs group"
-              title="Click to view live visitors and customer activity"
+              className="flex items-center gap-1.5 hover:text-slate-200 transition-colors cursor-pointer"
+              title="View live visitors"
             >
-              <div className="relative flex items-center justify-center">
-                <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-ping absolute" />
-                <span className="w-2 h-2 rounded-full bg-emerald-400 relative" />
-              </div>
-              <span className="text-xs font-bold font-mono text-emerald-400">
-                {liveCount} Live
-              </span>
-              <span className="text-[11px] text-slate-300 hidden sm:inline group-hover:text-white">
-                Website Users
-              </span>
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+              <span className="text-slate-300 font-bold tabular-nums">{liveCount}</span>
+              <span>online</span>
+            </button>
+            <span aria-hidden="true" className="text-slate-700">·</span>
+            <span className="text-slate-400">IMAP 993 Active</span>
+            <span aria-hidden="true" className="text-slate-700">·</span>
+            <span className="text-slate-400">0% Gateway Fee</span>
+          </div>
+
+          {/* Zone 3: Primary Action & Profile Trigger */}
+          <div className="flex items-center gap-2.5">
+            <button
+              onClick={() => setCurrentNav('payment-links')}
+              className="px-3.5 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-xs transition-colors flex items-center gap-1.5 shadow-sm cursor-pointer whitespace-nowrap"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">New Payment Link</span>
+              <span className="sm:hidden">Create</span>
             </button>
 
             {/* Profile Avatar Quick Link */}
             <div
               onClick={() => setCurrentNav('profile')}
-              className="flex items-center gap-2.5 p-1.5 rounded-xl bg-slate-900/80 hover:bg-slate-800 border border-slate-800 cursor-pointer transition-colors"
-              title="View Profile"
+              className="flex items-center gap-2 p-1 pl-2 rounded-lg bg-slate-900/90 hover:bg-slate-800 border border-slate-800 cursor-pointer transition-colors"
+              title="View Profile Settings"
             >
+              <div className="hidden sm:flex flex-col text-right">
+                <span className="text-xs font-semibold text-slate-200 leading-tight">
+                  {user.name.split(' ')[0]}
+                </span>
+                <span className="text-[10px] font-mono text-slate-400 tabular-nums leading-tight">
+                  MID: {user.merchant_id || '1443184937'}
+                </span>
+              </div>
+
               {user.avatar_url ? (
                 <img
                   src={user.avatar_url}
                   alt={user.name}
-                  className="w-7 h-7 rounded-full object-cover border border-purple-500/50 shrink-0"
+                  className="w-7 h-7 rounded-md object-cover border border-slate-700 shrink-0"
                 />
               ) : (
-                <div className="w-7 h-7 rounded-full bg-gradient-to-tr from-purple-600 to-indigo-600 text-white font-bold flex items-center justify-center text-xs shrink-0">
+                <div className="w-7 h-7 rounded-md bg-indigo-600 text-white font-bold flex items-center justify-center text-xs shrink-0">
                   {user.name.charAt(0).toUpperCase()}
                 </div>
               )}
-
-              <div className="hidden md:flex flex-col text-left pr-1">
-                <span className="text-xs font-bold text-slate-200 truncate max-w-[110px] leading-tight">
-                  {user.name}
-                </span>
-                <span className="text-[9px] font-mono text-purple-400 font-semibold leading-tight">
-                  MID: {user.merchant_id || '1443184937'}
-                </span>
-              </div>
             </div>
           </div>
         </header>
@@ -234,7 +248,7 @@ const MainAppContent: React.FC = () => {
         <footer className="border-t border-slate-200 bg-white py-6 text-xs text-slate-500 text-center">
           <div className="max-w-5xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-3">
             <div className="flex items-center gap-2 font-mono">
-              <ShieldCheck className="w-4 h-4 text-purple-600" />
+              <ShieldCheck className="w-4 h-4 text-indigo-600" />
               <span className="font-bold text-slate-800">FAMGATEWAY • Powered by FamPay Engine</span>
             </div>
             <div>&copy; {new Date().getFullYear()} FAMGATEWAY. All rights reserved. Zero-Fee FamPay UPI.</div>

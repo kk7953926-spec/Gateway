@@ -78,23 +78,16 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onSwitchToRegister }) => {
     setGoogleLoading(true);
 
     try {
-      let googleUserEmail = 'kk7953926@gmail.com';
-      let googleUserName = 'Kalam Akash';
-      let googleUid = 'gauth_user_uid';
-      let googleAvatar = 'https://images.unsplash.com/photo-1566492031773-4f4e44671857?w=300&auto=format&fit=crop&q=80';
-
-      try {
-        const result = await signInWithPopup(auth, googleProvider);
-        if (result.user && result.user.email) {
-          googleUserEmail = result.user.email;
-          googleUserName = result.user.displayName || result.user.email.split('@')[0];
-          googleUid = result.user.uid;
-          googleAvatar = result.user.photoURL || googleAvatar;
-        }
-      } catch (popupErr: any) {
-        // If popup is blocked by browser/iframe policy, proceed with verified Google User Session
-        console.warn('Google popup bypassed due to iframe restrictions, using authenticated account:', popupErr.message);
+      const result = await signInWithPopup(auth, googleProvider);
+      
+      if (!result.user || !result.user.email) {
+        throw new Error('Could not retrieve email from Google Sign-In.');
       }
+
+      const googleUserEmail = result.user.email;
+      const googleUserName = result.user.displayName || result.user.email.split('@')[0];
+      const googleUid = result.user.uid;
+      const googleAvatar = result.user.photoURL || '';
 
       const res = await fetch('/api/auth/google', {
         method: 'POST',
@@ -115,7 +108,13 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onSwitchToRegister }) => {
 
       setAuthSession(data.user, data.token);
     } catch (e: any) {
-      setError(e.message || 'Google Sign-In encountered an error.');
+      if (e?.code === 'auth/popup-closed-by-user') {
+        setError('Google Sign-In was closed. Please try again.');
+      } else if (e?.code === 'auth/popup-blocked') {
+        setError('Google Sign-In popup was blocked by your browser. Please allow popups or open in standard browser.');
+      } else {
+        setError(e?.message || 'Google Sign-In encountered an error.');
+      }
     } finally {
       setGoogleLoading(false);
     }
@@ -173,28 +172,32 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onSwitchToRegister }) => {
 
   return (
     <div className="w-full max-w-md mx-auto">
-      <div className="rounded-3xl bg-white border border-slate-200 p-6 sm:p-8 shadow-2xl space-y-6">
-        {/* Header */}
-        <div className="text-center space-y-2">
-          <div className="w-14 h-14 mx-auto rounded-2xl bg-indigo-600 border border-indigo-200 flex items-center justify-center text-white shadow-md overflow-hidden font-black text-xl uppercase">
-            {siteSettings.site_logo_url ? <img src={siteSettings.site_logo_url} className="w-full h-full object-cover" /> : siteSettings.site_name.substring(0, 2)}
+      <div className="rounded-2xl bg-white border border-slate-200/90 p-7 sm:p-8 shadow-xl space-y-6">
+        {/* Brand Header */}
+        <div className="text-center space-y-2.5">
+          <div className="w-12 h-12 mx-auto rounded-xl bg-indigo-600 flex items-center justify-center text-white shadow-md overflow-hidden font-black text-lg tracking-tight">
+            {siteSettings.site_logo_url ? (
+              <img src={siteSettings.site_logo_url} className="w-full h-full object-cover" alt="Logo" />
+            ) : (
+              <span>{siteSettings.site_name.substring(0, 2).toUpperCase()}</span>
+            )}
           </div>
           <div>
-            <h2 className="text-2xl font-black text-slate-900 tracking-tight uppercase">{siteSettings.site_name}</h2>
-            <p className="text-xs text-indigo-600 font-bold mt-0.5">Merchant & Admin Gateway</p>
+            <h2 className="text-xl font-bold text-slate-900 tracking-tight">{siteSettings.site_name}</h2>
+            <p className="text-xs text-slate-500 mt-0.5">Sign in to your Merchant & Admin Console</p>
           </div>
         </div>
 
         {/* Notifications */}
         {error && (
-          <div className="p-3.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-xs font-semibold flex items-center gap-2.5 animate-in fade-in">
+          <div className="p-3.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-xs font-medium flex items-center gap-2.5 animate-in fade-in">
             <AlertCircle className="w-4 h-4 shrink-0 text-rose-600" />
             <span>{error}</span>
           </div>
         )}
 
         {success && (
-          <div className="p-3.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-semibold flex items-center gap-2.5 animate-in fade-in">
+          <div className="p-3.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-medium flex items-center gap-2.5 animate-in fade-in">
             <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-600" />
             <span>{success}</span>
           </div>
@@ -205,10 +208,10 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onSwitchToRegister }) => {
           type="button"
           onClick={handleGoogleSignIn}
           disabled={googleLoading}
-          className="w-full py-3 px-4 rounded-2xl bg-white hover:bg-slate-50 text-slate-800 border-2 border-slate-200 hover:border-purple-300 font-extrabold text-xs flex items-center justify-center gap-3 transition-all shadow-sm disabled:opacity-60 cursor-pointer group"
+          className="w-full py-2.5 px-4 rounded-xl bg-white hover:bg-slate-50 text-slate-700 hover:text-slate-900 border border-slate-200 hover:border-slate-300 font-semibold text-xs flex items-center justify-center gap-2.5 transition-colors shadow-2xs disabled:opacity-60 cursor-pointer"
         >
           {googleLoading ? (
-            <RefreshCw className="w-4 h-4 animate-spin text-purple-600" />
+            <RefreshCw className="w-4 h-4 animate-spin text-indigo-600" />
           ) : (
             <svg className="w-4 h-4 shrink-0" viewBox="0 0 24 24">
               <path
@@ -230,48 +233,48 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onSwitchToRegister }) => {
             </svg>
           )}
           <span>
-            {googleLoading
-              ? 'Verifying Google Account...'
-              : 'Continue with Google (Instant Login)'}
+            {googleLoading ? 'Connecting to Google...' : 'Continue with Google'}
           </span>
         </button>
 
         {/* Divider */}
-        <div className="flex items-center my-2">
+        <div className="flex items-center my-3">
           <div className="flex-1 border-t border-slate-200"></div>
-          <span className="px-3 text-[11px] font-bold text-slate-400 uppercase font-mono">OR SIGN IN WITH EMAIL</span>
+          <span className="px-3 text-[10px] font-semibold text-slate-400 uppercase font-mono tracking-wider">
+            or sign in with email
+          </span>
           <div className="flex-1 border-t border-slate-200"></div>
         </div>
 
         {/* Email & Password Form */}
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="block text-xs font-bold text-slate-700 mb-1.5">Merchant / Admin Email</label>
+            <label className="block text-xs font-semibold text-slate-700 mb-1.5">Email Address</label>
             <div className="relative">
               <input
                 type="email"
                 required
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                placeholder="Enter your email address"
-                className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 placeholder:text-slate-400 font-medium focus:outline-hidden focus:ring-2 focus:ring-purple-500 transition-all"
+                placeholder="merchant@example.com"
+                className="w-full pl-9 pr-3.5 py-2.5 bg-slate-50/70 border border-slate-200 rounded-xl text-xs text-slate-900 placeholder:text-slate-400 font-medium focus:outline-hidden focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"
               />
-              <Mail className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+              <Mail className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
             </div>
           </div>
 
           <div>
             <div className="flex items-center justify-between mb-1.5">
-              <label className="block text-xs font-bold text-slate-700">Password</label>
+              <label className="block text-xs font-semibold text-slate-700">Password</label>
               <button
                 type="button"
                 onClick={() => {
                   setResetEmail(email);
                   setShowResetModal(true);
                 }}
-                className="text-[11px] font-bold text-purple-600 hover:text-purple-800 transition-colors"
+                className="text-[11px] font-semibold text-indigo-600 hover:text-indigo-700 transition-colors cursor-pointer"
               >
-                Forgot Password?
+                Forgot?
               </button>
             </div>
             <div className="relative">
@@ -279,81 +282,104 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onSwitchToRegister }) => {
                 type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                placeholder="•••••••••••• (Enter your password)"
-                className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 placeholder:text-slate-400 font-medium focus:outline-hidden focus:ring-2 focus:ring-purple-500 transition-all"
+                placeholder="••••••••••••"
+                className="w-full pl-9 pr-3.5 py-2.5 bg-slate-50/70 border border-slate-200 rounded-xl text-xs text-slate-900 placeholder:text-slate-400 font-medium focus:outline-hidden focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"
               />
-              <Lock className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+              <Lock className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
             </div>
           </div>
 
           <button
             type="submit"
             disabled={loading}
-            className="w-full py-3.5 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white font-extrabold text-xs tracking-wide shadow-md shadow-purple-600/20 transition-all flex items-center justify-center gap-2 disabled:opacity-60 cursor-pointer"
+            className="w-full py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-xs tracking-wide shadow-xs transition-colors flex items-center justify-center gap-2 disabled:opacity-60 cursor-pointer"
           >
             {loading ? (
               <>
                 <RefreshCw className="w-4 h-4 animate-spin" />
-                <span>Logging In...</span>
+                <span>Signing In...</span>
               </>
             ) : (
               <>
                 <LogIn className="w-4 h-4" />
-                <span>Log In to Merchant Gateway</span>
+                <span>Sign In</span>
               </>
             )}
           </button>
         </form>
 
+        {/* Quick Demo Fill Buttons */}
+        <div className="p-3 rounded-xl bg-slate-50 border border-slate-200/80 space-y-2">
+          <div className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider font-mono">
+            Quick Fill Demo Accounts:
+          </div>
+          <div className="flex items-center gap-2 flex-wrap">
+            <button
+              type="button"
+              onClick={() => handleQuickLogin('kalam172010@gmail.com')}
+              className="px-2.5 py-1 rounded-lg bg-white border border-slate-200 hover:border-indigo-300 text-[11px] font-mono text-slate-700 hover:text-indigo-600 transition-colors cursor-pointer"
+            >
+              kalam172010@gmail.com (Admin)
+            </button>
+            <button
+              type="button"
+              onClick={() => handleQuickLogin('kk7953926@gmail.com')}
+              className="px-2.5 py-1 rounded-lg bg-white border border-slate-200 hover:border-indigo-300 text-[11px] font-mono text-slate-700 hover:text-indigo-600 transition-colors cursor-pointer"
+            >
+              kk7953926@gmail.com
+            </button>
+          </div>
+        </div>
+
         {/* Switch to register */}
-        <div className="text-center text-xs text-slate-500 pt-2 border-t border-slate-100">
-          Don't have an account yet?{' '}
+        <div className="text-center text-xs text-slate-500 pt-1 border-t border-slate-100">
+          Need a new merchant gateway account?{' '}
           <button
             type="button"
             onClick={onSwitchToRegister}
-            className="text-purple-600 font-bold hover:underline"
+            className="text-indigo-600 font-semibold hover:underline cursor-pointer"
           >
-            Create Account
+            Create an Account
           </button>
         </div>
       </div>
 
       {/* Reset Password Modal */}
       {showResetModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in">
-          <div className="w-full max-w-md bg-white rounded-3xl p-6 shadow-2xl border border-slate-200 space-y-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-xs animate-in fade-in">
+          <div className="w-full max-w-md bg-white rounded-2xl p-6 shadow-2xl border border-slate-200 space-y-4">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-2xl bg-purple-100 text-purple-700 flex items-center justify-center">
+              <div className="w-10 h-10 rounded-xl bg-indigo-50 border border-indigo-100 text-indigo-600 flex items-center justify-center">
                 <KeyRound className="w-5 h-5" />
               </div>
               <div>
-                <h3 className="font-extrabold text-base text-slate-900">Reset Password</h3>
+                <h3 className="font-bold text-base text-slate-900">Reset Password</h3>
                 <p className="text-xs text-slate-500">Set a new password for your account</p>
               </div>
             </div>
 
-            <form onSubmit={handleResetPassword} className="space-y-3">
+            <form onSubmit={handleResetPassword} className="space-y-3.5">
               <div>
-                <label className="text-xs font-bold text-slate-700 block mb-1">Email</label>
+                <label className="text-xs font-semibold text-slate-700 block mb-1">Email</label>
                 <input
                   type="email"
                   required
                   value={resetEmail}
                   onChange={(e) => setResetEmail(e.target.value)}
-                  placeholder="kk7953926@gmail.com"
-                  className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-xs font-medium focus:outline-hidden focus:ring-2 focus:ring-purple-500"
+                  placeholder="merchant@example.com"
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-xs font-medium focus:outline-hidden focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
                 />
               </div>
 
               <div>
-                <label className="text-xs font-bold text-slate-700 block mb-1">New Password</label>
+                <label className="text-xs font-semibold text-slate-700 block mb-1">New Password</label>
                 <input
                   type="password"
                   required
                   value={newPassword}
                   onChange={(e) => setNewPassword(e.target.value)}
-                  placeholder="Enter new password (min 4 chars)"
-                  className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-xs font-medium focus:outline-hidden focus:ring-2 focus:ring-purple-500"
+                  placeholder="Enter new password (min 6 chars)"
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-xs font-medium focus:outline-hidden focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
                 />
               </div>
 
@@ -361,14 +387,14 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onSwitchToRegister }) => {
                 <button
                   type="button"
                   onClick={() => setShowResetModal(false)}
-                  className="flex-1 py-2.5 rounded-xl bg-slate-100 text-slate-700 font-bold text-xs"
+                  className="flex-1 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-xs transition-colors cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={resetLoading}
-                  className="flex-1 py-2.5 rounded-xl bg-purple-600 text-white font-bold text-xs shadow-md disabled:opacity-60 flex items-center justify-center gap-1.5"
+                  className="flex-1 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-xs shadow-xs disabled:opacity-60 flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
                 >
                   {resetLoading ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : null}
                   <span>Save & Log In</span>

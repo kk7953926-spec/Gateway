@@ -72,6 +72,14 @@ export class IntegrationController {
       resolvedPort
     );
 
+    // Warm up 24/7 daemon immediately with verified merchant credentials
+    ImapService.daemon.startDaemon({
+      email: fampayGmail,
+      password: cleanAppPass,
+      host: resolvedHost,
+      port: resolvedPort,
+    });
+
     const clientIp = (req.headers['x-forwarded-for'] as string) || req.socket.remoteAddress || '127.0.0.1';
     await dbService.addLog({
       user_id: req.user.id,

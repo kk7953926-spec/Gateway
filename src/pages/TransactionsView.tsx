@@ -329,15 +329,16 @@ export const TransactionsView: React.FC = () => {
             <div>
               <div className="flex items-center gap-2">
                 <span className="text-xs font-bold text-white font-mono">Gateway Poller: Healthy & Live</span>
-                <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 text-[9px] font-bold border border-emerald-500/30 font-mono">
-                  HEARTBEAT ACTIVE (6s)
+                <span className="text-[10px] text-emerald-400 font-mono flex items-center gap-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                  <span>HEARTBEAT (6s)</span>
                 </span>
               </div>
-              <div className="text-[11px] text-slate-400 mt-0.5 font-mono flex items-center gap-3">
+              <div className="text-[11px] text-slate-400 mt-0.5 font-mono flex items-center gap-2.5">
                 <span>Last Sync: <strong className="text-slate-200">{lastHeartbeat.toLocaleTimeString()}</strong></span>
-                <span>•</span>
-                <span>Pending Orders Monitored: <strong className="text-amber-400">{pendingCount}</strong></span>
-                <span>•</span>
+                <span className="text-slate-700">·</span>
+                <span>Pending: <strong className="text-amber-400">{pendingCount}</strong></span>
+                <span className="text-slate-700">·</span>
                 <span>Captured: <strong className="text-emerald-400">{capturedCount}</strong></span>
               </div>
             </div>
@@ -497,42 +498,37 @@ export const TransactionsView: React.FC = () => {
                         )}
                       </td>
                       <td className="py-3">
-                        {isApiOnly ? (
-                          <span className="px-1.5 py-0.5 rounded text-[9px] font-black uppercase bg-purple-100 text-purple-800 border border-purple-200" title="API Transaction (No public payment link generated)">
-                            API_ONLY
-                          </span>
-                        ) : (
-                          <span className="px-1.5 py-0.5 rounded text-[9px] font-black uppercase bg-slate-100 text-slate-700 border border-slate-200" title="Merchant Created Payment Link">
-                            MERCHANT_LINK
-                          </span>
-                        )}
+                        <span className="text-[11px] font-mono text-slate-500 font-medium">
+                          {isApiOnly ? 'API Direct' : 'Payment Link'}
+                        </span>
                       </td>
                       <td className="py-3 text-slate-700">{t.upi_id}</td>
-                      <td className="py-3 font-bold text-slate-900">₹{(Number(t?.amount) || 0).toFixed(2)}</td>
+                      <td className="py-3 font-bold text-slate-900 tabular-nums">₹{(Number(t?.amount) || 0).toFixed(2)}</td>
                       <td className="py-3">
                         {isCaptured ? (
-                          <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300 inline-flex items-center gap-1">
-                            <CheckCircle2 className="w-3 h-3 text-emerald-600" />
-                            CONFIRMED ✓
-                          </span>
+                          <div className="flex items-center gap-1.5 text-xs font-semibold text-emerald-700 font-mono">
+                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                            <span>CAPTURED</span>
+                          </div>
                         ) : (
-                          <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-300">
-                            {t.status}
-                          </span>
+                          <div className="flex items-center gap-1.5 text-xs font-semibold text-amber-700 font-mono">
+                            <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
+                            <span>PENDING</span>
+                          </div>
                         )}
                       </td>
                       <td className="py-3">
                         {isCaptured ? (
-                          <span className="text-[10px] text-slate-400 font-sans">Verified by Engine</span>
+                          <span className="text-[11px] text-slate-400 font-mono">Verified by IMAP</span>
                         ) : (
                           <button
                             onClick={() => handleVerifySingle(t.id)}
                             disabled={verifyingTxnId === t.id}
-                            className="px-2 py-1 rounded-lg bg-indigo-50 border border-indigo-200 text-indigo-700 hover:bg-indigo-100 text-[10px] font-bold flex items-center gap-1 cursor-pointer transition-all disabled:opacity-50"
+                            className="px-2.5 py-1 rounded-lg bg-indigo-50 hover:bg-indigo-100 border border-indigo-200/80 text-indigo-700 text-[10px] font-semibold flex items-center gap-1 cursor-pointer transition-colors disabled:opacity-50"
                             title="Verify against Gateway IMAP Engine"
                           >
                             <ShieldCheck className={`w-3 h-3 ${verifyingTxnId === t.id ? 'animate-spin' : ''}`} />
-                            <span>{verifyingTxnId === t.id ? 'Verifying...' : 'Verify Engine'}</span>
+                            <span>{verifyingTxnId === t.id ? 'Verifying...' : 'Verify Now'}</span>
                           </button>
                         )}
                       </td>

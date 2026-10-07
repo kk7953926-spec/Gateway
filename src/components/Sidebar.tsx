@@ -9,11 +9,17 @@ import {
   User as UserIcon,
   BookOpen,
   Activity,
-  MessageCircle,
   Palette,
   ShieldAlert,
   LogOut,
   X,
+  Wallet,
+  Sparkles,
+  ExternalLink,
+  ChevronRight,
+  ShieldCheck,
+  Smartphone,
+  Settings,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
@@ -32,22 +38,36 @@ export const Sidebar: React.FC<SidebarProps> = ({
 }) => {
   const { user, logout, siteSettings } = useAuth();
 
-  const mainNav = [
-    { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
-    { id: 'transactions', label: 'Transactions', icon: CreditCard },
-    { id: 'payment-links', label: 'Payment Links', icon: Link2 },
-    { id: 'customize', label: 'Payment Page Design', icon: Palette },
-    { id: 'subscriptions', label: 'My Subscriptions', icon: Sliders },
-    { id: 'api-keys', label: 'API Keys', icon: Key },
-    { id: 'webhooks', label: 'Webhooks', icon: Webhook },
-  ];
-
-  const settingsNav = [
-    { id: 'integrations', label: 'Integrations', icon: Sliders },
-    ...(user?.role === 'admin' || user?.email === 'kalam172010@gmail.com' || user?.email === 'kk7953926@gmail.com' ? [{ id: 'admin', label: 'Admin Panel', icon: ShieldAlert }] : []),
-    { id: 'profile', label: 'Profile', icon: UserIcon },
-    { id: 'documentation', label: 'Documentation', icon: BookOpen },
-    { id: 'status', label: 'System Status', icon: Activity },
+  const navGroups = [
+    {
+      title: 'Core Gateway',
+      items: [
+        { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
+        { id: 'transactions', label: 'Transactions', icon: CreditCard },
+        { id: 'payment-links', label: 'Payment Links', icon: Link2 },
+        { id: 'customize', label: 'Checkout Design', icon: Palette },
+        { id: 'subscriptions', label: 'Plans & Billing', icon: Sliders },
+      ],
+    },
+    {
+      title: 'Integrations & API',
+      items: [
+        { id: 'integrations', label: 'IMAP & UPI Routing', icon: Sliders },
+        { id: 'api-keys', label: 'API Credentials', icon: Key },
+        { id: 'webhooks', label: 'Webhooks & Events', icon: Webhook },
+        { id: 'documentation', label: 'API Reference', icon: BookOpen },
+      ],
+    },
+    {
+      title: 'Account & System',
+      items: [
+        ...(user?.role === 'admin' || user?.email === 'kalam172010@gmail.com' || user?.email === 'kk7953926@gmail.com'
+          ? [{ id: 'admin', label: 'Admin Command', icon: ShieldAlert }]
+          : []),
+        { id: 'settings', label: 'Settings', icon: Settings },
+        { id: 'status', label: 'Platform Status', icon: Activity },
+      ],
+    },
   ];
 
   const handleNavClick = (id: string) => {
@@ -57,24 +77,27 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
   return (
     <>
-      {/* Mobile overlay */}
+      {/* Mobile backdrop */}
       {mobileOpen && (
         <div
           onClick={onCloseMobile}
-          className="fixed inset-0 bg-slate-900/50 backdrop-blur-xs z-40 lg:hidden"
+          className="fixed inset-0 bg-slate-950/60 backdrop-blur-xs z-40 lg:hidden transition-opacity"
         />
       )}
 
       <aside
-        className={`fixed top-0 bottom-0 left-0 z-50 w-64 bg-[#0a101d] text-slate-300 flex flex-col justify-between border-r border-slate-800/80 transition-transform duration-300 ease-in-out lg:translate-x-0 ${
+        className={`fixed top-0 bottom-0 left-0 z-50 w-64 bg-[#0a0f1d] text-slate-300 flex flex-col justify-between border-r border-slate-800/80 transition-transform duration-300 ease-in-out lg:translate-x-0 ${
           mobileOpen ? 'translate-x-0' : '-translate-x-full'
         }`}
       >
-        {/* Header Logo */}
+        {/* Brand Header */}
         <div>
-          <div className="h-16 px-6 flex items-center justify-between border-b border-slate-800/80">
-            <div className="flex items-center gap-2.5 cursor-pointer" onClick={() => handleNavClick('dashboard')}>
-              <div className="w-8 h-8 rounded-lg bg-indigo-600 flex items-center justify-center text-white font-extrabold text-sm shadow-md overflow-hidden">
+          <div className="h-16 px-5 flex items-center justify-between border-b border-slate-800/80">
+            <div
+              className="flex items-center gap-3 cursor-pointer group"
+              onClick={() => handleNavClick('dashboard')}
+            >
+              <div className="w-8 h-8 rounded-lg bg-indigo-600 flex items-center justify-center text-white font-black text-xs shadow-md shadow-indigo-600/30 overflow-hidden shrink-0">
                 {siteSettings.site_logo_url ? (
                   <img src={siteSettings.site_logo_url} className="w-full h-full object-cover" alt="Logo" />
                 ) : (
@@ -82,140 +105,108 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 )}
               </div>
               <div className="flex flex-col">
-                <span className="font-extrabold text-sm text-white tracking-tight leading-none uppercase">{siteSettings.site_name}</span>
-                <span className="text-[10px] text-purple-400 font-bold mt-0.5">Enterprise Gateway</span>
+                <span className="font-bold text-sm text-white tracking-tight leading-tight group-hover:text-indigo-300 transition-colors">
+                  {siteSettings.site_name}
+                </span>
+                <span className="text-[10px] text-slate-400 font-mono tracking-wider">
+                  UPI GATEWAY
+                </span>
               </div>
             </div>
 
-            <button onClick={onCloseMobile} className="lg:hidden text-slate-400 hover:text-white">
-              <X className="w-5 h-5" />
+            <button
+              onClick={onCloseMobile}
+              className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 lg:hidden"
+            >
+              <X className="w-4 h-4" />
             </button>
           </div>
 
           {/* Navigation Items */}
-          <div className="px-3 py-4 space-y-6 overflow-y-auto max-h-[calc(100vh-140px)]">
-            {/* MAIN section */}
-            <div>
-              <div className="px-3 text-[10px] font-mono font-bold text-slate-500 uppercase tracking-wider mb-2">
-                Main
+          <div className="px-3 py-4 space-y-6 overflow-y-auto max-h-[calc(100vh-175px)]">
+            {navGroups.map((group, idx) => (
+              <div key={idx}>
+                <div className="px-3 text-[10px] font-mono font-bold text-slate-400 uppercase tracking-widest mb-1.5">
+                  {group.title}
+                </div>
+                <div className="space-y-0.5">
+                  {group.items.map((item) => {
+                    const Icon = item.icon;
+                    const isActive =
+                      currentNav === item.id ||
+                      (item.id === 'settings' && currentNav === 'profile') ||
+                      (item.id === 'profile' && currentNav === 'settings');
+                    return (
+                      <button
+                        key={item.id}
+                        onClick={() => handleNavClick(item.id)}
+                        className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs font-medium transition-all cursor-pointer ${
+                          isActive
+                            ? 'bg-indigo-600 text-white font-semibold shadow-sm'
+                            : 'text-slate-400 hover:text-slate-100 hover:bg-slate-800/60'
+                        }`}
+                      >
+                        <div className="flex items-center gap-2.5">
+                          <Icon className={`w-4 h-4 ${isActive ? 'text-white' : 'text-slate-400'}`} />
+                          <span>{item.label}</span>
+                        </div>
+                        {isActive && <ChevronRight className="w-3.5 h-3.5 text-indigo-200" />}
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
-              <div className="space-y-1">
-                {mainNav.map((item) => {
-                  const Icon = item.icon;
-                  const isActive = currentNav === item.id;
-                  return (
-                    <button
-                      key={item.id}
-                      onClick={() => handleNavClick(item.id)}
-                      className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all ${
-                        isActive
-                          ? 'bg-indigo-600/20 text-indigo-300 font-bold border border-indigo-500/30 shadow-sm'
-                          : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'
-                      }`}
-                    >
-                      <Icon className={`w-4 h-4 ${isActive ? 'text-indigo-400' : 'text-slate-400'}`} />
-                      <span>{item.label}</span>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-
-            {/* SETTINGS section */}
-            <div>
-              <div className="px-3 text-[10px] font-mono font-bold text-slate-500 uppercase tracking-wider mb-2">
-                Settings
-              </div>
-              <div className="space-y-1">
-                {settingsNav.map((item) => {
-                  const Icon = item.icon;
-                  const isActive = currentNav === item.id;
-                  return (
-                    <button
-                      key={item.id}
-                      onClick={() => handleNavClick(item.id)}
-                      className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all ${
-                        isActive
-                          ? 'bg-indigo-600/20 text-indigo-300 font-bold border border-indigo-500/30 shadow-sm'
-                          : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'
-                      }`}
-                    >
-                      <Icon className={`w-4 h-4 ${isActive ? 'text-indigo-400' : 'text-slate-400'}`} />
-                      <span>{item.label}</span>
-                    </button>
-                  );
-                })}
-
-                {/* WhatsApp Support button */}
-                <a
-                  href="https://wa.me/911234567890"
-                  target="_blank"
-                  rel="noreferrer"
-                  className="w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-semibold text-emerald-400 hover:bg-emerald-950/30 transition-all border border-transparent hover:border-emerald-500/20 mt-2"
-                >
-                  <MessageCircle className="w-4 h-4 text-emerald-400" />
-                  <span>WhatsApp Support</span>
-                </a>
-
-                {/* Direct Logout Option in Navigation */}
-                <button
-                  onClick={() => {
-                    logout();
-                  }}
-                  className="w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-semibold text-rose-400 hover:bg-rose-950/30 hover:text-rose-300 transition-all border border-transparent hover:border-rose-500/20 mt-1 cursor-pointer"
-                >
-                  <LogOut className="w-4 h-4 text-rose-400" />
-                  <span>Log Out</span>
-                </button>
-              </div>
-            </div>
+            ))}
           </div>
         </div>
 
-        {/* User Card */}
-        {user && (
-          <div className="p-3 border-t border-slate-800/80 bg-[#070b14]">
-            <div className="flex items-center justify-between p-2 rounded-xl bg-slate-900/60 border border-slate-800">
-              <div
-                onClick={() => handleNavClick('profile')}
-                className="flex items-center gap-2.5 overflow-hidden text-left cursor-pointer flex-1 mr-2 hover:opacity-80 transition-opacity"
-              >
-                {user.avatar_url ? (
-                  <img
-                    src={user.avatar_url}
-                    alt={user.name}
-                    className="w-9 h-9 rounded-full object-cover border border-indigo-500/40 shrink-0 shadow-sm"
-                  />
-                ) : (
-                  <div className="w-9 h-9 rounded-full bg-gradient-to-tr from-purple-600 to-indigo-600 text-white font-bold flex items-center justify-center text-xs shrink-0 shadow-sm">
-                    {user.name.charAt(0).toUpperCase()}
-                  </div>
-                )}
-                <div className="overflow-hidden">
-                  <div className="text-xs font-bold text-white truncate flex items-center gap-1">
-                    {user.name}
-                    {user.role === 'admin' && (
-                      <span className="text-[9px] bg-amber-500/20 text-amber-300 px-1 py-0.2 rounded border border-amber-500/30 font-mono">
-                        ADM
-                      </span>
-                    )}
-                  </div>
-                  <div className="text-[10px] text-slate-400 truncate">{user.email}</div>
-                </div>
-              </div>
-
-              <button
-                onClick={() => {
-                  logout();
-                }}
-                className="p-2 rounded-lg bg-rose-500/10 hover:bg-rose-500/30 text-rose-400 hover:text-rose-300 border border-rose-500/30 transition-all shrink-0 cursor-pointer"
-                title="Log Out of Account"
-              >
-                <LogOut className="w-4 h-4" />
-              </button>
+        {/* Footer: User Wallet & Quick Logout */}
+        <div className="p-3 border-t border-slate-800/80 bg-[#070b15]">
+          {/* Wallet Mini-Card */}
+          <div
+            onClick={() => handleNavClick('transactions')}
+            className="p-2.5 rounded-lg bg-slate-900/90 border border-slate-800 hover:border-slate-700 cursor-pointer transition-all mb-2.5 group"
+          >
+            <div className="flex items-center justify-between text-[10px] text-slate-400 mb-1">
+              <span className="flex items-center gap-1.5">
+                <Wallet className="w-3 h-3 text-indigo-400" />
+                <span>Settled Balance</span>
+              </span>
+              <span className="text-[9px] font-mono text-emerald-400 font-bold">LIVE</span>
+            </div>
+            <div className="text-sm font-bold font-mono text-white tabular-nums group-hover:text-indigo-300 transition-colors">
+              ₹{(user?.wallet_balance || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
             </div>
           </div>
-        )}
+
+          {/* User Profile / Logout Row */}
+          <div className="flex items-center justify-between px-1.5 pt-1">
+            <div
+              onClick={() => handleNavClick('profile')}
+              className="flex items-center gap-2 cursor-pointer truncate mr-2 group"
+            >
+              <div className="w-6 h-6 rounded-md bg-indigo-900/80 border border-indigo-700/60 text-indigo-200 text-xs font-bold flex items-center justify-center shrink-0">
+                {user?.name?.charAt(0).toUpperCase() || 'M'}
+              </div>
+              <div className="truncate text-left">
+                <div className="text-xs font-medium text-slate-300 truncate group-hover:text-white leading-tight">
+                  {user?.name || 'Merchant'}
+                </div>
+                <div className="text-[10px] font-mono text-slate-400 truncate leading-tight">
+                  {user?.fampay_upi_id || '8056317218@fam'}
+                </div>
+              </div>
+            </div>
+
+            <button
+              onClick={logout}
+              title="Sign Out"
+              className="p-1.5 rounded-md text-slate-400 hover:text-rose-400 hover:bg-slate-800/80 transition-colors cursor-pointer shrink-0"
+            >
+              <LogOut className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        </div>
       </aside>
     </>
   );

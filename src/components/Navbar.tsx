@@ -1,5 +1,5 @@
 import React from 'react';
-import { ShieldCheck, LayoutDashboard, Settings, FileCode2, LogOut, Lock, Globe } from 'lucide-react';
+import { ShieldCheck, LayoutDashboard, Settings, FileCode2, LogOut, Lock, Globe, Smartphone, Download } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
 export const Navbar: React.FC = () => {
@@ -19,7 +19,7 @@ export const Navbar: React.FC = () => {
             <div>
               <div className="font-extrabold text-lg tracking-tight text-slate-900 flex items-center gap-1.5">
                 FAMGATEWAY
-                <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700 font-bold border border-indigo-200">
+                <span className="text-[10px] font-mono text-indigo-600 font-bold">
                   v2.0
                 </span>
               </div>
@@ -86,11 +86,11 @@ export const Navbar: React.FC = () => {
             {user ? (
               <div className="flex items-center gap-3">
                 <div className="hidden sm:flex flex-col text-right">
-                  <span className="text-xs font-bold text-slate-800 flex items-center gap-1 justify-end">
+                  <span className="text-xs font-bold text-slate-800 flex items-center gap-1.5 justify-end">
                     {user.name}
                     {user.role === 'admin' && (
-                      <span className="bg-amber-100 text-amber-800 text-[10px] px-1.5 py-0.2 rounded border border-amber-300 font-semibold">
-                        Admin
+                      <span className="text-amber-700 text-[10px] font-mono font-bold">
+                        · Admin
                       </span>
                     )}
                   </span>

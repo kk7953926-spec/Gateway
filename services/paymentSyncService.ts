@@ -10,11 +10,21 @@ export class PaymentSyncService {
   /**
    * Starts the continuous background polling and auto-sync worker.
    */
-  public static startBackgroundPoller(intervalMs: number = 6000) {
+  public static startBackgroundPoller(intervalMs: number = 5000) {
     if (this.isRunning) return;
     this.isRunning = true;
 
-    console.log(`[PaymentSyncService]: Background cross-referencing auto-sync service started (Interval: ${intervalMs}ms).`);
+    console.log(`[PaymentSyncService 24/7]: Background cross-referencing auto-sync service started (Interval: ${intervalMs}ms).`);
+
+    // Hook real-time event when 24/7 IMAP daemon receives a new payment alert
+    ImapService.daemon.onPaymentReceived(async (cachedEmail) => {
+      console.log(`[PaymentSyncService 24/7 EVENT]: New bank credit alert detected: ₹${cachedEmail.amount} UTR: ${cachedEmail.utr}. Triggering instant reconciliation...`);
+      try {
+        await this.runSyncCycle();
+      } catch (err: any) {
+        console.error('[PaymentSyncService Event reconciliation error]:', err.message);
+      }
+    });
 
     this.pollTimer = setInterval(async () => {
       try {

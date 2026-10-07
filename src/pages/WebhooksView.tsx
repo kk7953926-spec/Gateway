@@ -187,13 +187,13 @@ export const WebhooksView: React.FC<{ onNavigate: (nav: string) => void }> = ({ 
         </p>
       </div>
 
-      <div className="p-6 rounded-3xl bg-white border border-slate-200 shadow-sm space-y-6">
+      <div className="p-6 rounded-2xl bg-white border border-slate-200/80 shadow-xs space-y-6">
         <div className="flex items-center gap-1 border-b border-slate-100 pb-2">
           {(['Inbound Handler', 'Outgoing Webhook', 'Event Logs'] as const).map((tab) => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
-              className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+              className={`px-4 py-2 rounded-xl text-xs font-semibold transition-all flex items-center gap-1.5 cursor-pointer ${
                 activeTab === tab
                   ? 'bg-indigo-600 text-white shadow-xs'
                   : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
@@ -211,16 +211,16 @@ export const WebhooksView: React.FC<{ onNavigate: (nav: string) => void }> = ({ 
         {activeTab === 'Inbound Handler' && (
           <div className="space-y-6 animate-in fade-in duration-200">
             {/* Live Webhook Handler URL Card */}
-            <div className="p-5 rounded-2xl bg-gradient-to-br from-indigo-950 to-slate-900 text-white border border-indigo-900 shadow-md space-y-3">
+            <div className="p-5 rounded-2xl bg-[#0a0f1d] text-white border border-slate-800 shadow-md space-y-3">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <div className="flex items-center gap-2">
-                  <div className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-ping" />
-                  <span className="text-xs font-extrabold text-emerald-400 uppercase tracking-wider font-mono">
+                  <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                  <span className="text-xs font-bold text-emerald-400 uppercase tracking-wider font-mono">
                     Gateway Webhook Handler Active
                   </span>
                 </div>
-                <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-indigo-900/60 text-indigo-300 border border-indigo-700/50">
-                  HTTP POST • JSON
+                <span className="text-[11px] font-mono text-indigo-400">
+                  HTTP POST · JSON
                 </span>
               </div>
 

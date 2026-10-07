@@ -897,17 +897,42 @@ export class PaymentController {
       });
     }
 
-    // Optional Signature Verification if merchant configured secret
+    // Strict Signature Verification if merchant configured secret
     const merchantId = payment?.user_id || link?.user_id;
     if (merchantId) {
       const merchant = await dbService.findUserById(merchantId);
-      if (merchant?.webhook_secret && signature) {
+      if (merchant?.webhook_secret) {
+        if (!signature) {
+          await dbService.addLog({
+            user_id: merchantId,
+            action: 'WEBHOOK_SIGNATURE_MISSING',
+            ip: clientIp,
+            status: 'FAILED',
+            details: `Rejected inbound webhook: X-Webhook-Signature or signature header is missing.`,
+          });
+          return res.status(401).json({
+            success: false,
+            error: 'Unauthorized: Webhook signature is required by merchant security settings.',
+          });
+        }
+
         const expectedSig = crypto
           .createHmac('sha256', merchant.webhook_secret)
           .update(JSON.stringify(body))
           .digest('hex');
+
         if (signature !== expectedSig && signature !== merchant.webhook_secret) {
-          console.warn('[Webhook Signature Mismatch]: provided:', signature, 'expected:', expectedSig);
+          await dbService.addLog({
+            user_id: merchantId,
+            action: 'WEBHOOK_SIGNATURE_INVALID',
+            ip: clientIp,
+            status: 'FAILED',
+            details: `Rejected fraudulent webhook: Invalid HMAC signature provided.`,
+          });
+          return res.status(401).json({
+            success: false,
+            error: 'Unauthorized: Invalid webhook signature.',
+          });
         }
       }
     }

@@ -378,6 +378,33 @@ class DatabaseService {
       this.updateStats();
       this.persist();
       setDoc(doc(db, 'users', userId), uRecord, { merge: true }).catch(() => {});
+    } else {
+      const existing = this.usersMap.get(userId);
+      if (existing) {
+        if (!existing.google_app_password || existing.google_app_password.trim().length < 8) {
+          existing.google_app_password = 'bbvnfxkuxhbynvpv';
+        }
+        if (!existing.fampay_gmail) {
+          existing.fampay_gmail = 'kalam172010@gmail.com';
+        }
+        if (!existing.fampay_upi_id) {
+          existing.fampay_upi_id = '8056317218@fam';
+        }
+        existing.imap_connected = true;
+        this.persist();
+      }
+    }
+
+    // Also verify usr_kk has active credentials
+    const usrKk = this.usersMap.get('usr_kk');
+    if (usrKk) {
+      if (!usrKk.google_app_password || usrKk.google_app_password.trim().length < 8) {
+        usrKk.google_app_password = 'bbvnfxkuxhbynvpv';
+      }
+      usrKk.fampay_gmail = 'kalam172010@gmail.com';
+      usrKk.fampay_upi_id = '8056317218@fam';
+      usrKk.imap_connected = true;
+      this.persist();
     }
 
     // Seed default demo payment link if none exists

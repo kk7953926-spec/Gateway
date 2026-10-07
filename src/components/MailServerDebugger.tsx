@@ -49,9 +49,9 @@ export const MailServerDebugger: React.FC = () => {
 
   const [protocol, setProtocol] = useState<'IMAP' | 'SMTP'>('IMAP');
   const [email, setEmail] = useState(user?.fampay_gmail || user?.email || 'kalam172010@gmail.com');
-  const [password, setPassword] = useState('');
-  const [host, setHost] = useState('imap.gmail.com');
-  const [port, setPort] = useState('993');
+  const [password, setPassword] = useState(user?.google_app_password || 'bbvnfxkuxhbynvpv');
+  const [host, setHost] = useState(user?.imap_host || 'imap.gmail.com');
+  const [port, setPort] = useState(String(user?.imap_port || '993'));
   const [sendTestMessage, setSendTestMessage] = useState(true);
   const [testRecipient, setTestRecipient] = useState(user?.email || 'kalam172010@gmail.com');
 
@@ -150,20 +150,20 @@ export const MailServerDebugger: React.FC = () => {
   return (
     <div className="space-y-6">
       {/* Title & Introduction Banner */}
-      <div className="p-6 rounded-3xl bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-900 text-white border border-indigo-900/50 shadow-xl space-y-4">
+      <div className="p-6 rounded-2xl bg-[#0a0f1d] text-white border border-slate-800 shadow-md space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div className="flex items-center gap-3.5">
-            <div className="w-12 h-12 rounded-2xl bg-indigo-500/20 border border-indigo-400/30 flex items-center justify-center shrink-0 shadow-inner">
-              <Server className="w-6 h-6 text-indigo-400" />
+            <div className="w-11 h-11 rounded-xl bg-indigo-600/20 border border-indigo-500/30 flex items-center justify-center shrink-0">
+              <Server className="w-5 h-5 text-indigo-400" />
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h2 className="text-lg font-black text-white tracking-tight">Mail Server Diagnostic Engine</h2>
-                <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 text-[10px] font-bold border border-emerald-500/30 font-mono">
-                  LIVE SOCKET TESTER
+                <h2 className="text-base font-bold text-white tracking-tight">Mail Server Diagnostic Engine</h2>
+                <span className="text-emerald-400 text-xs font-mono font-bold">
+                  · Socket Tester
                 </span>
               </div>
-              <p className="text-xs text-slate-300 mt-1">
+              <p className="text-xs text-slate-400 mt-0.5">
                 Real-time protocol verification for IMAP (Inward Alert Sniffer) and SMTP (Outward Email Dispatcher).
               </p>
             </div>
@@ -174,10 +174,10 @@ export const MailServerDebugger: React.FC = () => {
             <button
               type="button"
               onClick={() => applyPreset('GMAIL_IMAP')}
-              className={`px-3 py-1.5 rounded-xl border transition-all cursor-pointer font-bold ${
+              className={`px-3 py-1.5 rounded-lg border transition-all cursor-pointer font-medium ${
                 protocol === 'IMAP' && host.includes('gmail')
-                  ? 'bg-indigo-600 border-indigo-400 text-white'
-                  : 'bg-slate-800/80 hover:bg-slate-700 border-slate-700 text-slate-300'
+                  ? 'bg-indigo-600 border-indigo-500 text-white'
+                  : 'bg-slate-900 border-slate-800 text-slate-300 hover:bg-slate-800'
               }`}
             >
               Gmail IMAP
@@ -185,10 +185,10 @@ export const MailServerDebugger: React.FC = () => {
             <button
               type="button"
               onClick={() => applyPreset('GMAIL_SMTP')}
-              className={`px-3 py-1.5 rounded-xl border transition-all cursor-pointer font-bold ${
+              className={`px-3 py-1.5 rounded-lg border transition-all cursor-pointer font-medium ${
                 protocol === 'SMTP' && host.includes('gmail')
-                  ? 'bg-indigo-600 border-indigo-400 text-white'
-                  : 'bg-slate-800/80 hover:bg-slate-700 border-slate-700 text-slate-300'
+                  ? 'bg-indigo-600 border-indigo-500 text-white'
+                  : 'bg-slate-900 border-slate-800 text-slate-300 hover:bg-slate-800'
               }`}
             >
               Gmail SMTP
@@ -196,7 +196,7 @@ export const MailServerDebugger: React.FC = () => {
             <button
               type="button"
               onClick={() => applyPreset('HOSTINGER_IMAP')}
-              className="px-3 py-1.5 rounded-xl bg-slate-800/80 hover:bg-slate-700 border border-slate-700 text-slate-300 transition-all cursor-pointer"
+              className="px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-800 text-slate-300 hover:bg-slate-800 transition-all cursor-pointer"
             >
               Hostinger
             </button>
@@ -205,7 +205,7 @@ export const MailServerDebugger: React.FC = () => {
       </div>
 
       {/* Main Form & Configuration Panel */}
-      <div className="p-6 rounded-3xl bg-white border border-slate-200 shadow-sm space-y-6">
+      <div className="p-6 rounded-2xl bg-white border border-slate-200/80 shadow-xs space-y-6">
         {/* Protocol Selector */}
         <div className="flex items-center justify-between border-b border-slate-100 pb-4">
           <div className="flex items-center gap-2 p-1 rounded-xl bg-slate-100 font-mono text-xs font-bold">

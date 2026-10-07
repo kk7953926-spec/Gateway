@@ -194,21 +194,17 @@ export const SubscriptionView: React.FC = () => {
       </div>
 
       {/* Current Subscription Status Card */}
-      <div className="p-6 rounded-3xl bg-[#0a101d] text-white border border-slate-800 shadow-xl flex flex-col md:flex-row md:items-center justify-between gap-6 relative overflow-hidden">
-        {/* Glow Effects */}
-        <div className="absolute top-0 right-0 w-64 h-64 bg-purple-500/10 rounded-full blur-3xl" />
-        <div className="absolute bottom-0 left-0 w-48 h-48 bg-indigo-500/10 rounded-full blur-3xl" />
-
+      <div className="p-6 rounded-2xl bg-[#090d16] text-white border border-slate-800 shadow-md flex flex-col md:flex-row md:items-center justify-between gap-6 relative overflow-hidden">
         <div className="space-y-3 relative z-10">
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-purple-500/20 border border-purple-500/30 text-purple-300 text-xs font-mono font-bold">
-            <ShieldCheck className="w-3.5 h-3.5 text-purple-400" />
+          <div className="flex items-center gap-2 text-xs font-mono text-emerald-400 font-semibold">
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
             <span>SECURE SYSTEM ACTIVE</span>
           </div>
 
           <div className="space-y-1">
-            <h2 className="text-2xl font-black tracking-tight flex items-center gap-2">
+            <h2 className="text-xl font-bold tracking-tight flex items-center gap-2">
               <span>Current Plan:</span>
-              <span className="text-purple-400 font-mono">
+              <span className="text-indigo-400 font-mono">
                 {user?.subscription_plan_id || 'Free Trial'}
               </span>
             </h2>
@@ -217,20 +213,19 @@ export const SubscriptionView: React.FC = () => {
             </p>
           </div>
 
-          <div className="flex items-center gap-2 text-xs font-mono text-slate-300 bg-slate-900/60 p-2.5 rounded-xl border border-slate-800 inline-block font-bold">
-            <Clock className="w-4 h-4 text-purple-400" />
-            <span>Expires In: <strong>{getDaysRemaining()} Days</strong></span>
-            <span className="text-slate-500">|</span>
-            <span>Date: {user?.subscription_expires_at ? new Date(user.subscription_expires_at).toLocaleDateString() : 'N/A'}</span>
+          <div className="flex items-center gap-2.5 text-xs font-mono text-slate-400">
+            <span className="text-slate-200 font-semibold">{getDaysRemaining()} Days Remaining</span>
+            <span className="text-slate-700">·</span>
+            <span>Expires: {user?.subscription_expires_at ? new Date(user.subscription_expires_at).toLocaleDateString() : 'Active'}</span>
           </div>
         </div>
 
-        <div className="relative z-10 p-5 rounded-2xl bg-[#141a29]/90 border border-slate-800 min-w-[240px] text-center">
-          <div className="text-xs text-slate-400 font-bold uppercase tracking-wider">Account Status</div>
-          <div className="text-3xl font-black text-emerald-400 font-mono mt-1 uppercase">
+        <div className="relative z-10 p-5 rounded-xl bg-slate-900/90 border border-slate-800 min-w-[200px] text-center">
+          <div className="text-[10px] text-slate-400 font-bold uppercase tracking-wider font-mono">Account Status</div>
+          <div className="text-2xl font-bold text-emerald-400 font-mono mt-1 uppercase">
             {user?.subscription_status || 'ACTIVE'}
           </div>
-          <p className="text-[10px] text-slate-500 mt-1">Unlimited 0% Fee Instant Settled payments</p>
+          <p className="text-[10px] text-slate-400 mt-1">0% Gateway Fee · Direct IMAP Settlement</p>
         </div>
       </div>
 
@@ -254,26 +249,27 @@ export const SubscriptionView: React.FC = () => {
               return (
                 <div
                   key={p.id}
-                  className={`p-6 rounded-3xl bg-white border transition-all space-y-5 relative ${
+                  className={`p-6 rounded-2xl bg-white border transition-all space-y-5 relative ${
                     isCurrent
-                      ? 'border-2 border-purple-600 shadow-lg shadow-purple-600/5'
-                      : 'border-slate-200 hover:border-purple-300 hover:shadow-md'
+                      ? 'border-2 border-indigo-600 shadow-sm'
+                      : 'border-slate-200/80 hover:border-slate-300'
                   }`}
                 >
                   {isCurrent && (
-                    <span className="absolute -top-3 right-6 bg-purple-600 text-white text-[9px] font-black uppercase tracking-wider px-2.5 py-1 rounded-full border border-purple-400">
-                      CURRENT PLAN
-                    </span>
+                    <div className="absolute top-4 right-4 flex items-center gap-1 text-[11px] font-mono text-indigo-600 font-bold">
+                      <span className="w-1.5 h-1.5 rounded-full bg-indigo-600" />
+                      <span>CURRENT PLAN</span>
+                    </div>
                   )}
 
                   <div className="space-y-1">
-                    <h4 className="text-lg font-black text-slate-900">{p.name}</h4>
-                    <p className="text-xs text-slate-400 font-bold">{p.duration_days} Days Full Validity</p>
+                    <h4 className="text-base font-bold text-slate-900">{p.name}</h4>
+                    <p className="text-xs text-slate-500">{p.duration_days} Days Full Validity</p>
                   </div>
 
                   <div className="flex items-baseline gap-1 border-t border-b border-slate-100 py-3.5">
-                    <span className="text-3xl font-black text-slate-900">₹{p.price}</span>
-                    <span className="text-xs text-slate-400 font-bold">/one-time</span>
+                    <span className="text-2xl font-bold font-mono text-slate-900 tabular-nums">₹{p.price}</span>
+                    <span className="text-xs text-slate-400 font-medium">/one-time</span>
                   </div>
 
                   <ul className="space-y-2 text-xs text-slate-600 font-medium">
@@ -299,10 +295,10 @@ export const SubscriptionView: React.FC = () => {
                     type="button"
                     disabled={activatingPlanId !== null}
                     onClick={() => handleOpenCheckout(p.id)}
-                    className={`w-full py-2.5 rounded-xl font-extrabold text-xs transition-all cursor-pointer ${
+                    className={`w-full py-2.5 rounded-xl font-semibold text-xs transition-colors cursor-pointer ${
                       isCurrent
-                        ? 'bg-emerald-500 hover:bg-emerald-600 text-white'
-                        : 'bg-indigo-600 hover:bg-indigo-700 text-white'
+                        ? 'bg-emerald-600 hover:bg-emerald-500 text-white'
+                        : 'bg-indigo-600 hover:bg-indigo-500 text-white'
                     }`}
                   >
                     {activatingPlanId === p.id ? 'Processing...' : isCurrent ? 'Renew Plan' : 'Purchase / Activate'}
@@ -311,7 +307,7 @@ export const SubscriptionView: React.FC = () => {
               );
             })
           ) : (
-            <div className="col-span-3 text-center text-xs text-slate-400 font-bold py-8">
+            <div className="col-span-3 text-center text-xs text-slate-400 font-medium py-8">
               No subscription plans configured by admin yet.
             </div>
           )}
@@ -320,14 +316,14 @@ export const SubscriptionView: React.FC = () => {
 
       {/* UPI QR Code Subscription Checkout Modal */}
       {checkoutModalOpen && (
-        <div className="fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 overflow-y-auto animate-in fade-in duration-200">
-          <div className="w-full max-w-md bg-[#0a0e1a] border border-slate-800 text-slate-100 rounded-3xl shadow-2xl overflow-hidden relative my-auto">
+        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 overflow-y-auto animate-in fade-in duration-200">
+          <div className="w-full max-w-md bg-[#0a0e1a] border border-slate-800 text-slate-100 rounded-2xl shadow-2xl overflow-hidden relative my-auto">
             
             {/* Header */}
-            <div className="bg-gradient-to-r from-purple-700 via-fuchsia-600 to-indigo-700 px-5 py-4 flex items-center justify-between shadow-md">
+            <div className="bg-slate-900 border-b border-slate-800 px-5 py-4 flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <Sliders className="w-5 h-5 text-white" />
-                <h3 className="font-extrabold text-white text-sm leading-tight">
+                <Sliders className="w-4 h-4 text-indigo-400" />
+                <h3 className="font-bold text-white text-sm">
                   Premium Subscription Activation
                 </h3>
               </div>
@@ -337,9 +333,9 @@ export const SubscriptionView: React.FC = () => {
                   if (checkoutTimerRef.current) clearInterval(checkoutTimerRef.current);
                   if (checkoutPollRef.current) clearInterval(checkoutPollRef.current);
                 }}
-                className="text-white/80 hover:text-white"
+                className="text-slate-400 hover:text-white transition-colors cursor-pointer"
               >
-                <X className="w-5 h-5" />
+                <X className="w-4 h-4" />
               </button>
             </div>
 

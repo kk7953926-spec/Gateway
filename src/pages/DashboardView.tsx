@@ -5,20 +5,25 @@ import {
   AlertCircle,
   Copy,
   Check,
-  Play,
-  X,
   ExternalLink,
   Wallet,
   TrendingUp,
   ArrowUpRight,
   ShieldCheck,
   Zap,
-  Globe,
   Clock,
-  AlertTriangle,
-  ShoppingBag
+  QrCode,
+  Link2,
+  RefreshCw,
+  Plus,
+  Sliders,
+  ChevronRight,
+  ArrowRight,
+  Terminal,
 } from 'lucide-react';
+import QRCode from 'qrcode';
 import { useAuth } from '../context/AuthContext';
+import { UpiPaymentRecord } from '../types';
 
 interface DashboardViewProps {
   onNavigate: (nav: string) => void;
@@ -29,7 +34,6 @@ const TrialProgressCard: React.FC<{ user: any; onNavigate: (nav: string) => void
     days: number;
     hours: number;
     minutes: number;
-    seconds: number;
     percent: number;
     isExpired: boolean;
     isTrial: boolean;
@@ -37,7 +41,6 @@ const TrialProgressCard: React.FC<{ user: any; onNavigate: (nav: string) => void
     days: 0,
     hours: 0,
     minutes: 0,
-    seconds: 0,
     percent: 100,
     isExpired: false,
     isTrial: true,
@@ -66,7 +69,6 @@ const TrialProgressCard: React.FC<{ user: any; onNavigate: (nav: string) => void
       const days = Math.floor(remainingMs / (1000 * 60 * 60 * 24));
       const hours = Math.floor((remainingMs % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
       const minutes = Math.floor((remainingMs % (1000 * 60 * 60)) / (1000 * 60));
-      const seconds = Math.floor((remainingMs % (1000 * 60)) / 1000);
 
       const isTrial = !user.subscription_plan_id || user.subscription_plan_id.toLowerCase().includes('trial') || user.subscription_plan_id.toLowerCase().includes('free');
 
@@ -74,7 +76,6 @@ const TrialProgressCard: React.FC<{ user: any; onNavigate: (nav: string) => void
         days,
         hours,
         minutes,
-        seconds,
         percent,
         isExpired,
         isTrial,
@@ -82,30 +83,30 @@ const TrialProgressCard: React.FC<{ user: any; onNavigate: (nav: string) => void
     };
 
     calculateTime();
-    const timer = setInterval(calculateTime, 1000);
+    const timer = setInterval(calculateTime, 10000);
     return () => clearInterval(timer);
   }, [user]);
 
   if (user?.role === 'admin') {
     return (
-      <div className="p-5 rounded-3xl bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 text-white border border-indigo-500/30 shadow-lg flex items-center justify-between flex-wrap gap-4">
+      <div className="p-4 rounded-xl bg-slate-900 text-white border border-slate-800 flex items-center justify-between flex-wrap gap-3">
         <div className="flex items-center gap-3">
-          <div className="p-2.5 rounded-2xl bg-indigo-500/20 text-indigo-400 border border-indigo-500/30">
-            <ShieldCheck className="w-6 h-6" />
+          <div className="w-9 h-9 rounded-lg bg-indigo-600/20 text-indigo-400 border border-indigo-500/30 flex items-center justify-center shrink-0">
+            <ShieldCheck className="w-5 h-5" />
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <h3 className="text-sm font-black text-white">Administrator Lifetime Account</h3>
-              <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 text-[10px] font-mono font-bold">UNLIMITED ACCESS</span>
+              <span className="text-xs font-bold text-white">Administrator Tier</span>
+              <span className="text-[10px] text-emerald-400 font-mono font-medium">UNLIMITED SETTLEMENTS</span>
             </div>
-            <p className="text-xs text-slate-400 mt-0.5">You have permanent full system control and gateway processing privileges.</p>
+            <p className="text-[11px] text-slate-400">Full system access, live multi-merchant IMAP monitoring, and zero-fee processing enabled.</p>
           </div>
         </div>
         <button
           onClick={() => onNavigate('admin')}
-          className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs shadow-md transition-all"
+          className="px-3.5 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-xs transition-colors cursor-pointer"
         >
-          Manage Platform
+          Admin Console
         </button>
       </div>
     );
@@ -113,158 +114,123 @@ const TrialProgressCard: React.FC<{ user: any; onNavigate: (nav: string) => void
 
   if (timeLeft.isExpired) {
     return (
-      <div className="p-6 rounded-3xl bg-gradient-to-r from-rose-950 via-slate-900 to-rose-950 text-white border border-rose-500/40 shadow-xl space-y-4 relative overflow-hidden">
-        <div className="absolute top-0 right-0 w-64 h-64 bg-rose-500/10 rounded-full blur-3xl pointer-events-none" />
-        
-        <div className="flex items-center justify-between flex-wrap gap-3">
-          <div className="flex items-center gap-2">
-            <div className="p-2 rounded-xl bg-rose-500/20 text-rose-400 border border-rose-500/30">
-              <AlertTriangle className="w-5 h-5 text-rose-400" />
-            </div>
-            <div>
-              <span className="px-2.5 py-0.5 rounded-full bg-rose-500/20 border border-rose-500/30 text-rose-300 font-mono text-[10px] font-extrabold uppercase tracking-wider">
-                Trial Expired
-              </span>
-              <h3 className="text-base font-black text-white mt-0.5">Your 5-Day Free Trial Has Ended</h3>
-            </div>
+      <div className="p-4 rounded-xl bg-rose-950/40 text-rose-200 border border-rose-800/60 flex items-center justify-between flex-wrap gap-3">
+        <div className="flex items-center gap-3">
+          <div className="w-9 h-9 rounded-lg bg-rose-500/20 text-rose-400 border border-rose-500/30 flex items-center justify-center shrink-0">
+            <AlertCircle className="w-5 h-5" />
           </div>
-
-          <button
-            onClick={() => onNavigate('subscription')}
-            className="px-5 py-2.5 rounded-2xl bg-gradient-to-r from-rose-600 to-amber-600 hover:from-rose-500 hover:to-amber-500 text-white font-extrabold text-xs shadow-lg transition-all flex items-center gap-2 cursor-pointer"
-          >
-            <Zap className="w-4 h-4 fill-white" />
-            <span>Subscribe & Activate Gateway</span>
-          </button>
-        </div>
-
-        {/* Progress Bar 0% */}
-        <div className="space-y-1.5">
-          <div className="flex justify-between text-xs font-mono">
-            <span className="text-rose-300 font-bold">0 Days Remaining</span>
-            <span className="text-rose-400 font-bold">0% Completed</span>
-          </div>
-          <div className="w-full h-3 rounded-full bg-rose-950 border border-rose-800/50 p-0.5 overflow-hidden">
-            <div className="h-full rounded-full bg-rose-600/30 w-0 transition-all duration-500" />
+          <div>
+            <div className="text-xs font-bold text-white">Trial Expired</div>
+            <p className="text-[11px] text-rose-300">Your 5-day free gateway trial has expired. Activate a subscription plan to resume live settlements.</p>
           </div>
         </div>
-
-        <p className="text-xs text-rose-200/80 leading-relaxed">
-          Payment link generation and automated API payment detection are currently paused for your account. Please activate a plan to resume processing UPI transactions instantly.
-        </p>
+        <button
+          onClick={() => onNavigate('subscriptions')}
+          className="px-3.5 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-500 text-white font-semibold text-xs transition-colors cursor-pointer flex items-center gap-1.5"
+        >
+          <Zap className="w-3.5 h-3.5" />
+          <span>Activate Plan</span>
+        </button>
       </div>
     );
   }
 
-  // Active Trial or Subscription Mode
-  const progressColor =
-    timeLeft.percent > 40
-      ? 'from-emerald-500 to-teal-400'
-      : timeLeft.percent > 15
-      ? 'from-amber-500 to-orange-400'
-      : 'from-rose-500 to-pink-500';
-
   return (
-    <div className="p-6 rounded-3xl bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 text-white border border-indigo-500/30 shadow-xl space-y-5 relative overflow-hidden">
-      <div className="absolute top-0 right-0 w-72 h-72 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none" />
-
-      {/* Header & Status Badge */}
-      <div className="flex items-center justify-between flex-wrap gap-3 relative z-10">
-        <div className="flex items-center gap-2.5">
-          <div className="p-2 rounded-xl bg-indigo-500/20 text-indigo-400 border border-indigo-500/30">
-            <Clock className="w-5 h-5 text-indigo-400 animate-pulse" />
+    <div className="p-4 rounded-xl bg-white border border-slate-200/80 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
+      <div className="flex items-center gap-3">
+        <div className="w-9 h-9 rounded-lg bg-indigo-50 border border-indigo-100 text-indigo-600 flex items-center justify-center shrink-0">
+          <Clock className="w-4 h-4" />
+        </div>
+        <div>
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-bold text-slate-900">
+              {timeLeft.isTrial ? '5-Day Free Trial' : 'Subscription Active'}
+            </span>
+            <span className="text-[11px] font-mono text-emerald-600 font-semibold">
+              {timeLeft.days}d {timeLeft.hours}h remaining
+            </span>
           </div>
-          <div>
-            <div className="flex items-center gap-2">
-              <span className="px-2.5 py-0.5 rounded-full bg-emerald-500/20 border border-emerald-500/30 text-emerald-400 font-mono text-[10px] font-extrabold tracking-wider uppercase flex items-center gap-1.5">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping" />
-                {timeLeft.isTrial ? '5-Day Free Trial Active' : 'Pro Subscription Active'}
-              </span>
-            </div>
-            <h3 className="text-base font-black text-white mt-0.5">
-              {timeLeft.isTrial ? 'Free Trial Countdown & Progress' : 'Subscription Active Period'}
-            </h3>
+          <div className="w-48 sm:w-64 h-1.5 rounded-full bg-slate-100 overflow-hidden mt-1.5">
+            <div
+              className="h-full rounded-full bg-indigo-600 transition-all duration-500"
+              style={{ width: `${timeLeft.percent}%` }}
+            />
           </div>
         </div>
-
-        <button
-          onClick={() => onNavigate('subscription')}
-          className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-extrabold text-xs shadow-md transition-all flex items-center gap-2 border border-indigo-400/30 cursor-pointer"
-        >
-          <Zap className="w-3.5 h-3.5 text-amber-300 fill-amber-300" />
-          <span>{timeLeft.isTrial ? 'Upgrade Plan' : 'Extend Subscription'}</span>
-        </button>
       </div>
 
-      {/* Live Countdown Timer Grid */}
-      <div className="grid grid-cols-4 gap-2 sm:gap-3 text-center font-mono relative z-10">
-        <div className="p-2.5 rounded-2xl bg-white/5 border border-white/10 backdrop-blur-md">
-          <div className="text-xl sm:text-2xl font-black text-white">{String(timeLeft.days).padStart(2, '0')}</div>
-          <div className="text-[10px] text-indigo-200 font-bold uppercase tracking-wider mt-0.5">Days</div>
-        </div>
-        <div className="p-2.5 rounded-2xl bg-white/5 border border-white/10 backdrop-blur-md">
-          <div className="text-xl sm:text-2xl font-black text-indigo-300">{String(timeLeft.hours).padStart(2, '0')}</div>
-          <div className="text-[10px] text-indigo-200 font-bold uppercase tracking-wider mt-0.5">Hours</div>
-        </div>
-        <div className="p-2.5 rounded-2xl bg-white/5 border border-white/10 backdrop-blur-md">
-          <div className="text-xl sm:text-2xl font-black text-indigo-300">{String(timeLeft.minutes).padStart(2, '0')}</div>
-          <div className="text-[10px] text-indigo-200 font-bold uppercase tracking-wider mt-0.5">Mins</div>
-        </div>
-        <div className="p-2.5 rounded-2xl bg-white/5 border border-white/10 backdrop-blur-md">
-          <div className="text-xl sm:text-2xl font-black text-emerald-400">{String(timeLeft.seconds).padStart(2, '0')}</div>
-          <div className="text-[10px] text-indigo-200 font-bold uppercase tracking-wider mt-0.5">Secs</div>
-        </div>
-      </div>
-
-      {/* Visual Progress Bar */}
-      <div className="space-y-1.5 relative z-10">
-        <div className="flex justify-between items-center text-xs font-mono">
-          <span className="text-indigo-200 font-bold">
-            {timeLeft.days > 0 ? `${timeLeft.days} Days & ${timeLeft.hours} Hours Remaining` : `${timeLeft.hours}h ${timeLeft.minutes}m ${timeLeft.seconds}s Remaining`}
-          </span>
-          <span className="text-emerald-400 font-extrabold">{timeLeft.percent.toFixed(1)}% Remaining</span>
-        </div>
-        <div className="w-full h-3 rounded-full bg-slate-800/80 border border-white/10 p-0.5 overflow-hidden shadow-inner">
-          <div
-            className={`h-full rounded-full bg-gradient-to-r ${progressColor} transition-all duration-1000 shadow-sm`}
-            style={{ width: `${timeLeft.percent}%` }}
-          />
-        </div>
-      </div>
+      <button
+        onClick={() => onNavigate('subscriptions')}
+        className="self-start md:self-auto px-3.5 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-white font-semibold text-xs transition-colors cursor-pointer flex items-center gap-1.5 whitespace-nowrap"
+      >
+        <Zap className="w-3 h-3 text-amber-300" />
+        <span>{timeLeft.isTrial ? 'Upgrade Plan' : 'Manage Subscription'}</span>
+      </button>
     </div>
   );
 };
 
 export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate }) => {
   const { user, token } = useAuth();
-  const [copiedMid, setCopiedKey] = useState(false);
-  const [chartMetric, setChartMetric] = useState<'Revenue' | 'Requests'>('Requests');
-  const [chartPeriod, setChartPeriod] = useState<'7D' | '15D' | '30D'>('7D');
-  const [dismissGuide, setDismissGuide] = useState(false);
+  const [copiedMid, setCopiedMid] = useState(false);
+  const [copiedVpa, setCopiedVpa] = useState(false);
   
+  // Stats state
   const [stats, setStats] = useState({
     totalRequests: 0,
     successful: 0,
     failed: 0,
     pending: 0,
-    revenue: 0
+    revenue: 0,
   });
   const [loadingStats, setLoadingStats] = useState(true);
 
+  // Recent transactions state
+  const [recentPayments, setRecentPayments] = useState<UpiPaymentRecord[]>([]);
+  const [loadingPayments, setLoadingPayments] = useState(true);
+
+  // Interactive Live Quick Terminal state
+  const [terminalAmount, setTerminalAmount] = useState('100');
+  const [terminalQrUrl, setTerminalQrUrl] = useState<string>('');
+  const [terminalUpiUri, setTerminalUpiUri] = useState<string>('');
+  const [copiedTerminalLink, setCopiedTerminalLink] = useState(false);
+
   const merchantId = user?.merchant_id || '1443184937';
-  const firstName = user?.name ? user.name.split(' ')[0] : 'Kalam';
-  const isImapConfigured = Boolean(user?.imap_connected);
+  const merchantVpa = user?.fampay_upi_id || '8056317218@fam';
+  const isImapActive = Boolean(user?.imap_connected);
 
   useEffect(() => {
     if (token) {
       fetchStats();
+      fetchRecentPayments();
     }
   }, [token]);
+
+  // Generate dynamic QR for the live terminal tool
+  useEffect(() => {
+    const amt = parseFloat(terminalAmount) || 100;
+    const cleanPa = merchantVpa.trim();
+    const note = `Quick Payment`;
+    const uri = `upi://pay?pa=${cleanPa}&pn=${encodeURIComponent(user?.name || 'FamGateway Merchant')}&am=${amt.toFixed(2)}&cu=INR&tn=${encodeURIComponent(note)}`;
+    setTerminalUpiUri(uri);
+
+    QRCode.toDataURL(uri, {
+      margin: 1,
+      width: 240,
+      errorCorrectionLevel: 'M',
+      color: {
+        dark: '#0f172a',
+        light: '#ffffff',
+      },
+    })
+      .then(setTerminalQrUrl)
+      .catch(() => {});
+  }, [terminalAmount, merchantVpa, user?.name]);
 
   const fetchStats = async () => {
     try {
       const res = await fetch('/api/user/stats', {
-        headers: { Authorization: `Bearer ${token}` }
+        headers: { Authorization: `Bearer ${token}` },
       });
       if (res.ok) {
         const data = await res.json();
@@ -277,228 +243,470 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate }) => {
     }
   };
 
-  const handleCopyMid = () => {
-    navigator.clipboard.writeText(merchantId);
-    setCopiedKey(true);
-    setTimeout(() => setCopiedKey(false), 2000);
+  const fetchRecentPayments = async () => {
+    try {
+      const res = await fetch('/api/payment/my-payments', {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.payments) {
+          setRecentPayments(data.payments.slice(0, 6));
+        }
+      }
+    } catch {
+      // Ignore
+    } finally {
+      setLoadingPayments(false);
+    }
   };
 
-  const getTimeGreeting = () => {
-    const hour = new Date().getHours();
-    if (hour < 12) return 'Good morning';
-    if (hour < 17) return 'Good afternoon';
-    return 'Good evening';
+  const handleCopyMid = () => {
+    navigator.clipboard.writeText(merchantId);
+    setCopiedMid(true);
+    setTimeout(() => setCopiedMid(false), 2000);
+  };
+
+  const handleCopyVpa = () => {
+    navigator.clipboard.writeText(merchantVpa);
+    setCopiedVpa(true);
+    setTimeout(() => setCopiedVpa(false), 2000);
+  };
+
+  const handleCopyTerminalLink = () => {
+    navigator.clipboard.writeText(terminalUpiUri);
+    setCopiedTerminalLink(true);
+    setTimeout(() => setCopiedTerminalLink(false), 2000);
   };
 
   return (
-    <div className="space-y-6 max-w-5xl mx-auto pb-20">
-      {/* Top Banner Greeting */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-black text-slate-900 tracking-tight flex items-center gap-2">
-            {getTimeGreeting()}, {firstName} 👋
-          </h1>
-          <p className="text-xs text-slate-500 font-medium mt-1">
-            Welcome to your FAMGATEWAY merchant dashboard.
+    <div className="space-y-6 max-w-6xl mx-auto pb-16">
+      {/* Top Header Card */}
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 p-5 rounded-2xl bg-white border border-slate-200/80 shadow-xs">
+        <div className="space-y-1">
+          <div className="flex items-center gap-2">
+            <h1 className="text-xl font-bold tracking-tight text-slate-900">
+              Welcome, {user?.name || 'Merchant'}
+            </h1>
+            <span className="text-xs font-mono text-slate-400">·</span>
+            <div className="flex items-center gap-1.5 text-xs text-slate-500 font-mono">
+              <span className="text-slate-400">VPA:</span>
+              <span className="font-semibold text-slate-800">{merchantVpa}</span>
+              <button
+                onClick={handleCopyVpa}
+                className="text-slate-400 hover:text-indigo-600 transition-colors cursor-pointer"
+                title="Copy UPI VPA"
+              >
+                {copiedVpa ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
+              </button>
+            </div>
+          </div>
+          <p className="text-xs text-slate-500">
+            Real-time zero-fee FamPay & UPI payment verification gateway.
           </p>
         </div>
 
-        <div className="flex items-center gap-3 flex-wrap">
-          {/* MID Badge */}
-          <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl bg-white border border-slate-200 text-xs font-mono text-slate-700 shadow-xs">
-            <span className="font-bold text-slate-400">MID:</span>
-            <span className="font-black text-indigo-600">{merchantId}</span>
-            <button
-              onClick={handleCopyMid}
-              className="text-slate-400 hover:text-indigo-600 transition-colors cursor-pointer"
-              title="Copy MID"
-            >
-              {copiedMid ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
-            </button>
-          </div>
+        {/* Status Indicators & Fast CTAs */}
+        <div className="flex items-center gap-2.5 flex-wrap">
+          <button
+            onClick={() => onNavigate('integrations')}
+            className={`px-3 py-1.5 rounded-lg border text-xs font-medium transition-colors flex items-center gap-1.5 cursor-pointer ${
+              isImapActive
+                ? 'bg-emerald-50 border-emerald-200 text-emerald-800 hover:bg-emerald-100'
+                : 'bg-amber-50 border-amber-200 text-amber-800 hover:bg-amber-100'
+            }`}
+          >
+            <span className={`w-2 h-2 rounded-full ${isImapActive ? 'bg-emerald-500' : 'bg-amber-500 animate-pulse'}`} />
+            <span>{isImapActive ? 'IMAP 993 Active' : 'Setup IMAP'}</span>
+          </button>
 
-          {/* IMAP Status Badge */}
-          {!isImapConfigured ? (
-            <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl bg-amber-50 border border-amber-200 text-amber-800 text-xs font-bold">
-              <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
-              <span>Gateway Offline</span>
-              <button
-                onClick={() => onNavigate('integrations')}
-                className="px-2 py-0.5 rounded-lg bg-amber-500 text-white font-black text-[10px] hover:bg-amber-600 transition-colors ml-1 uppercase"
-              >
-                Setup
-              </button>
-            </div>
-          ) : (
-            <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl bg-emerald-50 border border-emerald-100 text-emerald-800 text-xs font-black">
-              <span className="w-2 h-2 rounded-full bg-emerald-500" />
-              <span>LIVE & SYNCING</span>
-            </div>
-          )}
+          <button
+            onClick={() => onNavigate('payment-links')}
+            className="px-3.5 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-xs transition-colors flex items-center gap-1.5 shadow-sm cursor-pointer"
+          >
+            <Plus className="w-3.5 h-3.5" />
+            <span>Create Payment Link</span>
+          </button>
         </div>
       </div>
 
-      {/* Visual Progress Bar & Countdown Timer for 5-Day Free Trial */}
+      {/* Trial Countdown / Plan Status */}
       <TrialProgressCard user={user} onNavigate={onNavigate} />
 
-      {/* 4 Stat Cards */}
+      {/* 4 Executive Metric Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatCard 
-          title="TOTAL REQUESTS" 
-          value={stats.totalRequests.toString()} 
-          icon={<Activity className="w-5 h-5" />} 
-          color="blue" 
-          loading={loadingStats}
-        />
-        <StatCard 
-          title="SUCCESSFUL" 
-          value={stats.successful.toString()} 
-          icon={<CheckCircle2 className="w-5 h-5" />} 
-          color="emerald" 
-          loading={loadingStats}
-        />
-        <StatCard 
-          title="FAILED / PENDING" 
-          value={(stats.failed + stats.pending).toString()} 
-          icon={<AlertCircle className="w-5 h-5" />} 
-          color="rose" 
-          loading={loadingStats}
-        />
-        <StatCard 
-          title="TOTAL REVENUE" 
-          value={`₹${(Number(stats?.revenue) || 0).toFixed(2)}`} 
-          icon={<Wallet className="w-5 h-5" />} 
-          color="indigo" 
-          loading={loadingStats}
-          isRevenue
-        />
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Left: Quick Actions & Integration */}
-        <div className="lg:col-span-2 space-y-6">
-          
-          {/* Quick Setup Guide Card */}
-          {!dismissGuide && (
-            <div className="p-6 rounded-[2rem] bg-indigo-600 text-white shadow-xl space-y-5 relative overflow-hidden group">
-              <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full -mr-20 -mt-20 blur-3xl" />
-              
-              <button
-                onClick={() => setDismissGuide(true)}
-                className="text-white/60 hover:text-white absolute top-4 right-4 z-20"
-              >
-                <X className="w-5 h-5" />
-              </button>
-
-              <div className="relative z-10 space-y-4">
-                <div className="space-y-1">
-                  <h3 className="text-lg font-black flex items-center gap-2">
-                    <Zap className="w-5 h-5 text-amber-400 fill-amber-400" />
-                    Quick Integration Guide
-                  </h3>
-                  <p className="text-xs text-indigo-100 font-medium">
-                    Complete these steps to start accepting real-time UPI payments.
-                  </p>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <CheckItem label="Connect Gmail IMAP" active={isImapConfigured} />
-                    <CheckItem label="Generate API Key" active={Boolean(user?.api_key)} />
-                    <CheckItem label="Setup Webhooks" active={Boolean(user?.webhook_url)} />
-                  </div>
-                  <div className="flex flex-col justify-end">
-                    <button
-                      onClick={() => onNavigate('documentation')}
-                      className="w-full py-2.5 rounded-xl bg-white text-indigo-600 font-black text-xs shadow-lg hover:bg-indigo-50 transition-all flex items-center justify-center gap-2 group/btn"
-                    >
-                      <span>View API Docs</span>
-                      <ArrowUpRight className="w-4 h-4 transition-transform group-hover/btn:translate-x-0.5 group-hover/btn:-translate-y-0.5" />
-                    </button>
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Activity Chart Area */}
-          <div className="p-6 rounded-[2rem] bg-white border border-slate-200 shadow-sm space-y-6">
-            <div className="flex items-center justify-between flex-wrap gap-4">
-              <div>
-                <h3 className="text-sm font-black text-slate-900 uppercase tracking-wider">Transaction Volume</h3>
-                <p className="text-[10px] text-slate-400 font-bold mt-0.5">Real-time payment performance</p>
-              </div>
-
-              <div className="flex items-center gap-2 bg-slate-50 p-1 rounded-xl border border-slate-200">
-                {['7D', '15D', '30D'].map((p) => (
-                  <button
-                    key={p}
-                    onClick={() => setChartPeriod(p as any)}
-                    className={`px-3 py-1 rounded-lg text-[10px] font-black transition-all ${
-                      chartPeriod === p ? 'bg-white text-indigo-600 shadow-sm border border-slate-200' : 'text-slate-500'
-                    }`}
-                  >
-                    {p}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div className="h-48 flex items-end justify-between gap-2 px-2">
-              {[40, 70, 35, 90, 50, 100, 60].map((h, i) => (
-                <div key={i} className="flex-1 flex flex-col items-center gap-2 group">
-                  <div 
-                    className="w-full bg-indigo-100 rounded-t-lg transition-all group-hover:bg-indigo-500 relative" 
-                    style={{ height: `${h}%` }}
-                  >
-                    <div className="absolute -top-8 left-1/2 -translate-x-1/2 bg-slate-900 text-white text-[9px] font-bold px-1.5 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity">
-                      {h}
-                    </div>
-                  </div>
-                  <span className="text-[9px] font-bold text-slate-400 uppercase">Day {i+1}</span>
-                </div>
-              ))}
-            </div>
+        {/* Card 1: Total Volume */}
+        <div className="p-4 rounded-xl bg-white border border-slate-200/80 shadow-xs space-y-2">
+          <div className="flex items-center justify-between text-xs text-slate-500">
+            <span>Total Volume</span>
+            <Wallet className="w-4 h-4 text-indigo-600" />
+          </div>
+          <div className="text-2xl font-bold font-mono text-slate-900 tabular-nums">
+            {loadingStats ? (
+              <span className="inline-block w-20 h-7 bg-slate-100 rounded-md animate-pulse" />
+            ) : (
+              `₹${(Number(stats?.revenue) || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+            )}
+          </div>
+          <div className="text-[11px] text-slate-500 flex items-center gap-1">
+            <span className="text-emerald-600 font-semibold font-mono">0% fee</span>
+            <span>· Instant settlement</span>
           </div>
         </div>
 
-        {/* Right: Quick Tools & Status */}
-        <div className="space-y-6">
-          <div className="p-6 rounded-[2rem] bg-white border border-slate-200 shadow-sm space-y-5">
-            <h3 className="text-xs font-black text-slate-900 uppercase tracking-widest border-b border-slate-100 pb-3">Quick Tools</h3>
-            
-            <div className="space-y-3">
-              <QuickAction 
-                icon={<Globe className="w-4 h-4" />} 
-                label="Payment Page Design" 
-                onClick={() => onNavigate('customize')} 
-              />
-              <QuickAction 
-                icon={<TrendingUp className="w-4 h-4" />} 
-                label="View Sales Report" 
-                onClick={() => onNavigate('transactions')} 
-              />
-              <QuickAction 
-                icon={<ShieldCheck className="w-4 h-4" />} 
-                label="System Health" 
-                onClick={() => onNavigate('status')} 
-              />
+        {/* Card 2: Captured Orders */}
+        <div className="p-4 rounded-xl bg-white border border-slate-200/80 shadow-xs space-y-2">
+          <div className="flex items-center justify-between text-xs text-slate-500">
+            <span>Captured Orders</span>
+            <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+          </div>
+          <div className="text-2xl font-bold font-mono text-slate-900 tabular-nums">
+            {loadingStats ? (
+              <span className="inline-block w-14 h-7 bg-slate-100 rounded-md animate-pulse" />
+            ) : (
+              stats.successful.toLocaleString()
+            )}
+          </div>
+          <div className="text-[11px] text-slate-500 flex items-center gap-1 font-mono">
+            <span className="text-emerald-600 font-semibold">100%</span>
+            <span>verified via alert</span>
+          </div>
+        </div>
+
+        {/* Card 3: Pending / Verifying */}
+        <div className="p-4 rounded-xl bg-white border border-slate-200/80 shadow-xs space-y-2">
+          <div className="flex items-center justify-between text-xs text-slate-500">
+            <span>Pending Verifications</span>
+            <Activity className="w-4 h-4 text-amber-600" />
+          </div>
+          <div className="text-2xl font-bold font-mono text-slate-900 tabular-nums">
+            {loadingStats ? (
+              <span className="inline-block w-14 h-7 bg-slate-100 rounded-md animate-pulse" />
+            ) : (
+              (stats.pending || 0).toLocaleString()
+            )}
+          </div>
+          <div className="text-[11px] text-slate-500 flex items-center gap-1">
+            <span>Heartbeat poller:</span>
+            <span className="text-slate-800 font-medium font-mono">every 2.5s</span>
+          </div>
+        </div>
+
+        {/* Card 4: Wallet Settled Balance */}
+        <div className="p-4 rounded-xl bg-white border border-slate-200/80 shadow-xs space-y-2">
+          <div className="flex items-center justify-between text-xs text-slate-500">
+            <span>Settled Wallet Balance</span>
+            <TrendingUp className="w-4 h-4 text-purple-600" />
+          </div>
+          <div className="text-2xl font-bold font-mono text-indigo-600 tabular-nums">
+            ₹{(user?.wallet_balance || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+          </div>
+          <div className="text-[11px] text-slate-500 flex items-center gap-1">
+            <span className="text-slate-400">MID:</span>
+            <span className="font-mono text-slate-700">{merchantId}</span>
+            <button
+              onClick={handleCopyMid}
+              className="text-slate-400 hover:text-indigo-600 transition-colors ml-auto cursor-pointer"
+            >
+              {copiedMid ? <Check className="w-3 h-3 text-emerald-600" /> : <Copy className="w-3 h-3" />}
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Main Grid: Interactive QR Terminal (Left) + Quick Developer Tools (Right) */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Left 2 Cols: Live Terminal & Recent Transactions */}
+        <div className="lg:col-span-2 space-y-6">
+          {/* Interactive Live UPI Terminal */}
+          <div className="p-5 rounded-2xl bg-white border border-slate-200/80 shadow-xs space-y-4">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div>
+                <h2 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+                  <QrCode className="w-4 h-4 text-indigo-600" />
+                  <span>Instant UPI QR Payment Terminal</span>
+                </h2>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Test live UPI payments instantly. Generates dynamic scannable QR for your active VPA.
+                </p>
+              </div>
+
+              <div className="text-xs font-mono font-semibold text-indigo-600 hidden sm:block">
+                {merchantVpa}
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-5 items-center">
+              {/* QR Image Box */}
+              <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl flex flex-col items-center justify-center">
+                {terminalQrUrl ? (
+                  <img
+                    src={terminalQrUrl}
+                    alt="Instant UPI QR"
+                    className="w-44 h-44 rounded-lg object-contain bg-white p-2 shadow-2xs"
+                  />
+                ) : (
+                  <div className="w-44 h-44 flex items-center justify-center text-slate-400">
+                    <QrCode className="w-8 h-8 animate-pulse" />
+                  </div>
+                )}
+                <div className="text-[10px] font-mono text-slate-500 mt-2 text-center">
+                  Scan via GPay / PhonePe / FamPay
+                </div>
+              </div>
+
+              {/* Controls */}
+              <div className="sm:col-span-2 space-y-3.5">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">
+                    Payment Amount (INR)
+                  </label>
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 font-mono text-slate-400 font-bold text-sm">
+                      ₹
+                    </span>
+                    <input
+                      type="number"
+                      min="1"
+                      step="1"
+                      value={terminalAmount}
+                      onChange={(e) => setTerminalAmount(e.target.value)}
+                      placeholder="100"
+                      className="w-full pl-8 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm font-mono font-bold text-slate-900 focus:outline-none focus:border-indigo-600"
+                    />
+                  </div>
+                </div>
+
+                {/* Preset Chips */}
+                <div className="flex items-center gap-1.5">
+                  {['50', '100', '250', '500', '1000'].map((preset) => (
+                    <button
+                      key={preset}
+                      type="button"
+                      onClick={() => setTerminalAmount(preset)}
+                      className={`px-2.5 py-1 rounded-md text-xs font-mono font-medium transition-colors cursor-pointer ${
+                        terminalAmount === preset
+                          ? 'bg-indigo-600 text-white'
+                          : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                      }`}
+                    >
+                      ₹{preset}
+                    </button>
+                  ))}
+                </div>
+
+                {/* Actions */}
+                <div className="flex items-center gap-2 pt-1">
+                  <button
+                    type="button"
+                    onClick={handleCopyTerminalLink}
+                    className="flex-1 py-2 px-3 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+                  >
+                    {copiedTerminalLink ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
+                    <span>{copiedTerminalLink ? 'Copied URI' : 'Copy UPI Link'}</span>
+                  </button>
+
+                  <a
+                    href={terminalUpiUri}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="py-2 px-3 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+                  >
+                    <span>Launch UPI App</span>
+                    <ExternalLink className="w-3.5 h-3.5" />
+                  </a>
+                </div>
+              </div>
             </div>
           </div>
 
-          <div className="p-6 rounded-[2rem] bg-slate-900 text-white shadow-xl space-y-4">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-2xl bg-indigo-500/20 flex items-center justify-center text-indigo-400">
-                <Zap className="w-5 h-5 fill-indigo-400" />
-              </div>
+          {/* Recent Transactions Ledger Table */}
+          <div className="p-5 rounded-2xl bg-white border border-slate-200/80 shadow-xs space-y-4">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
               <div>
-                <div className="text-xs font-black">FAMGATEWAY V1.2</div>
-                <div className="text-[10px] text-slate-400 font-bold">Stable Release</div>
+                <h2 className="text-sm font-bold text-slate-900">Recent Transactions</h2>
+                <p className="text-xs text-slate-500 mt-0.5">Real-time ledger of inbound UPI settlements</p>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={fetchRecentPayments}
+                  className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer"
+                  title="Refresh Transactions"
+                >
+                  <RefreshCw className="w-3.5 h-3.5" />
+                </button>
+                <button
+                  onClick={() => onNavigate('transactions')}
+                  className="text-xs font-semibold text-indigo-600 hover:text-indigo-700 flex items-center gap-1 cursor-pointer"
+                >
+                  <span>View All</span>
+                  <ArrowRight className="w-3.5 h-3.5" />
+                </button>
               </div>
             </div>
-            <p className="text-[11px] text-slate-300 leading-relaxed font-medium">
-              Your server is currently running the latest version of FamPay Engine. 
-              Zero-fee settlements are <strong>ACTIVE</strong>.
+
+            {loadingPayments ? (
+              <div className="py-10 text-center text-xs text-slate-400 font-mono">
+                Loading transaction stream...
+              </div>
+            ) : recentPayments.length === 0 ? (
+              <div className="py-10 text-center space-y-2">
+                <div className="w-10 h-10 rounded-full bg-slate-100 text-slate-400 flex items-center justify-center mx-auto">
+                  <Activity className="w-5 h-5" />
+                </div>
+                <div className="text-xs font-semibold text-slate-700">No transactions recorded yet</div>
+                <p className="text-[11px] text-slate-400 max-w-sm mx-auto">
+                  Create your first payment link or test the live QR terminal above to simulate incoming payments.
+                </p>
+                <button
+                  onClick={() => onNavigate('payment-links')}
+                  className="mt-2 px-3 py-1.5 rounded-lg bg-indigo-600 text-white text-xs font-semibold hover:bg-indigo-500 transition-colors cursor-pointer inline-flex items-center gap-1.5"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>Generate Payment Link</span>
+                </button>
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs">
+                  <thead>
+                    <tr className="text-slate-400 border-b border-slate-100 font-medium">
+                      <th className="pb-2 font-medium">Order / Ref</th>
+                      <th className="pb-2 font-medium">Bank UTR</th>
+                      <th className="pb-2 font-medium">Status</th>
+                      <th className="pb-2 font-medium text-right">Amount</th>
+                      <th className="pb-2 font-medium text-right">Time</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {recentPayments.map((p) => {
+                      const isConfirmed = p.status === 'CONFIRMED' || (p.status as string) === 'CAPTURED';
+                      return (
+                        <tr key={p.id} className="hover:bg-slate-50/60 transition-colors">
+                          <td className="py-2.5 font-medium text-slate-800">
+                            <div>{p.note || 'Payment Order'}</div>
+                            <div className="text-[10px] font-mono text-slate-400">{p.id}</div>
+                          </td>
+                          <td className="py-2.5 font-mono text-slate-600">
+                            {p.transaction_ref ? (
+                              <span className="text-[11px] font-semibold text-slate-700">{p.transaction_ref}</span>
+                            ) : (
+                              <span className="text-slate-400 text-[10px]">—</span>
+                            )}
+                          </td>
+                          <td className="py-2.5">
+                            <span className="inline-flex items-center gap-1.5 text-[11px] font-medium font-mono">
+                              <span className={`w-1.5 h-1.5 rounded-full ${isConfirmed ? 'bg-emerald-500' : 'bg-amber-500 animate-pulse'}`} />
+                              <span className={isConfirmed ? 'text-emerald-700 font-semibold' : 'text-amber-700'}>
+                                {isConfirmed ? 'CAPTURED' : 'PENDING'}
+                              </span>
+                            </span>
+                          </td>
+                          <td className="py-2.5 font-mono font-bold text-slate-900 text-right tabular-nums">
+                            ₹{Number(p.amount).toFixed(2)}
+                          </td>
+                          <td className="py-2.5 text-slate-400 text-right text-[11px] font-mono">
+                            {new Date(p.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Right Col: Quick Tool Cards */}
+        <div className="space-y-6">
+          {/* Quick Integration Checklist */}
+          <div className="p-5 rounded-2xl bg-white border border-slate-200/80 shadow-xs space-y-4">
+            <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider border-b border-slate-100 pb-2.5">
+              Gateway Quick Setup
+            </h3>
+
+            <div className="space-y-2">
+              <button
+                onClick={() => onNavigate('integrations')}
+                className="w-full flex items-center justify-between p-2.5 rounded-xl bg-slate-50 hover:bg-indigo-50/60 border border-slate-200 hover:border-indigo-200 text-left transition-all cursor-pointer group"
+              >
+                <div className="flex items-center gap-2.5">
+                  <div className={`w-2 h-2 rounded-full ${isImapActive ? 'bg-emerald-500' : 'bg-amber-500'}`} />
+                  <div>
+                    <div className="text-xs font-semibold text-slate-800 group-hover:text-indigo-900">
+                      Connect Gmail IMAP
+                    </div>
+                    <div className="text-[10px] text-slate-400">16-digit Google App Password</div>
+                  </div>
+                </div>
+                <ChevronRight className="w-4 h-4 text-slate-400 group-hover:text-indigo-600 transition-colors" />
+              </button>
+
+              <button
+                onClick={() => onNavigate('api-keys')}
+                className="w-full flex items-center justify-between p-2.5 rounded-xl bg-slate-50 hover:bg-indigo-50/60 border border-slate-200 hover:border-indigo-200 text-left transition-all cursor-pointer group"
+              >
+                <div className="flex items-center gap-2.5">
+                  <div className="w-2 h-2 rounded-full bg-emerald-500" />
+                  <div>
+                    <div className="text-xs font-semibold text-slate-800 group-hover:text-indigo-900">
+                      API Credentials
+                    </div>
+                    <div className="text-[10px] text-slate-400">fam_live_... for custom integrations</div>
+                  </div>
+                </div>
+                <ChevronRight className="w-4 h-4 text-slate-400 group-hover:text-indigo-600 transition-colors" />
+              </button>
+
+              <button
+                onClick={() => onNavigate('customize')}
+                className="w-full flex items-center justify-between p-2.5 rounded-xl bg-slate-50 hover:bg-indigo-50/60 border border-slate-200 hover:border-indigo-200 text-left transition-all cursor-pointer group"
+              >
+                <div className="flex items-center gap-2.5">
+                  <div className="w-2 h-2 rounded-full bg-indigo-500" />
+                  <div>
+                    <div className="text-xs font-semibold text-slate-800 group-hover:text-indigo-900">
+                      Checkout Page Design
+                    </div>
+                    <div className="text-[10px] text-slate-400">Logo, brand colors, custom note</div>
+                  </div>
+                </div>
+                <ChevronRight className="w-4 h-4 text-slate-400 group-hover:text-indigo-600 transition-colors" />
+              </button>
+
+              <button
+                onClick={() => onNavigate('documentation')}
+                className="w-full flex items-center justify-between p-2.5 rounded-xl bg-slate-50 hover:bg-indigo-50/60 border border-slate-200 hover:border-indigo-200 text-left transition-all cursor-pointer group"
+              >
+                <div className="flex items-center gap-2.5">
+                  <div className="w-2 h-2 rounded-full bg-slate-400" />
+                  <div>
+                    <div className="text-xs font-semibold text-slate-800 group-hover:text-indigo-900">
+                      API Documentation
+                    </div>
+                    <div className="text-[10px] text-slate-400">cURL, Node.js, and Python examples</div>
+                  </div>
+                </div>
+                <ExternalLink className="w-3.5 h-3.5 text-slate-400 group-hover:text-indigo-600 transition-colors" />
+              </button>
+            </div>
+          </div>
+
+          {/* Engine Status Callout */}
+          <div className="p-4 rounded-xl bg-slate-900 text-slate-200 border border-slate-800 space-y-2.5">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold text-white flex items-center gap-1.5">
+                <Terminal className="w-3.5 h-3.5 text-indigo-400" />
+                <span>Engine Protocol</span>
+              </span>
+              <span className="text-[10px] font-mono text-emerald-400 font-bold">ONLINE</span>
+            </div>
+            <p className="text-[11px] text-slate-400 leading-relaxed">
+              Inward transaction listener active on <code className="text-indigo-300 font-mono">imap.gmail.com:993</code> with TLS encryption. 
+              Zero-fee settlements dispatched instantly to your UPI VPA.
             </p>
           </div>
         </div>
@@ -506,64 +714,3 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate }) => {
     </div>
   );
 };
-
-const StatCard: React.FC<{ title: string; value: string; icon: React.ReactNode; color: string; loading?: boolean; isRevenue?: boolean }> = ({ title, value, icon, color, loading, isRevenue }) => {
-  const colors: any = {
-    blue: 'text-blue-600 bg-blue-50 border-blue-100',
-    emerald: 'text-emerald-600 bg-emerald-50 border-emerald-100',
-    rose: 'text-rose-600 bg-rose-50 border-rose-100',
-    indigo: 'text-indigo-600 bg-indigo-50 border-indigo-100',
-  };
-
-  return (
-    <div className="p-5 rounded-[2rem] bg-white border border-slate-200 shadow-sm space-y-4 transition-transform hover:scale-[1.02]">
-      <div className="flex items-center justify-between">
-        <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{title}</div>
-        <div className={`p-2 rounded-xl border ${colors[color] || colors.blue}`}>
-          {icon}
-        </div>
-      </div>
-      <div>
-        {loading ? (
-          <div className="h-8 w-24 bg-slate-100 animate-pulse rounded-lg" />
-        ) : (
-          <div className={`text-2xl font-black font-mono tracking-tight ${isRevenue ? 'text-indigo-600' : 'text-slate-900'}`}>
-            {value}
-          </div>
-        )}
-        <div className="flex items-center gap-1 mt-1 text-[10px] font-bold text-emerald-500">
-          <TrendingUp className="w-3 h-3" />
-          <span>+0% this week</span>
-        </div>
-      </div>
-    </div>
-  );
-};
-
-const CheckItem: React.FC<{ label: string; active: boolean }> = ({ label, active }) => (
-  <div className="flex items-center gap-2.5">
-    {active ? (
-      <div className="w-4 h-4 rounded-full bg-emerald-400 flex items-center justify-center shadow-sm">
-        <Check className="w-2.5 h-2.5 text-white" />
-      </div>
-    ) : (
-      <div className="w-4 h-4 rounded-full border border-white/20 bg-white/5" />
-    )}
-    <span className={`text-[11px] font-bold ${active ? 'text-white' : 'text-indigo-200'}`}>{label}</span>
-  </div>
-);
-
-const QuickAction: React.FC<{ icon: React.ReactNode; label: string; onClick: () => void }> = ({ icon, label, onClick }) => (
-  <button 
-    onClick={onClick}
-    className="w-full flex items-center justify-between p-3 rounded-2xl bg-slate-50 border border-slate-200 hover:border-indigo-300 hover:bg-indigo-50/30 transition-all group cursor-pointer"
-  >
-    <div className="flex items-center gap-3">
-      <div className="text-slate-400 group-hover:text-indigo-600 transition-colors">
-        {icon}
-      </div>
-      <span className="text-[11px] font-bold text-slate-700 group-hover:text-indigo-900">{label}</span>
-    </div>
-    <ArrowUpRight className="w-3.5 h-3.5 text-slate-300 group-hover:text-indigo-600 transition-all" />
-  </button>
-);

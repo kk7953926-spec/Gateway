@@ -27,6 +27,8 @@ import {
   Server,
   Wifi,
   Zap,
+  Smartphone,
+  Download,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { User, VerificationLog, SmtpConfig, SystemLog, UpiPaymentRecord, LiveVisitor } from '../types';
@@ -61,6 +63,7 @@ export const AdminPage: React.FC = () => {
   const [customImapPort, setCustomImapPort] = useState('993');
   const [testingCustomImap, setTestingCustomImap] = useState(false);
   const [customImapResult, setCustomImapResult] = useState<{ success: boolean; message: string; totalEmails?: number; latencyMs?: number } | null>(null);
+  const [daemonStatus, setDaemonStatus] = useState<{ connected: boolean; email: string; host: string; port: number; totalInboxMessages: number; cachedPaymentsCount: number; lastError: string | null; lastPingTime: number; uptimeSeconds: number; lastSyncedAt: string | null } | null>(null);
   
   const [siteSettings, setSiteSettings] = useState({
     site_name: 'FAMGATEWAY',
@@ -191,6 +194,7 @@ export const AdminPage: React.FC = () => {
       if (imapRes.ok) {
         const imapData = await imapRes.json();
         if (imapData.merchants) setMerchantsImap(imapData.merchants);
+        if (imapData.daemon) setDaemonStatus(imapData.daemon);
       }
     } catch {
       // Ignore
@@ -208,6 +212,7 @@ export const AdminPage: React.FC = () => {
       if (res.ok) {
         const data = await res.json();
         if (data.merchants) setMerchantsImap(data.merchants);
+        if (data.daemon) setDaemonStatus(data.daemon);
       }
     } catch {
       // Ignore
@@ -542,21 +547,21 @@ export const AdminPage: React.FC = () => {
   return (
     <div className="space-y-8">
       {/* Header */}
-      <div className="p-6 rounded-3xl bg-white border border-slate-200 shadow-sm flex items-center justify-between flex-wrap gap-4">
+      <div className="p-6 rounded-2xl bg-white border border-slate-200/80 shadow-xs flex items-center justify-between flex-wrap gap-4">
         <div className="space-y-1">
-          <div className="inline-flex items-center gap-2 px-3 py-0.5 rounded-full bg-indigo-50 border border-indigo-200 text-indigo-700 text-xs font-mono font-bold">
+          <div className="flex items-center gap-2 text-xs font-mono text-slate-500">
             <Globe className="w-3.5 h-3.5 text-indigo-600" />
-            <span>{typeof window !== 'undefined' ? window.location.origin : 'https://gateway'} Administration</span>
+            <span>Admin Console · {typeof window !== 'undefined' ? window.location.host : 'famgateway.in'}</span>
           </div>
-          <h1 className="text-2xl font-extrabold text-slate-900">Admin Control Panel</h1>
-          <p className="text-xs text-slate-600">
-            Manage users, inspect verifications, confirm FamPay UPI payments, configure SMTP & rate limits
+          <h1 className="text-xl font-bold text-slate-900 tracking-tight">Admin Command Center</h1>
+          <p className="text-xs text-slate-500">
+            Manage merchants, inspect verifications, monitor live IMAP socket health, and configure system rules.
           </p>
         </div>
 
         <button
           onClick={fetchAdminData}
-          className="px-4 py-2 rounded-xl bg-slate-50 border border-slate-300 text-xs text-slate-700 hover:text-slate-900 flex items-center gap-2 transition-all font-bold"
+          className="px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-xs text-slate-800 flex items-center gap-2 transition-colors font-semibold cursor-pointer"
         >
           <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
           <span>Refresh Data</span>
@@ -973,7 +978,7 @@ export const AdminPage: React.FC = () => {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1">
-                  Sender Display Name (அனுப்புபவர் பெயர்)
+                  Sender Display Name
                 </label>
                 <input
                   type="text"
@@ -987,7 +992,7 @@ export const AdminPage: React.FC = () => {
 
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1">
-                  Sender Email Address (அனுப்பும் ஈமெயில் முகவரி) <span className="text-rose-500">*</span>
+                  Sender Email Address <span className="text-rose-500">*</span>
                 </label>
                 <input
                   type="email"
@@ -1469,41 +1474,47 @@ export const AdminPage: React.FC = () => {
 
           {/* Header & Live Status Metrics */}
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            <div className="p-5 rounded-[2rem] bg-white border border-slate-200 shadow-sm">
-              <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Total Merchants</div>
-              <div className="text-3xl font-black text-slate-900 mt-1">{merchantsImap.length}</div>
-              <div className="text-[10px] font-bold text-slate-500 mt-1">Monitored Accounts</div>
+            <div className="p-5 rounded-2xl bg-white border border-slate-200/80 shadow-xs">
+              <div className="text-[10px] font-mono text-slate-400 uppercase tracking-wider">Total Merchants</div>
+              <div className="text-2xl font-bold font-mono text-slate-900 mt-1">{merchantsImap.length}</div>
+              <div className="text-[11px] text-slate-500 mt-1">Monitored Accounts</div>
             </div>
 
-            <div className="p-5 rounded-[2rem] bg-white border border-slate-200 shadow-sm">
-              <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Configured IMAP</div>
-              <div className="text-3xl font-black text-emerald-600 mt-1">
+            <div className="p-5 rounded-2xl bg-white border border-slate-200/80 shadow-xs">
+              <div className="text-[10px] font-mono text-slate-400 uppercase tracking-wider">Configured IMAP</div>
+              <div className="text-2xl font-bold font-mono text-emerald-600 mt-1">
                 {merchantsImap.filter((m) => m.has_app_password).length}
               </div>
-              <div className="text-[10px] font-bold text-emerald-600 mt-1 flex items-center gap-1">
+              <div className="text-[11px] text-emerald-700 mt-1 flex items-center gap-1 font-mono">
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
                 <span>App Passwords Active</span>
               </div>
             </div>
 
-            <div className="p-5 rounded-[2rem] bg-white border border-slate-200 shadow-sm">
-              <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest">24/7 Poller Status</div>
-              <div className="text-xl font-black text-indigo-600 mt-2 flex items-center gap-2">
-                <Activity className="w-5 h-5 text-indigo-600 animate-pulse" />
-                <span>ONLINE 24/7</span>
+            <div className="p-5 rounded-2xl bg-white border border-slate-200/80 shadow-xs">
+              <div className="text-[10px] font-mono text-slate-400 uppercase tracking-wider">24/7 Warm Socket Daemon</div>
+              <div className={`text-xl font-bold font-mono mt-1.5 flex items-center gap-2 ${daemonStatus?.connected ? 'text-emerald-600' : 'text-indigo-600'}`}>
+                <Activity className={`w-4 h-4 ${daemonStatus?.connected ? 'text-emerald-600' : 'text-indigo-600'} animate-pulse`} />
+                <span>{daemonStatus?.connected ? 'CONNECTED' : 'ONLINE 24/7'}</span>
               </div>
-              <div className="text-[10px] font-bold text-slate-400 mt-1">Heartbeat Every 5s</div>
+              <div className="text-[11px] text-slate-500 mt-1 font-mono">
+                {daemonStatus?.cachedPaymentsCount !== undefined ? `${daemonStatus.cachedPaymentsCount} Alerts Cached` : 'Heartbeat Every 5s'}
+              </div>
             </div>
 
-            <div className="p-5 rounded-[2rem] bg-white border border-slate-200 shadow-sm">
-              <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest">IMAP Socket Port</div>
-              <div className="text-2xl font-black text-purple-600 mt-1">993 (SSL/TLS)</div>
-              <div className="text-[10px] font-bold text-purple-500 mt-1">imap.gmail.com</div>
+            <div className="p-5 rounded-2xl bg-white border border-slate-200/80 shadow-xs">
+              <div className="text-[10px] font-mono text-slate-400 uppercase tracking-wider">INBOX Stream Total</div>
+              <div className="text-2xl font-bold font-mono text-indigo-900 mt-1">
+                {daemonStatus?.totalInboxMessages ? `${daemonStatus.totalInboxMessages}` : '993 (SSL/TLS)'}
+              </div>
+              <div className="text-[11px] font-mono text-indigo-600 mt-1 truncate">
+                {daemonStatus?.email || 'imap.gmail.com:993'}
+              </div>
             </div>
           </div>
 
           {/* Merchants Live IMAP Table */}
-          <div className="p-6 rounded-3xl bg-white border border-slate-200 shadow-sm space-y-4">
+          <div className="p-6 rounded-2xl bg-white border border-slate-200/80 shadow-xs space-y-4">
             <div className="flex items-center justify-between flex-wrap gap-4 border-b border-slate-100 pb-4">
               <div>
                 <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
