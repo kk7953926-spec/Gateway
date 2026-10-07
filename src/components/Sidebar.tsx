@@ -160,52 +160,46 @@ export const Sidebar: React.FC<SidebarProps> = ({
           </div>
         </div>
 
-        {/* Footer: User Wallet & Quick Logout */}
-        <div className="p-3 border-t border-slate-800/80 bg-[#070b15]">
-          {/* Wallet Mini-Card */}
+        {/* Footer: User Profile & Quick Logout */}
+        <div className="p-3 border-t border-slate-800/80 bg-[#070b15] space-y-2">
+          {/* User Profile Card */}
           <div
-            onClick={() => handleNavClick('transactions')}
-            className="p-2.5 rounded-lg bg-slate-900/90 border border-slate-800 hover:border-slate-700 cursor-pointer transition-all mb-2.5 group"
+            onClick={() => handleNavClick('settings')}
+            className="p-2.5 rounded-xl bg-slate-900/60 hover:bg-slate-800 border border-slate-800/80 cursor-pointer transition-colors flex items-center justify-between group"
           >
-            <div className="flex items-center justify-between text-[10px] text-slate-400 mb-1">
-              <span className="flex items-center gap-1.5">
-                <Wallet className="w-3 h-3 text-indigo-400" />
-                <span>Settled Balance</span>
-              </span>
-              <span className="text-[9px] font-mono text-emerald-400 font-bold">LIVE</span>
-            </div>
-            <div className="text-sm font-bold font-mono text-white tabular-nums group-hover:text-indigo-300 transition-colors">
-              ₹{(user?.wallet_balance || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-            </div>
-          </div>
-
-          {/* User Profile / Logout Row */}
-          <div className="flex items-center justify-between px-1.5 pt-1">
-            <div
-              onClick={() => handleNavClick('profile')}
-              className="flex items-center gap-2 cursor-pointer truncate mr-2 group"
-            >
-              <div className="w-6 h-6 rounded-md bg-indigo-900/80 border border-indigo-700/60 text-indigo-200 text-xs font-bold flex items-center justify-center shrink-0">
-                {user?.name?.charAt(0).toUpperCase() || 'M'}
-              </div>
+            <div className="flex items-center gap-2.5 truncate mr-1">
+              {user?.avatar_url ? (
+                <img
+                  src={user.avatar_url}
+                  alt={user.name}
+                  className="w-8 h-8 rounded-lg object-cover border border-slate-700 shrink-0"
+                />
+              ) : (
+                <div className="w-8 h-8 rounded-lg bg-indigo-600 text-white text-xs font-bold flex items-center justify-center shrink-0">
+                  {user?.name?.charAt(0).toUpperCase() || 'M'}
+                </div>
+              )}
               <div className="truncate text-left">
-                <div className="text-xs font-medium text-slate-300 truncate group-hover:text-white leading-tight">
+                <div className="text-xs font-bold text-slate-200 truncate group-hover:text-white leading-tight">
                   {user?.name || 'Merchant'}
                 </div>
-                <div className="text-[10px] font-mono text-slate-400 truncate leading-tight">
-                  {user?.fampay_upi_id || '8056317218@fam'}
+                <div className="text-[10px] font-mono text-slate-400 truncate leading-tight mt-0.5">
+                  {user?.email || user?.fampay_upi_id || '8056317218@fam'}
                 </div>
               </div>
             </div>
-
-            <button
-              onClick={logout}
-              title="Sign Out"
-              className="p-1.5 rounded-md text-slate-400 hover:text-rose-400 hover:bg-slate-800/80 transition-colors cursor-pointer shrink-0"
-            >
-              <LogOut className="w-3.5 h-3.5" />
-            </button>
+            <ChevronRight className="w-3.5 h-3.5 text-slate-500 group-hover:text-slate-300 shrink-0" />
           </div>
+
+          {/* Prominent Logout Button */}
+          <button
+            type="button"
+            onClick={logout}
+            className="w-full py-2.5 px-3 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 hover:text-rose-200 border border-rose-500/20 text-xs font-bold flex items-center justify-center gap-2 transition-all cursor-pointer shadow-xs"
+          >
+            <LogOut className="w-4 h-4 text-rose-400" />
+            <span>Sign Out / Log Out</span>
+          </button>
         </div>
       </aside>
     </>

@@ -392,14 +392,14 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate }) => {
           </div>
         </div>
 
-        {/* Card 4: Wallet Settled Balance */}
+        {/* Card 4: Active Gateway Routing & Terminal MID */}
         <div className="p-4 rounded-xl bg-white border border-slate-200/80 shadow-xs space-y-2">
           <div className="flex items-center justify-between text-xs text-slate-500">
-            <span>Settled Wallet Balance</span>
-            <TrendingUp className="w-4 h-4 text-purple-600" />
+            <span>Active UPI Terminal</span>
+            <TrendingUp className="w-4 h-4 text-indigo-600" />
           </div>
-          <div className="text-2xl font-bold font-mono text-indigo-600 tabular-nums">
-            ₹{(user?.wallet_balance || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+          <div className="text-sm font-bold font-mono text-indigo-600 truncate py-1">
+            {user?.fampay_upi_id || '8056317218@fam'}
           </div>
           <div className="text-[11px] text-slate-500 flex items-center gap-1">
             <span className="text-slate-400">MID:</span>
@@ -407,6 +407,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate }) => {
             <button
               onClick={handleCopyMid}
               className="text-slate-400 hover:text-indigo-600 transition-colors ml-auto cursor-pointer"
+              title="Copy Merchant ID"
             >
               {copiedMid ? <Check className="w-3 h-3 text-emerald-600" /> : <Copy className="w-3 h-3" />}
             </button>

@@ -46,42 +46,6 @@ export const CustomizeView: React.FC = () => {
   const [savedSuccess, setSavedSuccess] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
 
-  // Preset Avatars
-  const presetAvatars = [
-    {
-      name: 'Gamer / Anime',
-      url: 'https://images.unsplash.com/photo-1566492031773-4f4e44671857?w=150&auto=format&fit=crop&q=80',
-    },
-    {
-      name: 'Modern Store',
-      url: 'https://images.unsplash.com/photo-1472851294608-062f824d29cc?w=150&auto=format&fit=crop&q=80',
-    },
-    {
-      name: 'Cyberpunk Tech',
-      url: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=150&auto=format&fit=crop&q=80',
-    },
-    {
-      name: 'VIP Gold',
-      url: 'https://images.unsplash.com/photo-1614680376593-902f749f7ffc?w=150&auto=format&fit=crop&q=80',
-    },
-  ];
-
-  // Preset Banners
-  const presetBanners = [
-    {
-      name: 'Neon Dark',
-      url: 'https://images.unsplash.com/photo-1550745165-9bc0b252726f?w=600&auto=format&fit=crop&q=80',
-    },
-    {
-      name: 'Cyber Purple',
-      url: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=600&auto=format&fit=crop&q=80',
-    },
-    {
-      name: 'Minimal Store',
-      url: 'https://images.unsplash.com/photo-1526304640581-d334cdbbf45e?w=600&auto=format&fit=crop&q=80',
-    },
-  ];
-
   // Load current settings
   useEffect(() => {
     const loadSettings = async () => {
@@ -302,28 +266,6 @@ export const CustomizeView: React.FC = () => {
                       </p>
                     </div>
                   </div>
-
-                  {/* Preset Logos */}
-                  <div className="mt-2.5">
-                    <span className="text-[11px] font-bold text-slate-500">Or pick a preset logo:</span>
-                    <div className="flex items-center gap-2 mt-1.5 flex-wrap">
-                      {presetAvatars.map((preset) => (
-                        <button
-                          key={preset.name}
-                          type="button"
-                          onClick={() => setAvatarUrl(preset.url)}
-                          className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-[11px] font-semibold transition-all ${
-                            avatarUrl === preset.url
-                              ? 'border-purple-600 bg-purple-50 text-purple-700'
-                              : 'border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100'
-                          }`}
-                        >
-                          <img src={preset.url} alt={preset.name} className="w-4 h-4 rounded-full object-cover" />
-                          <span>{preset.name}</span>
-                        </button>
-                      ))}
-                    </div>
-                  </div>
                 </div>
 
                 {/* Store Header Banner Upload from Phone Gallery */}
@@ -363,27 +305,6 @@ export const CustomizeView: React.FC = () => {
                         <UploadCloud className="w-4 h-4" />
                         <span>Choose Banner from Gallery</span>
                       </label>
-                    </div>
-                  </div>
-
-                  {/* Preset Banners */}
-                  <div className="mt-2">
-                    <span className="text-[11px] font-bold text-slate-500">Preset Store Banners:</span>
-                    <div className="flex items-center gap-2 mt-1.5 flex-wrap">
-                      {presetBanners.map((p) => (
-                        <button
-                          key={p.name}
-                          type="button"
-                          onClick={() => setBannerUrl(p.url)}
-                          className={`px-2.5 py-1.5 rounded-lg border text-[11px] font-semibold ${
-                            bannerUrl === p.url
-                              ? 'border-indigo-600 bg-indigo-50 text-indigo-700'
-                              : 'border-slate-200 bg-slate-50 text-slate-600'
-                          }`}
-                        >
-                          {p.name}
-                        </button>
-                      ))}
                     </div>
                   </div>
                 </div>

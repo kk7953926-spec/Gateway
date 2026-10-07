@@ -240,6 +240,26 @@ app.post('/api/email/test-send', async (req, res) => {
   }
 });
 
+// Explicit API 404 Handler - guarantees JSON response, never HTML <!DOCTYPE
+app.all('/api/*', (req, res) => {
+  return res.status(404).json({
+    success: false,
+    error: `API route ${req.method} ${req.originalUrl} not found`,
+  });
+});
+
+// Explicit API Global Error Handler
+app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
+  if (req.originalUrl.startsWith('/api')) {
+    console.error('Unhandled API Error:', err);
+    return res.status(err.status || 500).json({
+      success: false,
+      error: err.message || 'Internal server error occurred.',
+    });
+  }
+  next(err);
+});
+
 async function startServer() {
   if (process.env.NODE_ENV !== 'production') {
     try {

@@ -9,6 +9,7 @@ import { ApiKeysView } from './pages/ApiKeysView';
 import { WebhooksView } from './pages/WebhooksView';
 import { IntegrationsView } from './pages/IntegrationsView';
 import { ProfileView } from './pages/ProfileView';
+import { SettingsView } from './pages/SettingsView';
 import { DocumentationView } from './pages/DocumentationView';
 import { SystemStatusView } from './pages/SystemStatusView';
 import { PublicCheckoutView } from './pages/PublicCheckoutView';
@@ -31,11 +32,13 @@ import {
   Link2,
   CreditCard,
   LayoutGrid,
-  Plus
+  Plus,
+  LogOut,
+  Settings as SettingsIcon
 } from 'lucide-react';
 
 const MainAppContent: React.FC = () => {
-  const { user } = useAuth();
+  const { user, logout } = useAuth();
   const [currentNav, setCurrentNav] = useState<string>('dashboard');
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState<boolean>(false);
   const [authMode, setAuthMode] = useState<'login' | 'register'>('login');
@@ -129,7 +132,7 @@ const MainAppContent: React.FC = () => {
         return <SubscriptionView />;
       case 'settings':
       case 'profile':
-        return <ProfileView onNavigate={setCurrentNav} />;
+        return <SettingsView onNavigate={setCurrentNav} />;
       case 'documentation':
         return <DocumentationView />;
       case 'status':
@@ -199,21 +202,21 @@ const MainAppContent: React.FC = () => {
           </div>
 
           {/* Zone 3: Primary Action & Profile Trigger */}
-          <div className="flex items-center gap-2.5">
+          <div className="flex items-center gap-2">
             <button
               onClick={() => setCurrentNav('payment-links')}
-              className="px-3.5 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-xs transition-colors flex items-center gap-1.5 shadow-sm cursor-pointer whitespace-nowrap"
+              className="px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-xs transition-colors flex items-center gap-1.5 shadow-sm cursor-pointer whitespace-nowrap"
             >
               <Plus className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">New Payment Link</span>
+              <span className="hidden sm:inline">New Link</span>
               <span className="sm:hidden">Create</span>
             </button>
 
-            {/* Profile Avatar Quick Link */}
+            {/* Profile & Settings Trigger */}
             <div
-              onClick={() => setCurrentNav('profile')}
+              onClick={() => setCurrentNav('settings')}
               className="flex items-center gap-2 p-1 pl-2 rounded-lg bg-slate-900/90 hover:bg-slate-800 border border-slate-800 cursor-pointer transition-colors"
-              title="View Profile Settings"
+              title="View Settings & Profile"
             >
               <div className="hidden sm:flex flex-col text-right">
                 <span className="text-xs font-semibold text-slate-200 leading-tight">
@@ -236,6 +239,16 @@ const MainAppContent: React.FC = () => {
                 </div>
               )}
             </div>
+
+            {/* Navbar Sign Out Button */}
+            <button
+              onClick={logout}
+              title="Log Out of Account"
+              className="p-1.5 rounded-lg bg-slate-900/90 hover:bg-rose-950/50 text-slate-400 hover:text-rose-300 border border-slate-800 hover:border-rose-800/60 transition-colors cursor-pointer flex items-center gap-1.5 text-xs font-semibold"
+            >
+              <LogOut className="w-4 h-4 text-rose-400" />
+              <span className="hidden md:inline text-rose-300">Sign Out</span>
+            </button>
           </div>
         </header>
 

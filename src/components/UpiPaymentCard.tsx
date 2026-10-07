@@ -170,13 +170,13 @@ export const UpiPaymentCard: React.FC = () => {
         </div>
 
         <div className="bg-slate-50 border border-slate-200 p-3.5 rounded-2xl flex items-center gap-3">
-          <div className="p-2.5 rounded-xl bg-indigo-100 text-indigo-700 border border-indigo-200">
-            <Wallet className="w-5 h-5" />
+          <div className="p-2.5 rounded-xl bg-emerald-100 text-emerald-700 border border-emerald-200">
+            <CheckCircle2 className="w-5 h-5" />
           </div>
           <div>
-            <span className="text-[10px] text-slate-500 font-mono block">Wallet Balance</span>
-            <span className="text-lg font-mono font-extrabold text-emerald-600">
-              ₹{(user?.wallet_balance || 0).toFixed(2)} INR
+            <span className="text-[10px] text-slate-500 font-mono block">Terminal Status</span>
+            <span className="text-sm font-mono font-extrabold text-emerald-600">
+              Active (0% Fee)
             </span>
           </div>
         </div>

@@ -165,11 +165,6 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onSwitchToRegister }) => {
     }
   };
 
-  const handleQuickLogin = (quickEmail: string) => {
-    setEmail(quickEmail);
-    setPassword('Password123!');
-  };
-
   return (
     <div className="w-full max-w-md mx-auto">
       <div className="rounded-2xl bg-white border border-slate-200/90 p-7 sm:p-8 shadow-xl space-y-6">
@@ -307,29 +302,6 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onSwitchToRegister }) => {
             )}
           </button>
         </form>
-
-        {/* Quick Demo Fill Buttons */}
-        <div className="p-3 rounded-xl bg-slate-50 border border-slate-200/80 space-y-2">
-          <div className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider font-mono">
-            Quick Fill Demo Accounts:
-          </div>
-          <div className="flex items-center gap-2 flex-wrap">
-            <button
-              type="button"
-              onClick={() => handleQuickLogin('kalam172010@gmail.com')}
-              className="px-2.5 py-1 rounded-lg bg-white border border-slate-200 hover:border-indigo-300 text-[11px] font-mono text-slate-700 hover:text-indigo-600 transition-colors cursor-pointer"
-            >
-              kalam172010@gmail.com (Admin)
-            </button>
-            <button
-              type="button"
-              onClick={() => handleQuickLogin('kk7953926@gmail.com')}
-              className="px-2.5 py-1 rounded-lg bg-white border border-slate-200 hover:border-indigo-300 text-[11px] font-mono text-slate-700 hover:text-indigo-600 transition-colors cursor-pointer"
-            >
-              kk7953926@gmail.com
-            </button>
-          </div>
-        </div>
 
         {/* Switch to register */}
         <div className="text-center text-xs text-slate-500 pt-1 border-t border-slate-100">
