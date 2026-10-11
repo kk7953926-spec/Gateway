@@ -17,7 +17,6 @@ import { CustomizeView } from './pages/CustomizeView';
 import { AdminPage } from './pages/AdminPage';
 import { SubscriptionView } from './pages/SubscriptionView';
 import { SubscriptionLockoutView } from './components/SubscriptionLockoutView';
-import { TelegramFloatingButton } from './components/TelegramFloatingButton';
 import { LoginPage } from './pages/LoginPage';
 import { RegisterPage } from './pages/RegisterPage';
 import {
@@ -269,8 +268,6 @@ const MainAppContent: React.FC = () => {
             <div>&copy; {new Date().getFullYear()} FAMGATEWAY. All rights reserved. Zero-Fee FamPay UPI.</div>
           </div>
         </footer>
-
-        <TelegramFloatingButton />
       </div>
     </div>
   );

@@ -387,7 +387,6 @@ export class ImapDaemon {
       fromAddress.includes('github.com') ||
       fromAddress.includes('linkedin.com') ||
       fromAddress.includes('coderabbit.ai') ||
-      fromAddress.includes('telegram.org') ||
       fromAddress.includes('spaceship.com') ||
       subject.toLowerCase().includes('security') ||
       subject.toLowerCase().includes('secret exposed') ||

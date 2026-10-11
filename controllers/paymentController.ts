@@ -1212,10 +1212,10 @@ export class PaymentController {
   }
 
   /**
-   * POST /api/telegram/webhook
-   * Dedicated Telegram Bot Webhook & Order Creation endpoint
+   * POST /api/webhook
+   * Dedicated External Webhook & Order Creation endpoint
    */
-  public static async handleTelegramBotWebhook(req: Request, res: Response) {
+  public static async handleExternalWebhook(req: Request, res: Response) {
     dbService.incrementApiRequests();
     const body = req.body || {};
     const query = req.query || {};
@@ -1232,7 +1232,7 @@ export class PaymentController {
         ok: false,
         success: false,
         error: 'Unauthorized: Missing or invalid api_key / merchant_id.',
-        message: 'Please append your merchant API key or merchant ID to the webhook URL: /api/telegram/webhook?api_key=YOUR_API_KEY',
+        message: 'Please append your merchant API key or merchant ID to the webhook URL: /api/webhook?api_key=YOUR_API_KEY',
       });
     }
 
@@ -1247,7 +1247,7 @@ export class PaymentController {
     }
 
     const text = body.message?.text || body.text || '';
-    const chatId = body.message?.chat?.id || body.chat_id || 'TelegramUser';
+    const chatId = body.message?.chat?.id || body.chat_id || 'WebhookUser';
     const amountMatch = text.match(/\/pay\s+(\d+)/) || text.match(/\/order\s+(\d+)/);
     const amount = amountMatch ? parseFloat(amountMatch[1]) : (parseFloat(body.amount) || 100);
 
@@ -1260,7 +1260,7 @@ export class PaymentController {
         user.email,
         platformUpi,
         amount,
-        `Telegram Order - Chat ${chatId}`,
+        `Order - ${chatId}`,
         (req.headers['x-forwarded-for'] as string) || req.socket.remoteAddress || '127.0.0.1'
       );
 

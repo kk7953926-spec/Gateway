@@ -118,7 +118,7 @@ export const DevDocsPage: React.FC = () => {
           </button>
         </div>
         <p className="text-xs text-slate-500">
-          Query Alias (GET) — Ideal for quick terminal testing, Telegram/Discord bots, and lightweight script integrations.
+          Query Alias (GET) — Ideal for quick terminal testing, Discord bots, webhooks, and lightweight script integrations.
         </p>
 
         <pre className="p-4 rounded-2xl bg-slate-900 text-slate-100 font-mono text-xs overflow-x-auto leading-relaxed">

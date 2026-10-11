@@ -34,7 +34,7 @@ export const SubscriptionLockoutView: React.FC<SubscriptionLockoutViewProps> = (
             <Zap className="w-4 h-4 text-indigo-400 mr-1.5" /> What happens when expired:
           </div>
           <ul className="text-slate-400 space-y-1 list-disc list-inside pl-1">
-            <li>API & Telegram Bot payment creation is paused</li>
+            <li>API payment creation is paused</li>
             <li>Real-time IMAP Gmail alerts are held</li>
             <li>Instant settlement webhook dispatches are paused</li>
           </ul>
@@ -61,14 +61,7 @@ export const SubscriptionLockoutView: React.FC<SubscriptionLockoutViewProps> = (
 
         <div className="text-xs text-slate-500 pt-2 border-t border-slate-700/50 flex items-center justify-between">
           <span>FamGateway Enterprise</span>
-          <a
-            href="https://t.me/FamGatewaySupport"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-indigo-400 hover:underline flex items-center gap-1"
-          >
-            Contact Telegram Support <ExternalLink className="w-3 h-3" />
-          </a>
+          <span className="text-slate-400">Merchant Support Active</span>
         </div>
       </div>
     </div>
