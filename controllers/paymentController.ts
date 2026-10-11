@@ -1220,16 +1220,30 @@ export class PaymentController {
     const body = req.body || {};
     const query = req.query || {};
 
-    const key = query.api_key || query.apiKey || query.merchant_id || body.api_key || body.apiKey || body.merchant_id;
+    const key = query.api_key || query.apiKey || query.merchant_id || query.merchantId || body.api_key || body.apiKey || body.merchant_id || body.merchantId;
     let user: any = null;
 
     if (key) {
-      user = await dbService.findUserByApiKey(String(key));
+      user = await dbService.findUserByApiKey(String(key).trim());
     }
 
     if (!user) {
-      const allUsers = await dbService.getAllUsers();
-      user = allUsers.find(u => u.fampay_upi_id && u.fampay_upi_id.includes('@')) || allUsers[0];
+      return res.status(401).json({
+        ok: false,
+        success: false,
+        error: 'Unauthorized: Missing or invalid api_key / merchant_id.',
+        message: 'Please append your merchant API key or merchant ID to the webhook URL: /api/telegram/webhook?api_key=YOUR_API_KEY',
+      });
+    }
+
+    const platformUpi = user.fampay_upi_id?.trim();
+    if (!platformUpi || !platformUpi.includes('@')) {
+      return res.status(400).json({
+        ok: false,
+        success: false,
+        error: 'Merchant UPI Not Configured',
+        message: `Merchant account '${user.name}' has not configured a FamPay or Bank UPI ID in Settings or Integrations.`,
+      });
     }
 
     const text = body.message?.text || body.text || '';
@@ -1237,7 +1251,6 @@ export class PaymentController {
     const amountMatch = text.match(/\/pay\s+(\d+)/) || text.match(/\/order\s+(\d+)/);
     const amount = amountMatch ? parseFloat(amountMatch[1]) : (parseFloat(body.amount) || 100);
 
-    const platformUpi = user.fampay_upi_id?.trim() || '8056317218@fam';
     const merchantName = user.checkout_settings?.brand_name || user.name || 'FamGateway Merchant';
     const merchantAvatar = user.checkout_settings?.avatar_url || user.avatar_url || '';
 
@@ -1247,7 +1260,7 @@ export class PaymentController {
         user.email,
         platformUpi,
         amount,
-        `Telegram Bot Order - ${chatId}`,
+        `Telegram Order - Chat ${chatId}`,
         (req.headers['x-forwarded-for'] as string) || req.socket.remoteAddress || '127.0.0.1'
       );
 

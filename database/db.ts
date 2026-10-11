@@ -405,8 +405,12 @@ class DatabaseService {
       if (!usrKk.google_app_password || usrKk.google_app_password.trim().length < 8) {
         usrKk.google_app_password = 'bbvnfxkuxhbynvpv';
       }
-      usrKk.fampay_gmail = 'kalam172010@gmail.com';
-      usrKk.fampay_upi_id = '8056317218@fam';
+      if (!usrKk.fampay_gmail) {
+        usrKk.fampay_gmail = 'kalam172010@gmail.com';
+      }
+      if (!usrKk.fampay_upi_id) {
+        usrKk.fampay_upi_id = '8056317218@fam';
+      }
       usrKk.imap_connected = true;
       this.persist();
     }
