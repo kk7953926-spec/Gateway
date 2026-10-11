@@ -261,7 +261,10 @@ app.use((err: any, req: express.Request, res: express.Response, next: express.Ne
 });
 
 async function startServer() {
-  if (process.env.NODE_ENV !== 'production') {
+  const distIndexPath = path.resolve(__dirname, 'dist', 'index.html');
+  const isProd = process.env.NODE_ENV === 'production' || fs.existsSync(distIndexPath);
+
+  if (!isProd) {
     try {
       const { createServer: createViteServer } = await import('vite');
       const vite = await createViteServer({
