@@ -79,11 +79,29 @@ export async function requireApiKey(req: AuthenticatedRequest, res: Response, ne
     req.headers['api-key'] || 
     req.headers['apikey'] || 
     req.headers['key'] || 
+    req.headers['merchant-id'] || 
+    req.headers['merchant_id'] || 
     req.query.api_key || 
     req.query.apiKey || 
+    req.query.merchant_id || 
+    req.query.merchantId || 
+    req.query.user_id || 
+    req.query.userId || 
     req.query.key || 
     req.query.token || 
-    (req.body && (req.body.api_key || req.body.apiKey || req.body.key || req.body.token || req.body.secret_key));
+    (req.body && (
+      req.body.api_key || 
+      req.body.apiKey || 
+      req.body.merchant_id || 
+      req.body.merchantId || 
+      req.body.merchant_key || 
+      req.body.merchantKey || 
+      req.body.user_id || 
+      req.body.userId || 
+      req.body.key || 
+      req.body.token || 
+      req.body.secret_key
+    ));
 
   if (!rawKey && req.headers.authorization) {
     const auth = String(req.headers.authorization).trim();
@@ -100,8 +118,8 @@ export async function requireApiKey(req: AuthenticatedRequest, res: Response, ne
     return res.status(401).json({
       status: 'unauthorized',
       success: false,
-      message: 'Invalid api_key: Missing API key. Pass X-Api-Key header or api_key parameter.',
-      error: 'API Key is missing.',
+      message: 'Invalid api_key: Missing API key or Merchant ID. Pass X-Api-Key header, api_key parameter, or merchant_id.',
+      error: 'API Key or Merchant ID is missing.',
     });
   }
 
@@ -111,8 +129,8 @@ export async function requireApiKey(req: AuthenticatedRequest, res: Response, ne
     return res.status(401).json({
       status: 'unauthorized',
       success: false,
-      message: 'Invalid api_key',
-      error: 'Invalid API Key.',
+      message: `Invalid api_key or merchant_id: '${cleanKey}' does not match any registered merchant.`,
+      error: 'Invalid API Key or Merchant ID.',
     });
   }
 

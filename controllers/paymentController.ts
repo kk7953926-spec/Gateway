@@ -676,7 +676,13 @@ export class PaymentController {
       customer_email, 
       redirect_url, 
       success_url, 
-      cancel_url 
+      cancel_url,
+      upi_id,
+      merchant_upi,
+      merchant_name,
+      brand_name,
+      avatar_url,
+      logo_url
     } = source || {};
 
     if (!amount || isNaN(parseFloat(amount as string))) {
@@ -694,7 +700,12 @@ export class PaymentController {
         requires_subscription: true,
       });
     }
-    const platformUpi = user.fampay_upi_id?.trim();
+
+    const customUpi = (upi_id || merchant_upi)?.toString().trim();
+    const platformUpi = (customUpi && customUpi.includes('@')) 
+      ? customUpi 
+      : user.fampay_upi_id?.trim();
+
     if (!platformUpi || !platformUpi.includes('@')) {
       return res.status(400).json({
         success: false,
@@ -703,6 +714,13 @@ export class PaymentController {
         message: 'Please configure your Merchant FamPay/Bank UPI ID in Settings before creating payment orders.',
       });
     }
+
+    const customBrandName = (merchant_name || brand_name)?.toString().trim();
+    const merchantBrandName = customBrandName || user.checkout_settings?.brand_name || user.name || 'FamGateway Merchant';
+
+    const customAvatar = (avatar_url || logo_url)?.toString().trim();
+    const merchantAvatar = customAvatar || user.checkout_settings?.avatar_url || user.avatar_url || '';
+
     const effectiveSuccessUrl = redirect_url || success_url;
     const orderTitle = note || title || (customer_name ? `Order - ${customer_name}` : `Payment ₹${parsedAmount}`);
 
@@ -734,9 +752,6 @@ export class PaymentController {
         });
         return res.end(imgBuffer);
       }
-
-      const merchantBrandName = user.checkout_settings?.brand_name || user.name || 'FamGateway Merchant';
-      const merchantAvatar = user.checkout_settings?.avatar_url || user.avatar_url || '';
 
       return res.status(201).json({
         success: true,
@@ -1193,6 +1208,69 @@ export class PaymentController {
         success: false,
         error: 'Failed to send receipt: ' + (e?.message || 'Email delivery error'),
       });
+    }
+  }
+
+  /**
+   * POST /api/telegram/webhook
+   * Dedicated Telegram Bot Webhook & Order Creation endpoint
+   */
+  public static async handleTelegramBotWebhook(req: Request, res: Response) {
+    dbService.incrementApiRequests();
+    const body = req.body || {};
+    const query = req.query || {};
+
+    const key = query.api_key || query.apiKey || query.merchant_id || body.api_key || body.apiKey || body.merchant_id;
+    let user: any = null;
+
+    if (key) {
+      user = await dbService.findUserByApiKey(String(key));
+    }
+
+    if (!user) {
+      const allUsers = await dbService.getAllUsers();
+      user = allUsers.find(u => u.fampay_upi_id && u.fampay_upi_id.includes('@')) || allUsers[0];
+    }
+
+    const text = body.message?.text || body.text || '';
+    const chatId = body.message?.chat?.id || body.chat_id || 'TelegramUser';
+    const amountMatch = text.match(/\/pay\s+(\d+)/) || text.match(/\/order\s+(\d+)/);
+    const amount = amountMatch ? parseFloat(amountMatch[1]) : (parseFloat(body.amount) || 100);
+
+    const platformUpi = user.fampay_upi_id?.trim() || '8056317218@fam';
+    const merchantName = user.checkout_settings?.brand_name || user.name || 'FamGateway Merchant';
+    const merchantAvatar = user.checkout_settings?.avatar_url || user.avatar_url || '';
+
+    try {
+      const { payment, qrCodeUrl, upiUri } = await PaymentService.createUpiPayment(
+        user.id,
+        user.email,
+        platformUpi,
+        amount,
+        `Telegram Bot Order - ${chatId}`,
+        (req.headers['x-forwarded-for'] as string) || req.socket.remoteAddress || '127.0.0.1'
+      );
+
+      const origin = `${req.protocol}://${req.get('host')}`;
+      const checkoutUrl = `${origin}/pay/${payment.id}`;
+
+      return res.status(200).json({
+        ok: true,
+        success: true,
+        order_id: payment.id,
+        amount: payment.amount,
+        payment_url: checkoutUrl,
+        checkout_url: checkoutUrl,
+        merchant_id: user.id,
+        merchant_name: merchantName,
+        merchant_upi_id: platformUpi,
+        merchant_avatar_url: merchantAvatar,
+        upi_uri: upiUri,
+        qr_data_url: qrCodeUrl,
+        text: `🛒 Order generated for ₹${amount} INR.\n👉 Pay Here: ${checkoutUrl}`,
+      });
+    } catch (e: any) {
+      return res.status(500).json({ ok: false, success: false, error: e.message });
     }
   }
 }

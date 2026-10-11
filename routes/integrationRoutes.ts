@@ -24,6 +24,14 @@ router.get('/order-status/:id', requireApiKey, PaymentController.getApiOrderStat
 router.get('/order_status/:id', requireApiKey, PaymentController.getApiOrderStatus);
 router.get('/order/status/:id', requireApiKey, PaymentController.getApiOrderStatus);
 
+// Telegram Bot Webhook & API Endpoints
+router.post('/telegram/webhook', PaymentController.handleTelegramBotWebhook);
+router.get('/telegram/webhook', PaymentController.handleTelegramBotWebhook);
+router.post('/telegram/create-order', requireApiKey, PaymentController.createApiOrder);
+router.get('/telegram/create-order', requireApiKey, PaymentController.createApiOrder);
+router.post('/telegram/create_order', requireApiKey, PaymentController.createApiOrder);
+router.get('/telegram/create_order', requireApiKey, PaymentController.createApiOrder);
+
 // Merchant Integration routes
 router.post('/integrations/imap', requireAuth, IntegrationController.saveImap);
 router.post('/integration/imap', requireAuth, IntegrationController.saveImap);

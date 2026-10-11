@@ -62,9 +62,6 @@ export class PaymentService {
       cancel_url: cancelUrl,
     });
 
-    // Save user's UPI ID in profile
-    await dbService.updateUserUpiId(userId, cleanUpi);
-
     await dbService.addLog({
       user_id: userId,
       user_email: userEmail,

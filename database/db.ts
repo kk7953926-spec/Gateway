@@ -368,7 +368,7 @@ class DatabaseService {
         checkout_settings: {
           brand_name: 'FAMGATEWAY STORE',
           subtitle: 'VERIFIED MERCHANT',
-          avatar_url: 'https://images.unsplash.com/photo-1566492031773-4f4e44671857?w=150&auto=format&fit=crop&q=80',
+          avatar_url: '',
           theme_color: 'purple',
           session_timeout_minutes: 8,
           enable_utr_submission: true,
@@ -759,24 +759,37 @@ class DatabaseService {
     return newKey;
   }
 
-  public async findUserByApiKey(apiKey: string): Promise<UserRecord | null> {
-    if (!apiKey) return null;
-    const cleanKey = apiKey.trim();
+  public async findUserByApiKey(apiKeyOrId: string): Promise<UserRecord | null> {
+    if (!apiKeyOrId) return null;
+    const cleanKey = apiKeyOrId.trim();
     const lowerKey = cleanKey.toLowerCase();
     
-    // Check in-memory map (exact & case-insensitive)
+    // Check in-memory map against api_key, merchant_id, id, and email
     for (const u of this.usersMap.values()) {
-      if (u.api_key && (u.api_key.trim() === cleanKey || u.api_key.trim().toLowerCase() === lowerKey)) {
+      if (
+        (u.api_key && (u.api_key.trim() === cleanKey || u.api_key.trim().toLowerCase() === lowerKey)) ||
+        (u.merchant_id && u.merchant_id.trim() === cleanKey) ||
+        (u.id && u.id.trim() === cleanKey) ||
+        (u.email && u.email.trim().toLowerCase() === lowerKey)
+      ) {
         return u;
       }
     }
 
     // Check Firestore
     try {
-      const q = query(collection(db, 'users'), where('api_key', '==', cleanKey));
-      const snap = await getDocs(q);
-      if (!snap.empty) {
-        const u = snap.docs[0].data() as UserRecord;
+      const qKey = query(collection(db, 'users'), where('api_key', '==', cleanKey));
+      const snapKey = await getDocs(qKey);
+      if (!snapKey.empty) {
+        const u = snapKey.docs[0].data() as UserRecord;
+        this.usersMap.set(u.id, u);
+        return u;
+      }
+
+      const qMerchant = query(collection(db, 'users'), where('merchant_id', '==', cleanKey));
+      const snapMerchant = await getDocs(qMerchant);
+      if (!snapMerchant.empty) {
+        const u = snapMerchant.docs[0].data() as UserRecord;
         this.usersMap.set(u.id, u);
         return u;
       }
@@ -784,7 +797,6 @@ class DatabaseService {
       // Ignore
     }
 
-    // Do not fall back to admin or other user accounts - strictly enforce individual API keys
     return null;
   }
 
