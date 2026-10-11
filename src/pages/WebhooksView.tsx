@@ -176,7 +176,7 @@ export const WebhooksView: React.FC<{ onNavigate: (nav: string) => void }> = ({ 
   };
 
   return (
-    <div className="space-y-6 max-w-5xl mx-auto">
+    <div className="space-y-6 w-full">
       <div>
         <h1 className="text-2xl font-extrabold text-slate-900 tracking-tight flex items-center gap-2">
           <Webhook className="w-6 h-6 text-indigo-600" />

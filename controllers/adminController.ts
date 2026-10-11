@@ -159,7 +159,7 @@ export class AdminController {
       emailRes = await EmailService.sendPaymentReceiptEmail({
         toEmail: targetEmail,
         amount: 250,
-        upiId: 'kalamakash@fam',
+        upiId: req.user?.fampay_upi_id || 'merchant@upi',
         transactionRef: `TXN-${Math.floor(100000 + Math.random() * 900000)}`,
         utr: `${Math.floor(100000000000 + Math.random() * 900000000000)}`,
         note: 'VIP Access (Test Receipt)',

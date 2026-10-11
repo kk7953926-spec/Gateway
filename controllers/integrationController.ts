@@ -207,6 +207,18 @@ export class IntegrationController {
   public static async createPaymentLink(req: AuthenticatedRequest, res: Response) {
     if (!req.user) return res.status(401).json({ success: false, error: 'Unauthorized' });
 
+    // 1. Check merchant setup onboarding: User MUST have their own UPI ID configured
+    const userRecord = await dbService.findUserById(req.user.id);
+    const userUpi = userRecord?.fampay_upi_id?.trim();
+    if (!userUpi || !userUpi.includes('@')) {
+      return res.status(400).json({
+        success: false,
+        error: 'Merchant UPI Setup Required',
+        requires_onboarding: true,
+        message: 'Please complete your merchant setup by entering your FamPay UPI ID (e.g. username@fam) in Settings or Integrations before creating payment links.',
+      });
+    }
+
     if (!dbService.isUserSubscriptionActive(req.user)) {
       return res.status(403).json({
         success: false,

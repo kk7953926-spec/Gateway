@@ -46,7 +46,7 @@ export interface User {
   wallet_balance?: number;
   subscription_plan_id?: string;
   subscription_expires_at?: string;
-  subscription_status?: 'active' | 'expired' | 'none';
+  subscription_status?: 'active' | 'expired' | 'none' | 'inactive';
   role: 'user' | 'admin';
   created_at?: string;
   updated_at?: string;

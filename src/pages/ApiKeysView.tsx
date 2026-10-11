@@ -85,7 +85,7 @@ export const ApiKeysView: React.FC<ApiKeysViewProps> = ({ onNavigate }) => {
   const quickGetCurl = `curl -X GET "${baseUrl}/api/qr.php?api_key=${apiKey}&amount=499&customer_name=Rahul"`;
 
   return (
-    <div className="space-y-6 max-w-5xl mx-auto pb-16 animate-in fade-in duration-300">
+    <div className="space-y-6 w-full pb-16 animate-in fade-in duration-300">
       {/* Header Section */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-6 rounded-2xl border border-slate-200/80 shadow-xs">
         <div>
@@ -246,6 +246,70 @@ export const ApiKeysView: React.FC<ApiKeysViewProps> = ({ onNavigate }) => {
           </div>
         </div>
       )}
+
+      {/* Telegram Bot & Website API Integration Section */}
+      <div className="p-6 rounded-3xl bg-white border border-slate-200/80 shadow-xs space-y-5">
+        <div className="flex items-center justify-between flex-wrap gap-2">
+          <div className="flex items-center gap-2">
+            <Code2 className="w-5 h-5 text-indigo-600" />
+            <h2 className="text-sm font-extrabold text-slate-900 uppercase tracking-wider">Telegram Bot & External Website Integration</h2>
+          </div>
+          <span className="text-xs font-bold text-emerald-700 bg-emerald-50 px-3 py-1 rounded-full border border-emerald-200 flex items-center gap-1.5">
+            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+            <span>Dynamic Merchant Checkout & Real UPI ID Supported</span>
+          </span>
+        </div>
+
+        <p className="text-xs text-slate-600 leading-relaxed">
+          When connecting your Telegram Bot or external e-commerce website to FamGateway, pass your API Key in the request header (<code>X-Api-Key: {apiKey}</code>) or query parameter (<code>?api_key={apiKey}</code>). The generated payment link will dynamically display <strong>your merchant brand name</strong>, <strong>your uploaded profile photo</strong>, <strong>your real FamPay/Bank UPI ID</strong>, and <strong>real transaction references</strong>.
+        </p>
+
+        {/* Telegram Bot Code Sample */}
+        <div className="p-4 rounded-2xl bg-slate-900 text-slate-200 space-y-2 border border-slate-800">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-bold font-mono text-indigo-300">Python / Telegram Bot Example (python-telegram-bot / aiogram)</span>
+            <button
+              onClick={() => handleCopyCurl(`import requests
+
+def create_telegram_checkout(amount, customer_name):
+    url = "${baseUrl}/api/create-order"
+    headers = {"X-Api-Key": "${apiKey}"}
+    payload = {
+        "amount": amount,
+        "note": f"Order for {customer_name}",
+        "customer_name": customer_name,
+        "redirect_url": "https://t.me/your_bot"
+    }
+    response = requests.post(url, json=payload, headers=headers).json()
+    # Returns real checkout_url showing your photo, merchant name & real UPI ID!
+    return response.get("payment_url")`, 'telegramSample')}
+              className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white text-[11px] font-bold flex items-center gap-1 transition-colors cursor-pointer"
+            >
+              {copiedCurl === 'telegramSample' ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
+              <span>{copiedCurl === 'telegramSample' ? 'Copied' : 'Copy Python'}</span>
+            </button>
+          </div>
+          <pre className="text-[11px] font-mono text-slate-300 overflow-x-auto p-3 bg-slate-950/90 rounded-xl leading-relaxed">
+{`import requests
+
+def create_telegram_checkout(amount, customer_name):
+    url = "${baseUrl}/api/create-order"
+    headers = {
+        "Content-Type": "application/json",
+        "X-Api-Key": "${apiKey}"  # Connected merchant API key
+    }
+    payload = {
+        "amount": amount,
+        "note": f"Telegram Order - {customer_name}",
+        "customer_name": customer_name
+    }
+    res = requests.post(url, json=payload, headers=headers).json()
+    
+    # Returns your custom checkout page URL with YOUR logo, brand name & real UPI ID!
+    return res["payment_url"]  # e.g. ${baseUrl}/pay/txn_...`}
+          </pre>
+        </div>
+      </div>
 
       {/* Quick Integration Examples */}
       <div className="p-6 rounded-3xl bg-white border border-slate-200/80 shadow-xs space-y-5">

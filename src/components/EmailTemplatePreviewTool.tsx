@@ -43,7 +43,7 @@ export const EmailTemplatePreviewTool: React.FC = () => {
 
   // Customizer Data
   const [merchantName, setMerchantName] = useState<string>(user?.name || 'FamGateway FinTech');
-  const [merchantUpi, setMerchantUpi] = useState<string>(user?.fampay_upi_id || '8056317218@fam');
+  const [merchantUpi, setMerchantUpi] = useState<string>(user?.fampay_upi_id || '');
   const [customerName, setCustomerName] = useState<string>('Akash Kumar');
   const [amount, setAmount] = useState<number>(499.00);
   const [orderId, setOrderId] = useState<string>('ORD-882914');
@@ -67,7 +67,7 @@ export const EmailTemplatePreviewTool: React.FC = () => {
     templateId,
     merchantName: merchantName.trim() || 'FamGateway Merchant',
     merchantEmail: user?.fampay_gmail || user?.email || 'kalam172010@gmail.com',
-    merchantUpi: merchantUpi.trim() || '8056317218@fam',
+    merchantUpi: merchantUpi.trim() || user?.fampay_upi_id || 'merchant@upi',
     customerName: customerName.trim() || 'Valued Customer',
     customerEmail: testRecipient,
     amount: Number(amount) || 0,

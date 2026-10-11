@@ -23,12 +23,17 @@ export class PaymentService {
   ): Promise<{ payment: UpiPaymentRecord; qrCodeUrl: string; upiUri: string }> {
     const cleanUpi = upiId.trim().toLowerCase();
 
+    // Fetch user record to extract real merchant brand name
+    const userRecord = await dbService.findUserById(userId);
+    const rawBrandName = userRecord?.checkout_settings?.brand_name || userRecord?.name || 'FamGateway Merchant';
+    const cleanMerchantName = rawBrandName.replace(/[^a-zA-Z0-9 ]/g, '').trim().substring(0, 25) || 'Merchant';
+
     // Generate unique transaction reference
     const transactionRef = `FGW-TXN-${Math.floor(100000 + Math.random() * 900000)}`;
 
-    // Build standard UPI URI
+    // Build standard UPI URI with REAL Payee Name (pn) and REAL Payee VPA (pa)
     const upiUri = `upi://pay?pa=${cleanUpi}&pn=${encodeURIComponent(
-      'FAMGATEWAY'
+      cleanMerchantName
     )}&am=${amount.toFixed(2)}&cu=INR&tn=${encodeURIComponent(transactionRef)}`;
 
     // Render standard high-contrast scannable QR code
@@ -66,7 +71,7 @@ export class PaymentService {
       action: 'CREATE_UPI_PAYMENT_QR',
       ip,
       status: 'SUCCESS',
-      details: `Generated QR code for UPI ID ${cleanUpi}. Amount: ₹${amount} INR. Ref: ${transactionRef}`,
+      details: `Generated QR code for merchant ${cleanMerchantName} (${cleanUpi}). Amount: ₹${amount} INR. Ref: ${transactionRef}`,
     });
 
     return { payment, qrCodeUrl, upiUri };

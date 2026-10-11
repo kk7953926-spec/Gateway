@@ -144,7 +144,7 @@ if data.get("success"):
   ];
 
   return (
-    <div className="space-y-8 max-w-5xl mx-auto pb-20">
+    <div className="space-y-8 w-full pb-20">
       {/* Hero Header */}
       <div className="relative p-8 rounded-[2rem] bg-indigo-600 text-white overflow-hidden shadow-2xl">
         <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full -mr-20 -mt-20 blur-3xl animate-pulse" />

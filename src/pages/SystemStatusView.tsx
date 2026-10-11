@@ -104,7 +104,7 @@ export const SystemStatusView: React.FC = () => {
   });
 
   return (
-    <div className="space-y-6 max-w-5xl mx-auto">
+    <div className="space-y-6 w-full">
       {/* Title & Top Badges */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
@@ -203,7 +203,7 @@ export const SystemStatusView: React.FC = () => {
           <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-1">
             <span className="text-[10px] font-bold text-slate-400 uppercase">Your Email Account</span>
             <div className="font-bold text-slate-800 truncate text-sm">
-              {imapStatus?.email || imapStatus?.gmail || user?.email || 'kalam172010@gmail.com'}
+              {imapStatus?.email || imapStatus?.gmail || user?.email || 'Not Configured'}
             </div>
             <div className="text-[10px] text-slate-500">
               Host: <span className="text-purple-700 font-semibold">{imapStatus?.mail_server || 'imap.gmail.com'}:{imapStatus?.mail_port || 993}</span>
@@ -213,7 +213,7 @@ export const SystemStatusView: React.FC = () => {
           <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-1">
             <span className="text-[10px] font-bold text-slate-400 uppercase">FamPay UPI ID</span>
             <div className="font-bold text-slate-800 truncate text-sm">
-              {imapStatus?.upi_id || user?.fampay_upi_id || 'kalamakash@fam'}
+              {imapStatus?.upi_id || user?.fampay_upi_id || 'Not Configured'}
             </div>
             <div className="text-[10px] text-slate-500">VPA Provider: FamPay Engine</div>
           </div>

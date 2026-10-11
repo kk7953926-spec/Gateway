@@ -15,22 +15,26 @@ import {
   AlertCircle,
   ShieldCheck,
   Download,
+  Printer,
   Trash2,
   Clock,
   Timer,
   ChevronDown,
   ChevronUp,
+  CreditCard,
+  RefreshCw,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { PaymentLinkRecord } from '../types';
 import QRCode from 'qrcode';
+import { generateReceiptPdf, printReceiptPdf } from '../utils/pdfGenerator';
 
 interface PaymentLinksViewProps {
   onNavigate: (nav: string) => void;
 }
 
 export const PaymentLinksView: React.FC<PaymentLinksViewProps> = ({ onNavigate }) => {
-  const { user, token } = useAuth();
+  const { user, token, updateUser } = useAuth();
   const [links, setLinks] = useState<PaymentLinkRecord[]>([]);
   const [amount, setAmount] = useState<number | string>(100);
   const [expiryMinutes, setExpiryMinutes] = useState<number>(8);
@@ -41,6 +45,14 @@ export const PaymentLinksView: React.FC<PaymentLinksViewProps> = ({ onNavigate }
   const [cancelUrl, setCancelUrl] = useState('');
   const [copiedId, setCopiedKey] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
+  const [createError, setCreateError] = useState<string | null>(null);
+
+  // Fast UPI Setup Modal state
+  const [showUpiModal, setShowUpiModal] = useState(false);
+  const [upiInput, setUpiInput] = useState('');
+  const [savingUpi, setSavingUpi] = useState(false);
+  const [upiModalError, setUpiModalError] = useState<string | null>(null);
+  const [upiModalSuccess, setUpiModalSuccess] = useState<string | null>(null);
 
   // In-app Delete Confirmation state (avoids window.confirm in iframe sandbox)
   const [linkToDelete, setLinkToDelete] = useState<PaymentLinkRecord | null>(null);
@@ -57,6 +69,7 @@ export const PaymentLinksView: React.FC<PaymentLinksViewProps> = ({ onNavigate }
   const [testSuccessMessage, setTestSuccessMessage] = useState<string | null>(null);
   const [testUtr, setTestUtr] = useState('');
 
+  const hasConfiguredUpi = Boolean(user?.fampay_upi_id && user.fampay_upi_id.trim().includes('@'));
   const isImapConfigured = Boolean(user?.imap_connected);
 
   const fetchLinks = async () => {
@@ -135,10 +148,67 @@ export const PaymentLinksView: React.FC<PaymentLinksViewProps> = ({ onNavigate }
     };
   }, [testModalLink, testStatus]);
 
+  const handleSaveUpiFast = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setUpiModalError(null);
+    setUpiModalSuccess(null);
+
+    const clean = upiInput.trim();
+    if (!clean || !clean.includes('@')) {
+      setUpiModalError('Please enter a valid FamPay or Bank UPI ID (e.g. username@fam, 9876543210@fam).');
+      return;
+    }
+
+    setSavingUpi(true);
+    try {
+      const res = await fetch('/api/integrations/upi-settings', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ fampayUpiId: clean }),
+      });
+
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || 'Failed to save UPI ID.');
+      }
+
+      if (data.user) {
+        updateUser(data.user);
+      } else {
+        updateUser({ fampay_upi_id: clean });
+      }
+
+      setUpiModalSuccess('FamPay UPI ID configured! You can now generate payment links.');
+      setTimeout(() => {
+        setShowUpiModal(false);
+        setUpiModalSuccess(null);
+        setUpiInput('');
+        setCreateError(null);
+      }, 1500);
+    } catch (err: any) {
+      setUpiModalError(err.message || 'Error updating UPI ID.');
+    } finally {
+      setSavingUpi(false);
+    }
+  };
+
   const handleCreateLink = async (e: React.FormEvent) => {
     e.preventDefault();
+    setCreateError(null);
+
+    if (!hasConfiguredUpi) {
+      setShowUpiModal(true);
+      return;
+    }
+
     const numAmount = typeof amount === 'string' ? parseFloat(amount) : amount;
-    if (!numAmount || isNaN(numAmount) || numAmount <= 0) return;
+    if (!numAmount || isNaN(numAmount) || numAmount <= 0) {
+      setCreateError('Please enter a valid amount greater than 0.');
+      return;
+    }
     setCreating(true);
 
     const finalExpiry = customExpiry ? parseInt(customExpiry, 10) : expiryMinutes;
@@ -159,7 +229,8 @@ export const PaymentLinksView: React.FC<PaymentLinksViewProps> = ({ onNavigate }
         }),
       });
 
-      if (res.ok) {
+      const data = await res.json();
+      if (res.ok && data.success) {
         setTitle('');
         setAmount(100);
         setCustomExpiry('');
@@ -167,9 +238,14 @@ export const PaymentLinksView: React.FC<PaymentLinksViewProps> = ({ onNavigate }
         setCancelUrl('');
         setShowAdvanced(false);
         fetchLinks();
+      } else {
+        if (data.requires_onboarding) {
+          setShowUpiModal(true);
+        }
+        setCreateError(data.error || data.message || 'Failed to create payment link.');
       }
     } catch {
-      // Ignore
+      setCreateError('Network error while creating payment link.');
     } finally {
       setCreating(false);
     }
@@ -249,7 +325,8 @@ export const PaymentLinksView: React.FC<PaymentLinksViewProps> = ({ onNavigate }
     setTestUtr('');
 
     const amountVal = Number(link?.amount) || 0;
-    const upiUri = `upi://pay?pa=${encodeURIComponent(user?.fampay_upi_id || 'kalamakash@fam')}&pn=${encodeURIComponent(user?.name || 'FamGateway Merchant')}&am=${amountVal.toFixed(2)}&cu=INR&tn=${encodeURIComponent(link?.title || 'Payment')}`;
+    const merchantVpa = (user?.fampay_upi_id || '').trim();
+    const upiUri = `upi://pay?pa=${encodeURIComponent(merchantVpa)}&pn=${encodeURIComponent(user?.name || 'FamGateway Merchant')}&am=${amountVal.toFixed(2)}&cu=INR&tn=${encodeURIComponent(link?.title || 'Payment')}`;
     try {
       const qrUrl = await QRCode.toDataURL(upiUri, { margin: 1, width: 260 });
       setTestQrUrl(qrUrl);
@@ -302,7 +379,7 @@ export const PaymentLinksView: React.FC<PaymentLinksViewProps> = ({ onNavigate }
     : 0;
 
   return (
-    <div className="space-y-6 max-w-5xl mx-auto">
+    <div className="space-y-6 w-full">
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <h1 className="text-2xl font-extrabold text-slate-900 tracking-tight">Payment Links</h1>
@@ -357,21 +434,49 @@ export const PaymentLinksView: React.FC<PaymentLinksViewProps> = ({ onNavigate }
           Create an instant checkout link with auto-generated ID to share with your customers.
         </p>
 
-        {!isImapConfigured ? (
-          <div className="p-4 rounded-2xl bg-amber-50 border border-amber-200 text-amber-900 text-xs space-y-3">
-            <div className="flex items-center gap-2 font-bold text-amber-800">
-              <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
-              <span>Payment Gateway Not Configured</span>
+        {createError && (
+          <div className="p-3.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-xs font-bold flex items-center gap-2">
+            <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+            <span>{createError}</span>
+          </div>
+        )}
+
+        {!hasConfiguredUpi ? (
+          <div className="p-4 rounded-2xl bg-amber-50 border-2 border-amber-300 text-amber-950 text-xs space-y-3">
+            <div className="flex items-center gap-2 font-black text-amber-900 text-sm">
+              <AlertCircle className="w-5 h-5 text-amber-600 shrink-0" />
+              <span>Step 1: Set Up Your FamPay UPI ID First</span>
             </div>
-            <p className="text-amber-700">
-              Please configure your FamPay IMAP settings to start creating payment links.
+            <p className="text-amber-800 font-medium">
+              You must configure your FamPay or Bank UPI ID before creating payment links so customer funds land directly in your account.
             </p>
             <button
-              onClick={() => onNavigate('integrations')}
-              className="px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-600 text-white font-extrabold text-xs shadow-xs transition-colors"
+              type="button"
+              onClick={() => setShowUpiModal(true)}
+              className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold text-xs rounded-xl shadow-xs transition-colors cursor-pointer inline-flex items-center gap-1.5"
             >
-              Configure Now
+              <Plus className="w-3.5 h-3.5" />
+              <span>Set Up UPI ID Now</span>
             </button>
+          </div>
+        ) : !isImapConfigured ? (
+          <div className="p-4 rounded-2xl bg-indigo-50 border-2 border-indigo-200 text-indigo-950 text-xs space-y-3">
+            <div className="flex items-center gap-2 font-black text-indigo-900 text-sm">
+              <span className="w-5 h-5 rounded-full bg-indigo-600 text-white flex items-center justify-center text-xs font-black shrink-0">2</span>
+              <span>Step 2: Connect Gmail IMAP for Auto-Verification</span>
+            </div>
+            <p className="text-indigo-800 font-semibold">
+              Your UPI ID is ready! Now connect your Gmail IMAP with a 16-character Google App Password so payments verify automatically.
+            </p>
+            <div className="flex items-center gap-2 pt-1">
+              <button
+                type="button"
+                onClick={() => onNavigate('integrations')}
+                className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-black text-xs shadow-xs transition-colors cursor-pointer"
+              >
+                Connect IMAP Now
+              </button>
+            </div>
           </div>
         ) : (
           <form onSubmit={handleCreateLink} className="space-y-4 pt-2">
@@ -772,16 +877,53 @@ export const PaymentLinksView: React.FC<PaymentLinksViewProps> = ({ onNavigate }
                     </div>
                     <div className="flex justify-between">
                       <span>Merchant UPI:</span>
-                      <span className="text-indigo-400">{user?.fampay_upi_id || 'kalamakash@fam'}</span>
+                      <span className="text-indigo-400">{user?.fampay_upi_id || 'Not Configured'}</span>
                     </div>
                     <div className="flex justify-between">
                       <span>Verification:</span>
                       <span className="text-emerald-400 font-bold">REAL GMAIL IMAP ✓</span>
                     </div>
                   </div>
+                  <div className="grid grid-cols-2 gap-2 pt-1">
+                    <button
+                      type="button"
+                      onClick={() =>
+                        generateReceiptPdf({
+                          merchantName: user?.name || 'FamGateway Merchant',
+                          orderId: testModalLink.id,
+                          amount: Number(testModalLink.amount),
+                          utrRef: testUtr || '428910492817',
+                          upiId: user?.fampay_upi_id || 'FamGateway UPI',
+                          status: 'CONFIRMED',
+                        })
+                      }
+                      className="py-2.5 px-3 rounded-xl bg-slate-900 hover:bg-slate-800 text-slate-200 hover:text-white font-bold text-xs flex items-center justify-center gap-1.5 cursor-pointer border border-slate-700"
+                    >
+                      <Download className="w-3.5 h-3.5 text-indigo-400" />
+                      <span>Download PDF</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        printReceiptPdf({
+                          merchantName: user?.name || 'FamGateway Merchant',
+                          orderId: testModalLink.id,
+                          amount: Number(testModalLink.amount),
+                          utrRef: testUtr || '428910492817',
+                          upiId: user?.fampay_upi_id || 'FamGateway UPI',
+                          status: 'CONFIRMED',
+                        })
+                      }
+                      className="py-2.5 px-3 rounded-xl bg-indigo-950/60 hover:bg-indigo-900/60 text-indigo-200 hover:text-white font-bold text-xs flex items-center justify-center gap-1.5 cursor-pointer border border-indigo-800/60"
+                    >
+                      <Printer className="w-3.5 h-3.5 text-indigo-400" />
+                      <span>Print Receipt</span>
+                    </button>
+                  </div>
+
                   <button
                     onClick={() => setTestModalLink(null)}
-                    className="w-full py-3 rounded-xl bg-purple-600 hover:bg-purple-500 text-white font-extrabold text-xs shadow-md cursor-pointer"
+                    className="w-full py-2.5 rounded-xl bg-purple-600 hover:bg-purple-500 text-white font-extrabold text-xs shadow-md cursor-pointer transition-all"
                   >
                     Close Test Window
                   </button>
@@ -931,6 +1073,81 @@ export const PaymentLinksView: React.FC<PaymentLinksViewProps> = ({ onNavigate }
                 </>
               )}
             </div>
+          </div>
+        </div>
+      )}
+      {/* QUICK UPI SETUP MODAL */}
+      {showUpiModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-xs animate-in fade-in">
+          <div className="w-full max-w-md bg-white rounded-2xl p-6 shadow-2xl border border-slate-200 space-y-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-indigo-50 border border-indigo-100 text-indigo-600 flex items-center justify-center">
+                  <CreditCard className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-black text-base text-slate-900">Configure Your FamPay UPI ID</h3>
+                  <p className="text-xs text-slate-500 font-medium">Customer payments will be deposited directly to this VPA</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowUpiModal(false)}
+                className="text-slate-400 hover:text-slate-600 p-1 rounded-lg"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {upiModalSuccess && (
+              <div className="p-3 bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-bold rounded-xl flex items-center gap-2">
+                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                <span>{upiModalSuccess}</span>
+              </div>
+            )}
+
+            {upiModalError && (
+              <div className="p-3 bg-rose-50 border border-rose-200 text-rose-800 text-xs font-bold rounded-xl flex items-center gap-2">
+                <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+                <span>{upiModalError}</span>
+              </div>
+            )}
+
+            <form onSubmit={handleSaveUpiFast} className="space-y-4">
+              <div>
+                <label className="text-xs font-bold text-slate-800 block mb-1.5">
+                  FamPay or Bank UPI ID (VPA) <span className="text-rose-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. yourname@fam or 9876543210@fam"
+                  value={upiInput}
+                  onChange={(e) => setUpiInput(e.target.value)}
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-300 text-sm font-mono font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600 placeholder:text-slate-400 placeholder:font-sans"
+                />
+                <p className="text-[11px] text-slate-500 mt-1 font-medium">
+                  Enter your active FamPay or UPI VPA where customer payments should be credited.
+                </p>
+              </div>
+
+              <div className="flex gap-2.5 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setShowUpiModal(false)}
+                  className="flex-1 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-xs transition-colors cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={savingUpi}
+                  className="flex-1 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-extrabold text-xs shadow-sm disabled:opacity-60 flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+                >
+                  {savingUpi ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
+                  <span>Save & Activate</span>
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

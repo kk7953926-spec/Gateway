@@ -48,7 +48,7 @@ export const SettingsView: React.FC<{
   const [websiteUrl, setWebsiteUrl] = useState<string>('');
 
   // Form State - Gateway & IMAP
-  const [fampayUpi, setFampayUpi] = useState<string>(user?.fampay_upi_id || '8056317218@fam');
+  const [fampayUpi, setFampayUpi] = useState<string>(user?.fampay_upi_id || '');
   const [fampayGmail, setFampayGmail] = useState<string>(user?.fampay_gmail || user?.email || '');
   const [googleAppPassword, setGoogleAppPassword] = useState<string>(user?.google_app_password || '');
 
@@ -191,7 +191,7 @@ export const SettingsView: React.FC<{
   };
 
   return (
-    <div className="space-y-6 max-w-5xl mx-auto animate-in fade-in duration-300">
+    <div className="space-y-6 w-full animate-in fade-in duration-300">
       {/* Header Section */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>

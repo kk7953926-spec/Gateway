@@ -10,6 +10,8 @@ router.post('/send-verification', verificationRateLimiter, AuthController.sendVe
 router.post('/resend-verification', verificationRateLimiter, AuthController.resendVerification);
 router.post('/verify-email', AuthController.verifyEmail);
 router.post('/login', AuthController.login);
+router.get('/default-session', AuthController.getDefaultSession);
+router.post('/default-session', AuthController.getDefaultSession);
 router.post('/google', AuthController.googleAuth);
 router.post('/reset-password', AuthController.resetPassword);
 

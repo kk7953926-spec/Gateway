@@ -8,5 +8,6 @@ router.get('/profile', requireAuth, AuthController.getProfile);
 router.get('/stats', requireAuth, AuthController.getUserStats);
 router.put('/profile', requireAuth, AuthController.updateProfile);
 router.post('/profile', requireAuth, AuthController.updateProfile);
+router.post('/toggle-subscription', requireAuth, AuthController.toggleSubscription);
 
 export default router;

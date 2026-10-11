@@ -58,9 +58,13 @@ export interface UserRecord {
     brand_name: string;
     subtitle: string;
     avatar_url?: string;
+    banner_url?: string;
     theme_color: 'purple' | 'indigo' | 'emerald' | 'cyan' | 'rose' | 'amber';
     session_timeout_minutes: number;
     contact_url?: string;
+    support_phone?: string;
+    support_email?: string;
+    custom_message?: string;
     enable_utr_submission: boolean;
     enable_save_qr: boolean;
     show_apps: boolean;
@@ -780,16 +784,7 @@ class DatabaseService {
       // Ignore
     }
 
-    // Fallback: If matching standard key or prefix for primary merchant account
-    const defaultUser = Array.from(this.usersMap.values()).find(u => u.email === 'kalam172010@gmail.com') || Array.from(this.usersMap.values())[0];
-    if (defaultUser) {
-      if (lowerKey.startsWith('fam_') || lowerKey.startsWith('fgw_') || lowerKey.length >= 10) {
-        defaultUser.api_key = cleanKey;
-        this.persist();
-        return defaultUser;
-      }
-    }
-
+    // Do not fall back to admin or other user accounts - strictly enforce individual API keys
     return null;
   }
 
@@ -809,13 +804,18 @@ class DatabaseService {
         ...u.checkout_settings,
         ...settings,
       };
+      if (settings.avatar_url !== undefined) {
+        u.avatar_url = settings.avatar_url;
+      }
       u.updated_at = new Date().toISOString();
       this.usersMap.set(u.id, u);
+      this.persist();
 
       try {
         await setDoc(
           doc(db, 'users', u.id),
           {
+            avatar_url: u.avatar_url,
             checkout_settings: u.checkout_settings,
             updated_at: u.updated_at,
           },
@@ -956,7 +956,10 @@ class DatabaseService {
     const expiresAt = link.expires_at || new Date(now.getTime() + expiryMinutes * 60 * 1000).toISOString();
 
     const user = this.usersMap.get(link.user_id);
-    const merchantVpa = (user?.fampay_upi_id || '8056317218@fam').trim();
+    const merchantVpa = (user?.fampay_upi_id || '').trim();
+    if (!merchantVpa || !merchantVpa.includes('@')) {
+      throw new Error('Merchant FamPay/Bank UPI ID is not configured. Please complete setup before creating payment links.');
+    }
     const merchantName = user?.name || user?.checkout_settings?.brand_name || 'FamGateway Merchant';
     const deep_link = `upi://pay?pa=${merchantVpa}&pn=${encodeURIComponent(merchantName)}&am=${Number(link.amount).toFixed(2)}&cu=INR&tn=${encodeURIComponent(link.title || 'Payment')}`;
 

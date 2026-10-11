@@ -20,8 +20,16 @@ export class PaymentController {
     const link = await dbService.getPaymentLinkById(id);
     if (link) {
       const merchant = await dbService.findUserById(link.user_id);
-      const merchantUpi = merchant?.fampay_upi_id || '8056317218@fam';
-      const merchantName = merchant?.name || 'FamGateway Merchant';
+      const merchantUpi = merchant?.fampay_upi_id?.trim();
+      if (!merchantUpi || !merchantUpi.includes('@')) {
+        return res.status(400).json({
+          success: false,
+          error: 'Merchant Setup Incomplete',
+          message: 'This merchant has not yet configured their FamPay/Bank UPI ID to receive payments.',
+        });
+      }
+      const merchantName = merchant?.checkout_settings?.brand_name || merchant?.name || 'FamGateway Merchant';
+      const merchantAvatar = merchant?.checkout_settings?.avatar_url || merchant?.avatar_url || '';
 
       // Generate dynamic UPI URI & QR Code
       const note = link.title || 'FamGateway Payment';
@@ -44,6 +52,7 @@ export class PaymentController {
           description: link.description || '',
           merchant_name: merchantName,
           merchant_upi_id: merchantUpi,
+          merchant_avatar_url: merchantAvatar,
           backup_upi_id: merchant?.backup_upi_id || null,
           upi_uri: upiUri,
           status: effectiveStatus,
@@ -53,15 +62,17 @@ export class PaymentController {
           seconds_left: secondsLeft,
           success_url: link.success_url || merchant?.checkout_settings?.success_url,
           cancel_url: link.cancel_url || merchant?.checkout_settings?.cancel_url,
-          custom_settings: merchant?.checkout_settings || {
-            brand_name: 'FAMGATEWAY',
-            subtitle: 'VERIFIED MERCHANT',
-            avatar_url: 'https://images.unsplash.com/photo-1566492031773-4f4e44671857?w=150&auto=format&fit=crop&q=80',
-            theme_color: 'purple',
-            session_timeout_minutes: link.expiry_minutes || 8,
-            enable_utr_submission: true,
-            enable_save_qr: true,
-            show_apps: true,
+          custom_settings: {
+            brand_name: merchantName,
+            subtitle: merchant?.checkout_settings?.subtitle || 'VERIFIED MERCHANT',
+            avatar_url: merchantAvatar,
+            banner_url: merchant?.checkout_settings?.banner_url || '',
+            theme_color: merchant?.checkout_settings?.theme_color || 'purple',
+            session_timeout_minutes: link.expiry_minutes || merchant?.checkout_settings?.session_timeout_minutes || 8,
+            contact_url: merchant?.checkout_settings?.contact_url || '',
+            enable_utr_submission: merchant?.checkout_settings?.enable_utr_submission !== false,
+            enable_save_qr: merchant?.checkout_settings?.enable_save_qr !== false,
+            show_apps: merchant?.checkout_settings?.show_apps !== false,
           },
         },
       });
@@ -71,8 +82,16 @@ export class PaymentController {
     const payment = await dbService.getPaymentById(id);
     if (payment) {
       const merchant = await dbService.findUserById(payment.user_id);
-      const merchantUpi = merchant?.fampay_upi_id || payment.upi_id || '8056317218@fam';
+      const merchantUpi = merchant?.fampay_upi_id?.trim() || payment.upi_id?.trim();
+      if (!merchantUpi || !merchantUpi.includes('@')) {
+        return res.status(400).json({
+          success: false,
+          error: 'Merchant Setup Incomplete',
+          message: 'The merchant has not yet configured their FamPay/Bank UPI ID.',
+        });
+      }
       const merchantName = merchant?.checkout_settings?.brand_name || merchant?.name || 'FamGateway Merchant';
+      const merchantAvatar = merchant?.checkout_settings?.avatar_url || merchant?.avatar_url || '';
       const cleanPa = merchantUpi.trim();
       const upiUri = `upi://pay?pa=${cleanPa}&pn=${encodeURIComponent(merchantName)}&am=${payment.amount.toFixed(2)}&cu=INR&tn=${encodeURIComponent(payment.transaction_ref || payment.note || 'Payment')}`;
 
@@ -89,6 +108,7 @@ export class PaymentController {
         description: `Order Ref: ${payment.transaction_ref || payment.id}`,
         merchant_name: merchantName,
         merchant_upi_id: merchantUpi,
+        merchant_avatar_url: merchantAvatar,
         backup_upi_id: merchant?.backup_upi_id || null,
         upi_uri: upiUri,
         qr_data_url: payment.qr_data_url,
@@ -101,15 +121,17 @@ export class PaymentController {
         success_url: payment.success_url,
         cancel_url: payment.cancel_url,
         transaction_ref: payment.transaction_ref,
-        custom_settings: merchant?.checkout_settings || {
-          brand_name: 'FAMGATEWAY',
-          subtitle: 'VERIFIED MERCHANT',
-          avatar_url: 'https://images.unsplash.com/photo-1566492031773-4f4e44671857?w=150&auto=format&fit=crop&q=80',
-          theme_color: 'purple',
-          session_timeout_minutes: 8,
-          enable_utr_submission: true,
-          enable_save_qr: true,
-          show_apps: true,
+        custom_settings: {
+          brand_name: merchantName,
+          subtitle: merchant?.checkout_settings?.subtitle || 'VERIFIED MERCHANT',
+          avatar_url: merchantAvatar,
+          banner_url: merchant?.checkout_settings?.banner_url || '',
+          theme_color: merchant?.checkout_settings?.theme_color || 'purple',
+          session_timeout_minutes: merchant?.checkout_settings?.session_timeout_minutes || 8,
+          contact_url: merchant?.checkout_settings?.contact_url || '',
+          enable_utr_submission: merchant?.checkout_settings?.enable_utr_submission !== false,
+          enable_save_qr: merchant?.checkout_settings?.enable_save_qr !== false,
+          show_apps: merchant?.checkout_settings?.show_apps !== false,
         },
       };
 
@@ -120,19 +142,10 @@ export class PaymentController {
       });
     }
 
-    // Fallback default demo link
-    return res.status(200).json({
-      success: true,
-      link: {
-        id,
-        title: 'UPI Checkout Order',
-        amount: 100.0,
-        description: 'FamGateway.in Zero-Fee UPI Payment',
-        merchant_name: 'Kalam Akash',
-        merchant_upi_id: '8056317218@fam',
-        upi_uri: `upi://pay?pa=8056317218@fam&pn=FamGateway%20Merchant&am=100.00&cu=INR&tn=Order%20Payment`,
-        status: 'ACTIVE',
-      },
+    return res.status(404).json({
+      success: false,
+      error: 'Order Not Found',
+      message: 'The requested payment session does not exist or has expired.',
     });
   }
 
@@ -147,6 +160,18 @@ export class PaymentController {
 
     if (!req.user) {
       return res.status(401).json({ success: false, error: 'Authentication required' });
+    }
+
+    const userRecord = await dbService.findUserById(req.user.id);
+    const targetUpi = (upiId || userRecord?.fampay_upi_id)?.trim();
+
+    if (!targetUpi || !targetUpi.includes('@')) {
+      return res.status(400).json({
+        success: false,
+        error: 'Merchant UPI Setup Required',
+        requires_onboarding: true,
+        message: 'Please complete your setup by configuring your FamPay UPI ID in Settings before generating payment QR codes.',
+      });
     }
 
     if (!upiId || !upiId.includes('@')) {
@@ -440,7 +465,7 @@ export class PaymentController {
     const user = await dbService.findUserById(req.user.id);
     const logs = await dbService.getLogsByUserId(req.user.id);
 
-    const targetEmail = user?.fampay_gmail || user?.email || 'kalam172010@gmail.com';
+    const targetEmail = user?.fampay_gmail || user?.email || '';
     const imapServer = user?.imap_host || ImapService.resolveHost(targetEmail);
     const imapPort = user?.imap_port || 993;
     const hasPass = Boolean(user?.google_app_password && user.google_app_password.replace(/\s+/g, '').length >= 8);
@@ -454,7 +479,7 @@ export class PaymentController {
         email: targetEmail,
         mail_server: imapServer,
         mail_port: imapPort,
-        upi_id: user?.fampay_upi_id || '8056317218@fam',
+        upi_id: user?.fampay_upi_id || null,
         last_synced: user?.imap_last_synced || null,
         app_password_set: hasPass,
       },
@@ -611,7 +636,7 @@ export class PaymentController {
       return res.status(404).json({ success: false, error: 'Subscription plan not found.' });
     }
 
-    const platformUpi = process.env.PLATFORM_UPI_ID || 'kalamakash@fam';
+    const platformUpi = process.env.PLATFORM_UPI_ID || (req.user.fampay_upi_id ? req.user.fampay_upi_id : 'billing@famgateway.in');
     const note = `Sub: ${planId}`;
 
     const { payment, qrCodeUrl, upiUri } = await PaymentService.createUpiPayment(
@@ -669,7 +694,15 @@ export class PaymentController {
         requires_subscription: true,
       });
     }
-    const platformUpi = user.fampay_upi_id || '8056317218@fam';
+    const platformUpi = user.fampay_upi_id?.trim();
+    if (!platformUpi || !platformUpi.includes('@')) {
+      return res.status(400).json({
+        success: false,
+        error: 'Merchant UPI Not Configured',
+        requires_onboarding: true,
+        message: 'Please configure your Merchant FamPay/Bank UPI ID in Settings before creating payment orders.',
+      });
+    }
     const effectiveSuccessUrl = redirect_url || success_url;
     const orderTitle = note || title || (customer_name ? `Order - ${customer_name}` : `Payment ₹${parsedAmount}`);
 
@@ -702,9 +735,13 @@ export class PaymentController {
         return res.end(imgBuffer);
       }
 
+      const merchantBrandName = user.checkout_settings?.brand_name || user.name || 'FamGateway Merchant';
+      const merchantAvatar = user.checkout_settings?.avatar_url || user.avatar_url || '';
+
       return res.status(201).json({
         success: true,
         order_id: payment.id,
+        transaction_ref: payment.transaction_ref,
         amount: payment.amount,
         currency: 'INR',
         customer_name: customer_name || undefined,
@@ -713,8 +750,10 @@ export class PaymentController {
         note: payment.note,
         payment_url: checkoutUrl,
         checkout_url: checkoutUrl,
+        merchant_id: user.id,
+        merchant_name: merchantBrandName,
         merchant_upi_id: platformUpi,
-        merchant_name: user.name,
+        merchant_avatar_url: merchantAvatar,
         upi_uri: upiUri,
         qr_data_url: qrCodeUrl,
         status: payment.status,
@@ -984,7 +1023,7 @@ export class PaymentController {
           transaction_ref: utr || `GW-${Date.now().toString(36).toUpperCase()}`,
           user_id: link.user_id,
           user_email: merchant?.email || 'merchant@famgateway.in',
-          upi_id: merchant?.fampay_upi_id || 'merchant@fam',
+          upi_id: merchant?.fampay_upi_id || '',
           amount: amount || link.amount,
           note: link.title,
           qr_data_url: '',
@@ -1120,11 +1159,11 @@ export class PaymentController {
     }
 
     const amount = Number(payment?.amount || link?.amount || 0);
-    const upiId = payment?.upi_id || link?.merchant_upi_id || 'merchant@fam';
     const txnRef = payment?.id || link?.id || paymentId;
     const utr = payment?.transaction_ref || 'Auto-Captured';
     const merchantId = payment?.user_id || link?.user_id;
     const merchant = merchantId ? await dbService.findUserById(merchantId) : null;
+    const upiId = payment?.upi_id || link?.merchant_upi_id || merchant?.fampay_upi_id || '';
     const merchantName = merchant?.checkout_settings?.brand_name || merchant?.name || 'FamGateway Merchant';
 
     try {

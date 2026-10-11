@@ -34,6 +34,24 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onSwitchToRegister }) => {
   const [newPassword, setNewPassword] = useState('');
   const [resetLoading, setResetLoading] = useState(false);
 
+  const handleInstantDemoLogin = async () => {
+    setError(null);
+    setLoading(true);
+    try {
+      const res = await fetch('/api/auth/default-session');
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setAuthSession(data.user, data.token);
+      } else {
+        setError('Failed to load session.');
+      }
+    } catch {
+      setError('Connection error.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
@@ -197,6 +215,21 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onSwitchToRegister }) => {
             <span>{success}</span>
           </div>
         )}
+
+        {/* Instant Merchant Access Button */}
+        <button
+          type="button"
+          onClick={handleInstantDemoLogin}
+          disabled={loading}
+          className="w-full py-2.5 px-4 rounded-xl bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-600 hover:from-purple-500 hover:to-indigo-500 text-white font-black text-xs flex items-center justify-center gap-2 shadow-md shadow-purple-600/30 transition-all cursor-pointer disabled:opacity-60"
+        >
+          {loading ? (
+            <RefreshCw className="w-4 h-4 animate-spin text-white" />
+          ) : (
+            <Sparkles className="w-4 h-4 text-amber-300" />
+          )}
+          <span>⚡ Enter Dashboard as Kalam Akash (Merchant)</span>
+        </button>
 
         {/* Continue with Google Button */}
         <button

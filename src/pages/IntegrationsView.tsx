@@ -22,8 +22,8 @@ import { EmailTemplatePreviewTool } from '../components/EmailTemplatePreviewTool
 
 export const IntegrationsView: React.FC = () => {
   const { user, token, refreshProfile } = useAuth();
-  const [fampayGmail, setFampayGmail] = useState(user?.fampay_gmail || user?.email || 'kalam172010@gmail.com');
-  const [fampayUpiId, setFampayUpiId] = useState(user?.fampay_upi_id || '8056317218@fam');
+  const [fampayGmail, setFampayGmail] = useState(user?.fampay_gmail || user?.email || '');
+  const [fampayUpiId, setFampayUpiId] = useState(user?.fampay_upi_id || '');
   const [backupUpiId, setBackupUpiId] = useState(user?.backup_upi_id || '');
   const [savingUpi, setSavingUpi] = useState(false);
   const [upiSuccessMsg, setUpiSuccessMsg] = useState<string | null>(null);
@@ -215,7 +215,7 @@ export const IntegrationsView: React.FC = () => {
   };
 
   return (
-    <div className="space-y-6 max-w-5xl mx-auto">
+    <div className="space-y-6 w-full">
       <div>
         <h1 className="text-2xl font-extrabold text-slate-900 tracking-tight">Integrations</h1>
         <p className="text-xs text-slate-500 mt-1">
@@ -350,7 +350,7 @@ export const IntegrationsView: React.FC = () => {
                     required
                     value={fampayUpiId}
                     onChange={(e) => setFampayUpiId(e.target.value)}
-                    placeholder="e.g. 8056317218@fam"
+                    placeholder="e.g. username@fam"
                     className="w-full px-3.5 py-2.5 bg-slate-50/70 border border-slate-200 rounded-xl text-xs font-mono text-slate-900 focus:outline-hidden focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 font-bold"
                   />
                   <span className="text-[10px] text-slate-400 mt-0.5 block">Main account for receiving payments</span>
@@ -439,7 +439,7 @@ export const IntegrationsView: React.FC = () => {
               <Mail className="w-4 h-4 text-indigo-600 shrink-0 mt-0.5" />
               <div>
                 <p className="font-semibold text-slate-900">
-                  Your Account Email: <span className="font-mono text-indigo-600">{user?.email || 'kalam172010@gmail.com'}</span>
+                  Your Account Email: <span className="font-mono text-indigo-600">{user?.email || 'Not Signed In'}</span>
                 </p>
                 <p className="text-[11px] text-slate-600 mt-0.5 leading-relaxed">
                   <strong>imap.gmail.com</strong> is Google's incoming mail server address (Host) that delivers emails to your inbox. You only need to enter your personal email and your 16-character Google App Password below.
@@ -495,7 +495,7 @@ export const IntegrationsView: React.FC = () => {
                   required
                   value={fampayUpiId}
                   onChange={(e) => setFampayUpiId(e.target.value)}
-                  placeholder="e.g. 8056317218@fam"
+                  placeholder="e.g. username@fam"
                   className="w-full px-3.5 py-2.5 bg-slate-50/70 border border-slate-200 rounded-xl text-xs font-mono text-slate-900 focus:outline-hidden focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 font-bold"
                 />
               </div>

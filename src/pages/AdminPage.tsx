@@ -545,7 +545,7 @@ export const AdminPage: React.FC = () => {
   );
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-8 w-full">
       {/* Header */}
       <div className="p-6 rounded-2xl bg-white border border-slate-200/80 shadow-xs flex items-center justify-between flex-wrap gap-4">
         <div className="space-y-1">

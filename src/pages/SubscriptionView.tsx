@@ -17,11 +17,59 @@ import {
 import { useAuth } from '../context/AuthContext';
 
 export const SubscriptionView: React.FC = () => {
-  const { user, token } = useAuth();
+  const { user, token, refreshProfile } = useAuth();
   const [plans, setPlans] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [activatingPlanId, setActivatingPlanId] = useState<string | null>(null);
-  const [message, setMessage] = useState<string | null>(null);
+  const [message, setMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
+  const [quickActivating, setQuickActivating] = useState(false);
+
+  const isAdmin = user?.role === 'admin';
+  const daysLeft = user?.subscription_expires_at
+    ? Math.max(0, Math.ceil((new Date(user.subscription_expires_at).getTime() - Date.now()) / (1000 * 60 * 60 * 24)))
+    : 0;
+  const isExpired = Boolean(
+    !user ||
+    user.subscription_status === 'expired' ||
+    user.subscription_status === 'inactive' ||
+    daysLeft <= 0 ||
+    !user.subscription_expires_at
+  );
+
+  const handleInstantQuickUnlock = async () => {
+    if (!token) return;
+    setQuickActivating(true);
+    setMessage(null);
+    try {
+      const res = await fetch('/api/user/toggle-subscription', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          targetStatus: isExpired ? 'active' : 'expired',
+          planId: isExpired ? 'Business Pro Tier' : undefined,
+        }),
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setMessage({
+          type: 'success',
+          text: isExpired
+            ? '🎉 சந்தா ஆன் செய்யப்பட்டது! அனைத்து கேட்வே ஆப்ஷன்களும் அன்லாக் செய்யப்பட்டன! (Plan Activated! All options unlocked)'
+            : '🔒 சந்தா லாக் செய்யப்பட்டது (Subscription locked for testing)',
+        });
+        await refreshProfile();
+      } else {
+        setMessage({ type: 'error', text: data.error || 'Failed to update subscription.' });
+      }
+    } catch {
+      setMessage({ type: 'error', text: 'Network error updating subscription.' });
+    } finally {
+      setQuickActivating(false);
+    }
+  };
 
   // Subscription QR Checkout Modal State
   const [checkoutModalOpen, setCheckoutModalOpen] = useState(false);
@@ -116,6 +164,7 @@ export const SubscriptionView: React.FC = () => {
                 setCheckoutStatus('CONFIRMED');
                 clearInterval(checkoutTimerRef.current!);
                 clearInterval(checkoutPollRef.current!);
+                await refreshProfile();
               }
             }
           } catch {
@@ -125,10 +174,16 @@ export const SubscriptionView: React.FC = () => {
         checkoutPollRef.current = setInterval(poll, 3000);
 
       } else {
-        setMessage(`Error: ${data.error || 'Failed to initialize subscription checkout.'}`);
+        setMessage({
+          type: 'error',
+          text: `Error: ${data.error || 'Failed to initialize subscription checkout.'}`,
+        });
       }
     } catch {
-      setMessage('Network error initializing checkout. Please try again.');
+      setMessage({
+        type: 'error',
+        text: 'Network error initializing checkout. Please try again.',
+      });
     } finally {
       setActivatingPlanId(null);
     }
@@ -159,6 +214,7 @@ export const SubscriptionView: React.FC = () => {
         setCheckoutStatus('CONFIRMED');
         if (checkoutTimerRef.current) clearInterval(checkoutTimerRef.current);
         if (checkoutPollRef.current) clearInterval(checkoutPollRef.current);
+        await refreshProfile();
       } else {
         setCheckoutError(data.error || 'Manual verification failed. Please check UTR or make sure payment is made.');
       }
@@ -182,7 +238,7 @@ export const SubscriptionView: React.FC = () => {
   };
 
   return (
-    <div className="space-y-6 max-w-5xl mx-auto">
+    <div className="space-y-6 w-full">
       <div>
         <h1 className="text-2xl font-extrabold text-slate-900 tracking-tight flex items-center gap-2">
           <Sliders className="w-6 h-6 text-purple-600" />
@@ -194,44 +250,94 @@ export const SubscriptionView: React.FC = () => {
       </div>
 
       {/* Current Subscription Status Card */}
-      <div className="p-6 rounded-2xl bg-[#090d16] text-white border border-slate-800 shadow-md flex flex-col md:flex-row md:items-center justify-between gap-6 relative overflow-hidden">
-        <div className="space-y-3 relative z-10">
-          <div className="flex items-center gap-2 text-xs font-mono text-emerald-400 font-semibold">
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
-            <span>SECURE SYSTEM ACTIVE</span>
+      <div className={`p-6 rounded-3xl text-white border shadow-xl flex flex-col md:flex-row md:items-center justify-between gap-6 relative overflow-hidden ${
+        isExpired
+          ? 'bg-gradient-to-br from-[#1c0c14] via-[#150a12] to-[#0c080f] border-rose-900/60 shadow-rose-950/20'
+          : 'bg-gradient-to-br from-[#0c1424] via-[#090f1d] to-[#070b15] border-slate-800 shadow-slate-950/30'
+      }`}>
+        {/* Glow */}
+        <div className={`absolute top-0 right-0 w-80 h-80 rounded-full blur-3xl pointer-events-none ${
+          isExpired ? 'bg-rose-600/10' : 'bg-emerald-500/10'
+        }`} />
+
+        <div className="space-y-3 relative z-10 max-w-xl">
+          <div className="flex items-center gap-2 text-xs font-mono font-bold">
+            <span className={`w-2 h-2 rounded-full ${isExpired ? 'bg-rose-500 animate-pulse' : 'bg-emerald-400'}`} />
+            <span className={isExpired ? 'text-rose-400' : 'text-emerald-400'}>
+              {isExpired ? 'ACCESS RESTRICTED • GATEWAY LOCKED' : 'SECURE SYSTEM ACTIVE • UNLIMITED ACCESS'}
+            </span>
           </div>
 
           <div className="space-y-1">
-            <h2 className="text-xl font-bold tracking-tight flex items-center gap-2">
-              <span>Current Plan:</span>
-              <span className="text-indigo-400 font-mono">
-                {user?.subscription_plan_id || 'Free Trial'}
+            <h2 className="text-xl sm:text-2xl font-black tracking-tight flex items-center gap-2">
+              <span>Plan:</span>
+              <span className={`font-mono ${isExpired ? 'text-rose-300' : 'text-indigo-400'}`}>
+                {user?.subscription_plan_id || (isExpired ? 'Expired Plan' : 'Active Plan')}
               </span>
             </h2>
-            <p className="text-xs text-slate-400 font-medium">
-              Merchant ID: <code className="font-mono text-white">{user?.merchant_id}</code>
+            <p className="text-xs text-slate-300 font-medium">
+              Merchant ID: <code className="font-mono text-white bg-slate-900/80 px-2 py-0.5 rounded border border-slate-700">{user?.merchant_id}</code>
             </p>
           </div>
 
           <div className="flex items-center gap-2.5 text-xs font-mono text-slate-400">
-            <span className="text-slate-200 font-semibold">{getDaysRemaining()} Days Remaining</span>
+            <span className={`font-bold ${isExpired ? 'text-rose-400' : 'text-slate-200'}`}>
+              {isExpired ? '0 Days Remaining (Expired)' : `${daysLeft} Days Remaining`}
+            </span>
             <span className="text-slate-700">·</span>
-            <span>Expires: {user?.subscription_expires_at ? new Date(user.subscription_expires_at).toLocaleDateString() : 'Active'}</span>
+            <span>Expires: {user?.subscription_expires_at ? new Date(user.subscription_expires_at).toLocaleDateString() : 'N/A'}</span>
           </div>
+
+          {isExpired && (
+            <p className="text-xs text-rose-300 bg-rose-950/60 border border-rose-800/80 p-3 rounded-xl font-medium">
+              சந்தா முடிவடைந்தது! உங்கள் பரிவர்த்தனைகள், ஏபிஐ சாவி மற்றும் பணம் செலுத்தும் இணைப்புகள் லாக் செய்யப்பட்டுள்ளன.
+            </p>
+          )}
         </div>
 
-        <div className="relative z-10 p-5 rounded-xl bg-slate-900/90 border border-slate-800 min-w-[200px] text-center">
-          <div className="text-[10px] text-slate-400 font-bold uppercase tracking-wider font-mono">Account Status</div>
-          <div className="text-2xl font-bold text-emerald-400 font-mono mt-1 uppercase">
-            {user?.subscription_status || 'ACTIVE'}
+        <div className="relative z-10 flex flex-col gap-3 min-w-[220px]">
+          <div className={`p-4 rounded-2xl border text-center ${
+            isExpired ? 'bg-rose-950/40 border-rose-900/60' : 'bg-slate-900/90 border-slate-800'
+          }`}>
+            <div className="text-[10px] text-slate-400 font-bold uppercase tracking-wider font-mono">Account Status</div>
+            <div className={`text-xl font-black font-mono mt-0.5 uppercase ${
+              isExpired ? 'text-rose-400' : 'text-emerald-400'
+            }`}>
+              {isExpired ? 'EXPIRED (LOCKED)' : (user?.subscription_status || 'ACTIVE')}
+            </div>
           </div>
-          <p className="text-[10px] text-slate-400 mt-1">0% Gateway Fee · Direct IMAP Settlement</p>
+
+          <button
+            onClick={handleInstantQuickUnlock}
+            disabled={quickActivating}
+            className={`w-full py-3 px-4 rounded-xl font-black text-xs transition-all shadow-md flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50 ${
+              isExpired
+                ? 'bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-white shadow-emerald-600/30'
+                : 'bg-slate-900 hover:bg-slate-800 text-slate-300 hover:text-white border border-slate-700'
+            }`}
+          >
+            {quickActivating ? (
+              <Loader2 className="w-4 h-4 animate-spin" />
+            ) : (
+              <Zap className="w-4 h-4 text-amber-300 fill-amber-300" />
+            )}
+            <span>{isExpired ? '⚡ 1-Click Activate (Unlock)' : 'Simulate Expiration (Lock)'}</span>
+          </button>
         </div>
       </div>
 
       {message && (
-        <div className="p-4 rounded-2xl bg-indigo-50 border border-indigo-200 text-indigo-800 text-xs font-bold font-mono">
-          {message}
+        <div className={`p-4 rounded-2xl text-xs font-bold font-mono flex items-center gap-2 border ${
+          message.type === 'success'
+            ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
+            : 'bg-rose-50 border-rose-200 text-rose-800'
+        }`}>
+          {message.type === 'success' ? (
+            <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+          ) : (
+            <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+          )}
+          <span>{message.text}</span>
         </div>
       )}
 

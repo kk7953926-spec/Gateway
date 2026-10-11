@@ -9,6 +9,7 @@ import {
   Smartphone,
   AlertCircle,
   Download,
+  Printer,
   Clock,
   Headphones,
   Check,
@@ -24,6 +25,7 @@ import {
 } from 'lucide-react';
 import QRCode from 'qrcode';
 import { listenToPaymentStatus } from '../hooks/usePaymentListener';
+import { generateReceiptPdf, printReceiptPdf, printHtmlReceipt } from '../utils/pdfGenerator';
 
 interface PublicCheckoutViewProps {
   linkId: string;
@@ -103,7 +105,7 @@ export const PublicCheckoutView: React.FC<PublicCheckoutViewProps> = ({ linkId }
         if (linkObj) {
           setDetails(linkObj);
 
-          const primaryUpi = (linkObj.merchant_upi_id || '8056317218@fam').trim();
+          const primaryUpi = (linkObj.merchant_upi_id || '').trim();
           setSelectedUpi(primaryUpi);
           const merchantName = (linkObj.merchant_name || 'FAMGATEWAY').replace(/[^a-zA-Z0-9 ]/g, '').trim().substring(0, 25) || 'Merchant';
           const amountFormatted = Number(linkObj.amount || 0).toFixed(2);
@@ -140,6 +142,10 @@ export const PublicCheckoutView: React.FC<PublicCheckoutViewProps> = ({ linkId }
             setConfirmedUtr(linkObj.transaction_ref || 'VERIFIED');
           }
         }
+      } else {
+        const errData = await res.json().catch(() => ({}));
+        setStatus('FAILED');
+        setStatusMessage(errData.message || errData.error || 'Payment link not found or merchant setup is pending.');
       }
     } catch {
       // Ignore
@@ -313,38 +319,36 @@ export const PublicCheckoutView: React.FC<PublicCheckoutViewProps> = ({ linkId }
     }
   };
 
+  const getReceiptData = () => ({
+    merchantName: brandName || 'FamGateway Merchant',
+    orderId: linkId || 'ORD-UNKNOWN',
+    transactionId: confirmedTxnId || linkId,
+    amount: Number(details?.amount || 0),
+    utrRef: confirmedUtr || 'N/A',
+    upiId: details?.fampay_upi_id || 'FamGateway UPI',
+    customerName: details?.customer_name || 'Customer',
+    customerEmail: details?.customer_email,
+    date: new Date().toLocaleString(),
+    status: 'CONFIRMED',
+    note: details?.note || 'Payment Order',
+  });
+
   const handleDownloadPdfReceipt = () => {
-    const printWindow = window.open('', '_blank');
-    if (!printWindow) return;
-    printWindow.document.write(`
-      <html>
-        <head>
-          <title>Payment Receipt - ${brandName}</title>
-          <style>
-            body { font-family: monospace; padding: 40px; color: #333; background-color: #fff; }
-            .receipt { border: 2px dashed #000; padding: 30px; max-width: 500px; margin: 0 auto; }
-            h1 { text-align: center; font-size: 20px; text-transform: uppercase; margin-bottom: 20px; }
-            .row { display: flex; justify-content: space-between; margin: 12px 0; font-size: 14px; border-bottom: 1px dotted #ccc; padding-bottom: 4px; }
-            .total { font-size: 18px; font-weight: bold; border-top: 2px solid #000; padding-top: 10px; margin-top: 20px; }
-            .footer { text-align: center; margin-top: 30px; font-size: 11px; color: #666; }
-          </style>
-        </head>
-        <body onload="window.print(); window.close();">
-          <div class="receipt">
-            <h1>FAMGATEWAY RECEIPT</h1>
-            <div class="row"><span>Merchant:</span><strong>${brandName}</strong></div>
-            <div class="row"><span>Status:</span><strong style="color: green;">CONFIRMED ✓</strong></div>
-            <div class="row"><span>Date:</span><strong>${new Date().toLocaleString()}</strong></div>
-            <div class="row"><span>Order Ref:</span><strong>${linkId}</strong></div>
-            <div class="row"><span>Bank UTR:</span><strong>${confirmedUtr || 'N/A'}</strong></div>
-            <div class="row"><span>Transaction ID:</span><strong>${confirmedTxnId || linkId}</strong></div>
-            <div class="row total"><span>Amount Paid:</span><span>₹${Number(details?.amount || 0).toFixed(2)}</span></div>
-            <div class="footer">Thank you for your business. Verified by FamGateway IMAP.</div>
-          </div>
-        </body>
-      </html>
-    `);
-    printWindow.document.close();
+    try {
+      generateReceiptPdf(getReceiptData());
+    } catch (e) {
+      console.error('PDF generation error, fallback:', e);
+      printHtmlReceipt(getReceiptData());
+    }
+  };
+
+  const handlePrintReceipt = () => {
+    try {
+      printReceiptPdf(getReceiptData());
+    } catch (e) {
+      console.error('Print PDF error, fallback to HTML printer:', e);
+      printHtmlReceipt(getReceiptData());
+    }
   };
 
   useEffect(() => {
@@ -430,14 +434,12 @@ export const PublicCheckoutView: React.FC<PublicCheckoutViewProps> = ({ linkId }
   const custom = details?.custom_settings || {};
   const brandName = custom.brand_name || details?.merchant_name || 'FAMGATEWAY STORE';
   const subtitle = custom.subtitle || 'VERIFIED MERCHANT';
-  const avatarUrl =
-    custom.avatar_url ||
-    'https://images.unsplash.com/photo-1566492031773-4f4e44671857?w=150&auto=format&fit=crop&q=80';
+  const avatarUrl = custom.avatar_url || details?.merchant_avatar_url || '';
   const bannerUrl = custom.banner_url || '';
   const customMessage = custom.custom_message || '';
   const contactUrl = custom.contact_url || '';
 
-  const primaryUpi = (details?.merchant_upi_id || '8056317218@fam').trim();
+  const primaryUpi = (details?.merchant_upi_id || '').trim();
   const backupUpi = details?.backup_upi_id ? details.backup_upi_id.trim() : null;
   const currentUpi = (selectedUpi || primaryUpi).trim();
 
@@ -607,7 +609,7 @@ export const PublicCheckoutView: React.FC<PublicCheckoutViewProps> = ({ linkId }
                 </div>
               )}
 
-              <div className="space-y-2.5 pt-2">
+              <div className="space-y-2 pt-2">
                 <button
                   type="button"
                   onClick={handleReturnToPreviousPage}
@@ -617,14 +619,25 @@ export const PublicCheckoutView: React.FC<PublicCheckoutViewProps> = ({ linkId }
                   <span>Return to Store</span>
                 </button>
 
-                <button
-                  type="button"
-                  onClick={handleDownloadPdfReceipt}
-                  className="w-full py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white font-semibold text-xs transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
-                >
-                  <Download className="w-4 h-4" />
-                  <span>Download PDF Receipt</span>
-                </button>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={handleDownloadPdfReceipt}
+                    className="py-2.5 px-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white font-semibold text-xs transition-colors flex items-center justify-center gap-1.5 cursor-pointer border border-slate-700"
+                  >
+                    <Download className="w-3.5 h-3.5 text-indigo-400" />
+                    <span>Download PDF</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={handlePrintReceipt}
+                    className="py-2.5 px-3 rounded-xl bg-indigo-950/60 hover:bg-indigo-900/60 text-indigo-200 hover:text-white font-semibold text-xs transition-colors flex items-center justify-center gap-1.5 cursor-pointer border border-indigo-800/60"
+                  >
+                    <Printer className="w-3.5 h-3.5 text-indigo-400" />
+                    <span>Print Receipt</span>
+                  </button>
+                </div>
               </div>
             </div>
           ) : (status === 'CANCELLED' || status === 'FAILED') ? (
